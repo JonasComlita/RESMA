@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  VIEWER
+  CREATOR
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+model User {
+  id              String           @id @default(uuid())
+  anonymousId     String           @unique @default(uuid())
+  passwordHash    String
+  userType        UserType         @default(VIEWER)
+  subscriptionTier SubscriptionTier @default(FREE)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  preferences     Json?
+  
+  // Privacy settings
+  contributeToCreatorInsights Boolean @default(true)
+  
+  feedSnapshots   FeedSnapshot[]
+  creatorProfile  Creator?
+
+  @@map("users")
+}
+
+model Creator {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  tiktokHandle    String    @unique
+  tiktokId        String?   @unique
+  displayName     String?
+  avatarUrl       String?
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  claimedAt       DateTime  @default(now())
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reachStats      CreatorReach[]
+
+  @@map("creators")
+}
+
+model CreatorReach {
+  id              String    @id @default(uuid())
+  creatorId       String
+  date            DateTime  @db.Date
+  uniqueViewers   Int       @default(0)
+  totalImpressions Int      @default(0)
+  audienceProfile Json?     // Aggregated interests, other creators they follow
+  
+  creator         Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, date])
+  @@index([creatorId])
+  @@map("creator_reach")
+}
+
+model FeedSnapshot {
+  id             String     @id @default(uuid())
+  userId         String
+  capturedAt     DateTime   @default(now())
+  platform       String     @default("tiktok")
+  itemCount      Int        @default(0)
+  avgWatchTime   Float?
+  sessionMetadata Json?
+  
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedItems     FeedItem[]
+  patternGroups PatternGroupMembership[]
+
+  @@index([userId])
+  @@index([capturedAt])
+  @@map("feed_snapshots")
+}
+
+model FeedItem {
+  id               String       @id @default(uuid())
+  snapshotId       String
+  videoId          String
+  creatorId        String?
+  creatorHandle    String?
+  positionInFeed   Int
+  caption          String?
+  musicId          String?
+  musicTitle       String?
+  engagementMetrics Json?
+  contentTags      String[]
+  contentCategories String[]    // Detected categories for "why am I seeing this"
+  watchDuration    Float?
+  interacted       Boolean      @default(false)
+  interactionType  String?
+  
+  snapshot         FeedSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([videoId])
+  @@index([creatorHandle])
+  @@map("feed_items")
+}
+
+model PatternGroup {
+  id              String    @id @default(uuid())
+  name            String
+  description     String?
+  characteristics Json
+  createdAt       DateTime  @default(now())
+  
+  members         PatternGroupMembership[]
+
+  @@map("pattern_groups")
+}
+
+model PatternGroupMembership {
+  id              String       @id @default(uuid())
+  snapshotId      String
+  patternGroupId  String
+  similarityScore Float
+  addedAt         DateTime     @default(now())
+  
+  snapshot        FeedSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  patternGroup    PatternGroup @relation(fields: [patternGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, patternGroupId])
+  @@map("pattern_group_memberships")
+}
