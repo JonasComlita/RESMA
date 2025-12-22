@@ -2,13 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> Open-source platform for collectively understanding how TikTok's algorithm shapes feeds through crowdsourced data collection and community collaboration.
+> Open-source platform for collectively understanding how TikTok, YouTube, and other algorithms shape feeds through crowdsourced data collection and community collaboration.
 
 ## 🎯 Vision
 
 Social media algorithms are black boxes that shape what billions of people see daily. RESMA empowers users to:
 
-- **Capture** their TikTok feed data through a browser extension
+- **Capture** their TikTok and YouTube feed data through a browser extension
 - **Compare** their feeds with others to discover patterns
 - **Collaborate** in forums to understand algorithmic behavior
 - **Contribute** to open research on recommendation systems
@@ -17,7 +17,7 @@ Social media algorithms are black boxes that shape what billions of people see d
 
 ```
 resma/
-├── extension/     # Chrome browser extension
+├── extension/     # Chrome browser extension (TikTok & YouTube)
 ├── backend/       # Node.js + Express API
 └── forum/         # React frontend
 ```
@@ -57,9 +57,9 @@ pnpm dev
 
 | Package | Description |
 |---------|-------------|
-| `extension` | Chrome extension for TikTok feed capture |
-| `backend` | Express API for data storage and analysis |
-| `forum` | React-based community platform |
+| `extension` | Chrome extension for TikTok & YouTube feed capture |
+| `backend` | Express API for data storage and analysis (TikTok, YouTube, and more) |
+| `forum` | React-based community platform with cross-platform insights |
 
 ## 🤝 Contributing
 

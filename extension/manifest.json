@@ -8,7 +8,8 @@
         "activeTab"
     ],
     "host_permissions": [
-        "https://www.tiktok.com/*"
+        "https://www.tiktok.com/*",
+        "https://www.youtube.com/*"
     ],
     "background": {
         "service_worker": "dist/background/service-worker.js",
@@ -21,6 +22,15 @@
             ],
             "js": [
                 "dist/content/tiktok-observer.js"
+            ],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": [
+                "https://www.youtube.com/*"
+            ],
+            "js": [
+                "dist/content/youtube-observer.js"
             ],
             "run_at": "document_idle"
         }

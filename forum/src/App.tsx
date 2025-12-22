@@ -5,6 +5,8 @@ import Compare from './pages/Compare';
 import Dashboard from './pages/Dashboard';
 import CreatorDashboard from './pages/CreatorDashboard';
 import Login from './pages/Login';
+import YouTubeDashboard from './pages/YouTubeDashboard';
+import InsightsDashboard from './pages/InsightsDashboard';
 
 function App() {
     return (
@@ -17,6 +19,8 @@ function App() {
                     <Route path="/compare" element={<Compare />} />
                     <Route path="/creators" element={<CreatorDashboard />} />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/youtube" element={<YouTubeDashboard />} />
+                    <Route path="/insights" element={<InsightsDashboard />} />
                 </Routes>
             </main>
         </div>

@@ -8,6 +8,8 @@ import { feedsRouter } from './routes/feeds.js';
 import { analysisRouter } from './routes/analysis.js';
 import { creatorsRouter } from './routes/creators.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import youtubeRouter from './routes/youtube.js';
+import insightsRouter from './routes/insights.js';
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use('/auth', authRouter);
 app.use('/feeds', feedsRouter);
 app.use('/analysis', analysisRouter);
 app.use('/creators', creatorsRouter);
+app.use('/youtube', youtubeRouter);
+app.use('/insights', insightsRouter);
 
 // Error handling
 app.use(errorHandler);
