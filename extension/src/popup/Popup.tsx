@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 
 interface CaptureStatus {
     isCapturing: boolean;
-    videoCount: number;
+    itemCount: number;
 }
 
 const Popup: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isOnTikTok, setIsOnTikTok] = useState(false);
+    const [platform, setPlatform] = useState<'tiktok' | 'twitter' | 'youtube' | 'instagram' | null>(null);
     const [captureStatus, setCaptureStatus] = useState<CaptureStatus>({
         isCapturing: false,
-        videoCount: 0,
+        itemCount: 0,
     });
     const [message, setMessage] = useState('');
 
@@ -20,24 +20,46 @@ const Popup: React.FC = () => {
             setIsAuthenticated(response?.isAuthenticated || false);
         });
 
-        // Check if we're on TikTok
+        // Detect platform (TikTok, Twitter, YouTube, Instagram)
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const url = tabs[0]?.url || '';
-            setIsOnTikTok(url.includes('tiktok.com'));
-
-            if (url.includes('tiktok.com') && tabs[0]?.id) {
-                chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                    if (response) {
-                        setCaptureStatus(response);
-                    }
-                });
+            if (url.includes('tiktok.com')) {
+                setPlatform('tiktok');
+                if (tabs[0]?.id) {
+                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
+                        if (response) setCaptureStatus(response);
+                    });
+                }
+            } else if (url.includes('twitter.com')) {
+                setPlatform('twitter');
+                if (tabs[0]?.id) {
+                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
+                        if (response) setCaptureStatus(response);
+                    });
+                }
+            } else if (url.includes('youtube.com')) {
+                setPlatform('youtube');
+                if (tabs[0]?.id) {
+                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
+                        if (response) setCaptureStatus(response);
+                    });
+                }
+            } else if (url.includes('instagram.com')) {
+                setPlatform('instagram');
+                if (tabs[0]?.id) {
+                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
+                        if (response) setCaptureStatus(response);
+                    });
+                }
+            } else {
+                setPlatform(null);
             }
         });
     }, []);
 
     const toggleCapture = async () => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab.id) return;
+        if (!tab.id || !platform) return;
 
         const messageType = captureStatus.isCapturing ? 'STOP_CAPTURE' : 'START_CAPTURE';
 
@@ -53,8 +75,14 @@ const Popup: React.FC = () => {
                     chrome.runtime.sendMessage({
                         type: 'UPLOAD_SESSION',
                         data: response.data,
+                        platform,
                     });
-                    setMessage(`Captured ${response.data.videos.length} videos!`);
+                    let msg = '';
+                    if (platform === 'tiktok') msg = `Captured ${response.data.videos?.length || 0} videos!`;
+                    else if (platform === 'twitter') msg = `Captured ${response.data.tweets?.length || 0} tweets!`;
+                    else if (platform === 'youtube') msg = `Captured ${response.data.videos?.length || 0} YouTube videos!`;
+                    else if (platform === 'instagram') msg = `Captured ${response.data.posts?.length || 0} Instagram posts!`;
+                    setMessage(msg);
                     setTimeout(() => setMessage(''), 3000);
                 }
             }
@@ -69,6 +97,9 @@ const Popup: React.FC = () => {
             </header>
 
             <main className="popup-content">
+                <div className="privacy-message">
+                    <strong>Privacy First:</strong> Feed capture is always optional and opt-in. No data is collected unless you explicitly start a session. You control what is shared, and all data is anonymized.
+                </div>
                 {!isAuthenticated ? (
                     <div className="auth-prompt">
                         <p>Please log in at the RESMA forum to use this extension.</p>
@@ -81,9 +112,9 @@ const Popup: React.FC = () => {
                             Open Forum
                         </a>
                     </div>
-                ) : !isOnTikTok ? (
-                    <div className="tiktok-prompt">
-                        <p>Navigate to TikTok to start capturing your feed.</p>
+                ) : !platform ? (
+                    <div className="platform-prompt">
+                        <p>Navigate to TikTok, Twitter, YouTube, or Instagram to start capturing your feed.</p>
                         <a
                             href="https://www.tiktok.com"
                             target="_blank"
@@ -91,6 +122,30 @@ const Popup: React.FC = () => {
                             className="btn btn-secondary"
                         >
                             Open TikTok
+                        </a>
+                        <a
+                            href="https://twitter.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                        >
+                            Open Twitter
+                        </a>
+                        <a
+                            href="https://www.youtube.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                        >
+                            Open YouTube
+                        </a>
+                        <a
+                            href="https://www.instagram.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                        >
+                            Open Instagram
                         </a>
                     </div>
                 ) : (
@@ -105,13 +160,18 @@ const Popup: React.FC = () => {
                                     Stop Capture
                                 </>
                             ) : (
-                                'Start Capture'
+                                `Start Capture (${platform.charAt(0).toUpperCase() + platform.slice(1)})`
                             )}
                         </button>
 
                         {captureStatus.isCapturing && (
                             <p className="capture-status">
-                                Captured: <strong>{captureStatus.videoCount}</strong> videos
+                                Captured: <strong>{captureStatus.itemCount}</strong> {
+                                    platform === 'tiktok' ? 'videos' :
+                                    platform === 'twitter' ? 'tweets' :
+                                    platform === 'youtube' ? 'YouTube videos' :
+                                    platform === 'instagram' ? 'Instagram posts' : ''
+                                }
                             </p>
                         )}
 

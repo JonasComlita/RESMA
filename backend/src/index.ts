@@ -11,6 +11,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import youtubeRouter from './routes/youtube.js';
 import instagramRouter from './routes/instagram.js';
 import insightsRouter from './routes/insights.js';
+import twitterRouter from './routes/twitter.js';
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/creators', creatorsRouter);
 app.use('/youtube', youtubeRouter);
 app.use('/insights', insightsRouter);
 app.use('/instagram', instagramRouter);
+app.use('/twitter', twitterRouter);
 
 // Error handling
 app.use(errorHandler);

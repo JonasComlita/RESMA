@@ -25,10 +25,13 @@ export default function Header() {
                     <Link to="/instagram" className={`nav-link ${isActive('/instagram') ? 'active' : ''}`}>
                         Instagram
                     </Link>
-                    <Link to="/compare" className={`nav-link ${isActive('/compare') ? 'active' : ''}`}>
+                    <Link to="/twitter" className={`nav-link ${isActive('/twitter') ? 'active' : ''}`}> 
+                        Twitter
+                    </Link>
+                    <Link to="/compare" className={`nav-link ${isActive('/compare') ? 'active' : ''}`}> 
                         Similar Users
                     </Link>
-                    <Link to="/creators" className={`nav-link ${isActive('/creators') ? 'active' : ''}`}>
+                    <Link to="/creators" className={`nav-link ${isActive('/creators') ? 'active' : ''}`}> 
                         For Creators
                     </Link>
                 </nav>

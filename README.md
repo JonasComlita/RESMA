@@ -2,13 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> Open-source platform for collectively understanding how TikTok, YouTube, and other algorithms shape feeds through crowdsourced data collection and community collaboration.
+> Open-source platform for collectively understanding how TikTok, YouTube, Twitter, Instagram, and other algorithms shape feeds through crowdsourced data collection and community collaboration.
 
 ## 🎯 Vision
 
 Social media algorithms are black boxes that shape what billions of people see daily. RESMA empowers users to:
 
-- **Capture** their TikTok, YouTube, and Instagram feed data through a browser extension
+- **Capture** their TikTok, YouTube, Twitter, and Instagram feed data through a browser extension
 - **Compare** their feeds with others to discover patterns
 - **Collaborate** in forums to understand algorithmic behavior
 - **Contribute** to open research on recommendation systems
@@ -17,7 +17,7 @@ Social media algorithms are black boxes that shape what billions of people see d
 
 ```
 resma/
-├── extension/     # Chrome browser extension (TikTok, YouTube & Instagram)
+├── extension/     # Chrome browser extension (TikTok, YouTube, Twitter & Instagram)
 ├── backend/       # Node.js + Express API
 └── forum/         # React frontend
 ```
@@ -57,8 +57,8 @@ pnpm dev
 
 | Package | Description |
 |---------|-------------|
-| `extension` | Chrome extension for TikTok, YouTube & Instagram feed capture |
-| `backend` | Express API for data storage and analysis (TikTok, YouTube, Instagram, and more) |
+| `extension` | Chrome extension for TikTok, YouTube, Twitter & Instagram feed capture |
+| `backend` | Express API for data storage and analysis (TikTok, YouTube, Twitter, Instagram, and more) |
 | `forum` | React-based community platform with cross-platform insights |
 
 ## 🤝 Contributing
@@ -72,3 +72,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## ⚠️ Disclaimer
 
 This project is for research and educational purposes. Users are responsible for ensuring their use complies with applicable terms of service and laws. All data collection requires explicit user consent.
+
+## 🐦 Twitter Support
+
+RESMA now supports capturing, analyzing, and comparing Twitter feeds in addition to TikTok, YouTube, and Instagram. All features are opt-in and privacy-focused.

@@ -10,7 +10,8 @@
     "host_permissions": [
         "https://www.tiktok.com/*",
         "https://www.youtube.com/*",
-        "https://www.instagram.com/*"
+        "https://www.instagram.com/*",
+        "https://twitter.com/*"
     ],
     "background": {
         "service_worker": "dist/background/service-worker.js",
@@ -41,6 +42,15 @@
             ],
             "js": [
                 "dist/content/instagram-observer.js"
+            ],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": [
+                "https://twitter.com/*"
+            ],
+            "js": [
+                "dist/content/twitter-observer.js"
             ],
             "run_at": "document_idle"
         }
