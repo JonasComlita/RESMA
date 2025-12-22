@@ -8,7 +8,7 @@
 
 Social media algorithms are black boxes that shape what billions of people see daily. RESMA empowers users to:
 
-- **Capture** their TikTok and YouTube feed data through a browser extension
+- **Capture** their TikTok, YouTube, and Instagram feed data through a browser extension
 - **Compare** their feeds with others to discover patterns
 - **Collaborate** in forums to understand algorithmic behavior
 - **Contribute** to open research on recommendation systems
@@ -17,7 +17,7 @@ Social media algorithms are black boxes that shape what billions of people see d
 
 ```
 resma/
-├── extension/     # Chrome browser extension (TikTok & YouTube)
+├── extension/     # Chrome browser extension (TikTok, YouTube & Instagram)
 ├── backend/       # Node.js + Express API
 └── forum/         # React frontend
 ```
@@ -57,8 +57,8 @@ pnpm dev
 
 | Package | Description |
 |---------|-------------|
-| `extension` | Chrome extension for TikTok & YouTube feed capture |
-| `backend` | Express API for data storage and analysis (TikTok, YouTube, and more) |
+| `extension` | Chrome extension for TikTok, YouTube & Instagram feed capture |
+| `backend` | Express API for data storage and analysis (TikTok, YouTube, Instagram, and more) |
 | `forum` | React-based community platform with cross-platform insights |
 
 ## 🤝 Contributing

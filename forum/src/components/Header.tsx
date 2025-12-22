@@ -19,6 +19,12 @@ export default function Header() {
                     <Link to="/dashboard" className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}>
                         My Feed
                     </Link>
+                    <Link to="/youtube" className={`nav-link ${isActive('/youtube') ? 'active' : ''}`}>
+                        YouTube
+                    </Link>
+                    <Link to="/instagram" className={`nav-link ${isActive('/instagram') ? 'active' : ''}`}>
+                        Instagram
+                    </Link>
                     <Link to="/compare" className={`nav-link ${isActive('/compare') ? 'active' : ''}`}>
                         Similar Users
                     </Link>

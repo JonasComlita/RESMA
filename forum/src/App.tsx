@@ -7,6 +7,7 @@ import CreatorDashboard from './pages/CreatorDashboard';
 import Login from './pages/Login';
 import YouTubeDashboard from './pages/YouTubeDashboard';
 import InsightsDashboard from './pages/InsightsDashboard';
+import InstagramDashboard from './pages/InstagramDashboard';
 
 function App() {
     return (
@@ -21,6 +22,7 @@ function App() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/youtube" element={<YouTubeDashboard />} />
                     <Route path="/insights" element={<InsightsDashboard />} />
+                    <Route path="/instagram" element={<InstagramDashboard />} />
                 </Routes>
             </main>
         </div>

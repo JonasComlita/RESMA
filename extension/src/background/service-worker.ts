@@ -112,4 +112,5 @@ async function handleSessionUpload(session: SessionData) {
     }
 }
 
+import '../background/instagram-service.js';
 console.log('[RESMA] Service worker initialized');
