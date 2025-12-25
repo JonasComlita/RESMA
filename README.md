@@ -76,3 +76,25 @@ This project is for research and educational purposes. Users are responsible for
 ## 🐦 Twitter Support
 
 RESMA now supports capturing, analyzing, and comparing Twitter feeds in addition to TikTok, YouTube, and Instagram. All features are opt-in and privacy-focused.
+
+## ⚡ Performance & Storage Optimizations
+
+RESMA uses **MessagePack + Zstandard** binary serialization for efficient data storage and transmission:
+
+### Storage Efficiency
+- **~90% smaller** database storage compared to JSON
+- **~80% smaller** network payloads from browser extension
+- Optimized for TB-scale data collection
+
+### How It Works
+1. **Browser Extension** → Sends data using MessagePack binary format
+2. **Backend API** → Stores data compressed with MessagePack + Zstandard
+3. **Database** → PostgreSQL `BYTEA` fields instead of `JSONB`
+
+### Migration
+If you have existing data, run the migration script:
+```bash
+cd backend && npx tsx src/scripts/migrate-to-msgpack.ts
+```
+
+This optimization enables RESMA to efficiently handle massive amounts of feed data while minimizing storage costs and bandwidth usage.
