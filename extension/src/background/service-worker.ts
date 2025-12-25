@@ -3,6 +3,8 @@
  * Handles communication between content scripts and popup
  */
 
+import { packData, getCompressionStats } from '../utils/serialization.js';
+
 interface SessionData {
     videos: any[];
     startTime: number;
@@ -80,14 +82,51 @@ async function handleSessionUpload(session: SessionData) {
         return;
     }
 
+    // Prepare the payload
+    const payload = {
+        items: session.videos.map((v, i) => ({
+            videoId: v.videoId,
+            creatorHandle: v.creatorHandle,
+            caption: v.caption,
+            musicTitle: v.musicTitle,
+            positionInFeed: i,
+        })),
+        sessionMetadata: {
+            duration: Date.now() - session.startTime,
+            scrollEvents: session.scrollEvents,
+        },
+    };
+
     try {
+        // Pack with MessagePack for ~80% size reduction
+        const packedBody = packData(payload);
+
+        // Log compression stats for debugging
+        const jsonString = JSON.stringify(payload);
+        const stats = getCompressionStats(jsonString, packedBody);
+        console.log(`[RESMA] Compression: ${stats.jsonBytes}B → ${stats.packedBytes}B (${stats.savingsPercent.toFixed(1)}% savings)`);
+
         const response = await fetch(`${API_URL}/feeds`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-msgpack',
                 Authorization: `Bearer ${data.token}`,
             },
-            body: JSON.stringify({
+            body: packedBody.buffer.slice(packedBody.byteOffset, packedBody.byteOffset + packedBody.byteLength) as ArrayBuffer,
+        });
+
+        if (response.ok) {
+            console.log('[RESMA] Session uploaded successfully');
+        } else {
+            console.error('[RESMA] Upload failed:', response.status);
+            // Fall back to JSON if server doesn't support msgpack yet
+            await uploadAsJson(payload, data.token);
+        }
+    } catch (error) {
+        console.error('[RESMA] Upload error:', error);
+        // Fall back to JSON on compression error
+        try {
+            const payload = {
                 items: session.videos.map((v, i) => ({
                     videoId: v.videoId,
                     creatorHandle: v.creatorHandle,
@@ -99,16 +138,32 @@ async function handleSessionUpload(session: SessionData) {
                     duration: Date.now() - session.startTime,
                     scrollEvents: session.scrollEvents,
                 },
-            }),
-        });
-
-        if (response.ok) {
-            console.log('[RESMA] Session uploaded successfully');
-        } else {
-            console.error('[RESMA] Upload failed:', response.status);
+            };
+            await uploadAsJson(payload, data.token);
+        } catch (fallbackError) {
+            console.error('[RESMA] Fallback upload also failed:', fallbackError);
         }
-    } catch (error) {
-        console.error('[RESMA] Upload error:', error);
+    }
+}
+
+/**
+ * Fallback: upload using JSON (for backwards compatibility)
+ */
+async function uploadAsJson(payload: any, token: string) {
+    console.log('[RESMA] Falling back to JSON upload');
+    const response = await fetch(`${API_URL}/feeds`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+        console.log('[RESMA] JSON fallback upload successful');
+    } else {
+        console.error('[RESMA] JSON fallback upload failed:', response.status);
     }
 }
 

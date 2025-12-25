@@ -25,7 +25,7 @@ model User {
   subscriptionTier SubscriptionTier @default(FREE)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
-  preferences     Json?
+  preferences     Bytes?           // MessagePack + Zstandard compressed
   
   // Privacy settings
   contributeToCreatorInsights Boolean @default(true)
@@ -59,7 +59,7 @@ model CreatorReach {
   date            DateTime  @db.Date
   uniqueViewers   Int       @default(0)
   totalImpressions Int      @default(0)
-  audienceProfile Json?     // Aggregated interests, other creators they follow
+  audienceProfile Bytes?    // MessagePack + Zstandard compressed
   
   creator         Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
@@ -75,7 +75,7 @@ model FeedSnapshot {
   platform       String     @default("tiktok")
   itemCount      Int        @default(0)
   avgWatchTime   Float?
-  sessionMetadata Json?
+  sessionMetadata Bytes?    // MessagePack + Zstandard compressed
   
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   feedItems     FeedItem[]
@@ -96,7 +96,7 @@ model FeedItem {
   caption          String?
   musicId          String?
   musicTitle       String?
-  engagementMetrics Json?
+  engagementMetrics Bytes?  // MessagePack + Zstandard compressed
   contentTags      String[]
   contentCategories String[]    // Detected categories for "why am I seeing this"
   watchDuration    Float?
@@ -115,7 +115,7 @@ model PatternGroup {
   id              String    @id @default(uuid())
   name            String
   description     String?
-  characteristics Json
+  characteristics Bytes     // MessagePack + Zstandard compressed
   createdAt       DateTime  @default(now())
   
   members         PatternGroupMembership[]
