@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> Open-source platform for collectively understanding how TikTok, YouTube, Twitter, Instagram, and other algorithms shape feeds through crowdsourced data collection and community collaboration.
+> Open-source platform for collectively understanding how TikTok, YouTube, Twitter, Instagram, and other algorithms shape feeds through crowdsourced data collection.
 
 ## 🎯 Vision
 
@@ -10,7 +10,6 @@ Social media algorithms are black boxes that shape what billions of people see d
 
 - **Capture** their TikTok, YouTube, Twitter, and Instagram feed data through a browser extension
 - **Compare** their feeds with others to discover patterns
-- **Collaborate** in forums to understand algorithmic behavior
 - **Contribute** to open research on recommendation systems
 
 ## 🏗️ Project Structure
@@ -19,7 +18,6 @@ Social media algorithms are black boxes that shape what billions of people see d
 resma/
 ├── extension/     # Chrome browser extension (TikTok, YouTube, Twitter & Instagram)
 ├── backend/       # Node.js + Express API
-└── forum/         # React frontend
 ```
 
 ## 🚀 Quick Start
@@ -59,11 +57,7 @@ pnpm dev
 |---------|-------------|
 | `extension` | Chrome extension for TikTok, YouTube, Twitter & Instagram feed capture |
 | `backend` | Express API for data storage and analysis (TikTok, YouTube, Twitter, Instagram, and more) |
-| `forum` | React-based community platform with cross-platform insights |
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## 📄 License
 

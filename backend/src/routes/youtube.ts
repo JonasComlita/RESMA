@@ -1,40 +1,68 @@
 import { Router } from 'express';
-import { saveYouTubeFeedData } from '../services/youtube.js';
-import rateLimit from 'express-rate-limit';
+import { prisma } from '../lib/prisma.js';
+import { authenticate, AuthRequest } from '../middleware/authenticate.js';
+import { packAndCompress } from '../services/serialization.js';
 
 const router = Router();
 
-// Basic rate limiting (e.g., 30 requests per 10 minutes per IP)
-const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-router.use(limiter);
-
 // POST /youtube/feed - receive YouTube feed data
-router.post('/feed', async (req, res) => {
-  // CORS origin check (placeholder, customize as needed)
-  const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:5173'];
-  const origin = req.headers.origin;
-  if (origin && !allowedOrigins.includes(origin)) {
-    return res.status(403).json({ error: 'Forbidden origin' });
-  }
-
+router.post('/feed', authenticate, async (req: AuthRequest, res) => {
   const { feed } = req.body;
+
   if (!Array.isArray(feed) || feed.length === 0) {
     return res.status(400).json({ error: 'Invalid feed data' });
   }
-  // Validate feed item structure
-  for (const item of feed) {
-    if (typeof item !== 'object' || !item.videoId || !item.title) {
-      return res.status(400).json({ error: 'Invalid feed item structure' });
-    }
-  }
+
   try {
-    const snapshot = await saveYouTubeFeedData(feed);
-    res.status(201).json({ message: 'YouTube feed data saved', snapshot });
+    // Determine snapshot type based on first item
+    const isHomePage = !feed[0].watchTime; // Heuristic: homepage items don't have watchTime initially
+
+    // Serialize ad/recommendation data to MsgPack
+    const itemsToCreate = feed.map((item: any, index: number) => {
+      // Pack complex objects
+      const engagementMetrics = packAndCompress({
+        watchTime: item.watchTime,
+        seekCount: item.seekCount,
+        adEvents: item.adEvents,
+        completed: item.completed,
+        recommendations: item.recommendations,
+        views: item.views,
+        uploadDate: item.uploadDate
+      }).data;
+
+      return {
+        videoId: item.videoId,
+        // Channel info mapping
+        creatorHandle: item.channelHandle || item.channelName, // Fallback
+        creatorId: item.channelName, // Using name as ID proxy if needed, or null
+        positionInFeed: item.position || index,
+        caption: item.title, // Title maps to caption for now
+        // Store rich data in the blob column
+        engagementMetrics,
+        contentCategories: item.tags || [],
+        watchDuration: item.duration || 0
+      };
+    });
+
+    const snapshot = await prisma.feedSnapshot.create({
+      data: {
+        userId: req.userId!,
+        platform: 'youtube',
+        itemCount: feed.length,
+        sessionMetadata: packAndCompress({
+          type: isHomePage ? 'HOMEPAGE_SNAPSHOT' : 'VIDEO_WATCH',
+          timestamp: Date.now()
+        }).data,
+        feedItems: {
+          create: itemsToCreate
+        }
+      },
+      include: {
+        _count: { select: { feedItems: true } }
+      }
+    });
+
+    res.status(201).json({ success: true, snapshotId: snapshot.id });
   } catch (err) {
     console.error('Failed to save YouTube feed data:', err);
     res.status(500).json({ error: 'Failed to save YouTube feed data' });

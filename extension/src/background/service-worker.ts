@@ -48,6 +48,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             chrome.storage.local.remove('token');
             sendResponse({ success: true });
             break;
+        case 'YOUTUBE_VIDEO_COMPLETE':
+            handleYouTubeVideoUpload(message.data);
+            break;
+
+        case 'YOUTUBE_HOMEPAGE_SNAPSHOT':
+            handleYouTubeSnapshotUpload(message.data);
+            break;
     }
 });
 
@@ -90,6 +97,12 @@ async function handleSessionUpload(session: SessionData) {
             caption: v.caption,
             musicTitle: v.musicTitle,
             positionInFeed: i,
+            engagementMetrics: {
+                ...v.engagement,
+                analytics: v.analytics,
+                isSponsored: v.isSponsored
+            },
+            contentTags: v.isSponsored ? ['sponsored'] : [],
         })),
         sessionMetadata: {
             duration: Date.now() - session.startTime,
@@ -133,12 +146,65 @@ async function handleSessionUpload(session: SessionData) {
                     caption: v.caption,
                     musicTitle: v.musicTitle,
                     positionInFeed: i,
+                    engagementMetrics: {
+                        ...v.engagement,
+                        analytics: v.analytics,
+                        isSponsored: v.isSponsored
+                    },
+                    contentTags: v.isSponsored ? ['sponsored'] : [],
                 })),
                 sessionMetadata: {
                     duration: Date.now() - session.startTime,
                     scrollEvents: session.scrollEvents,
                 },
-            };
+            }
+
+            async function handleYouTubeVideoUpload(videoData: any) {
+                const data = await chrome.storage.local.get('token') as StorageData;
+                if (!data.token) return;
+
+                // Wrap in standard feed structure
+                const payload = {
+                    feed: [{
+                        ...videoData,
+                        engagementMetrics: {
+                            watchTime: videoData.watchTime,
+                            seekCount: videoData.seekCount,
+                            adEvents: videoData.adEvents,
+                            completed: videoData.completed
+                        }
+                    }]
+                };
+
+                await uploadYouTubePayload(payload, data.token);
+            }
+
+            async function handleYouTubeSnapshotUpload(feedData: any[]) {
+                const data = await chrome.storage.local.get('token') as StorageData;
+                if (!data.token) return;
+
+                const payload = { feed: feedData };
+                await uploadYouTubePayload(payload, data.token);
+            }
+
+            async function uploadYouTubePayload(payload: any, token: string) {
+                try {
+                    const packedBody = packData(payload);
+
+                    await fetch(`${API_URL}/youtube/feed`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-msgpack',
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: packedBody.buffer.slice(packedBody.byteOffset, packedBody.byteOffset + packedBody.byteLength) as ArrayBuffer,
+                    });
+                    console.log('[RESMA] YouTube data uploaded');
+                } catch (error) {
+                    console.error('[RESMA] YouTube upload failed:', error);
+                }
+            }
+            ;
             await uploadAsJson(payload, data.token);
         } catch (fallbackError) {
             console.error('[RESMA] Fallback upload also failed:', fallbackError);

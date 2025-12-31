@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
@@ -17,7 +17,7 @@ authRouter.post(
             .isLength({ min: 8 })
             .withMessage('Password must be at least 8 characters'),
     ],
-    async (req, res, next) => {
+    async (req: Request, res: Response, next: NextFunction) => {
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -33,7 +33,7 @@ authRouter.post(
             });
 
             const token = jwt.sign({ userId: user.id }, config.jwt.secret, {
-                expiresIn: config.jwt.expiresIn,
+                expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'],
             });
 
             res.status(201).json({
@@ -59,7 +59,7 @@ authRouter.post(
         body('anonymousId').notEmpty().withMessage('Anonymous ID required'),
         body('password').notEmpty().withMessage('Password required'),
     ],
-    async (req, res, next) => {
+    async (req: Request, res: Response, next: NextFunction) => {
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -82,7 +82,7 @@ authRouter.post(
             }
 
             const token = jwt.sign({ userId: user.id }, config.jwt.secret, {
-                expiresIn: config.jwt.expiresIn,
+                expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'],
             });
 
             res.json({
@@ -113,7 +113,7 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
                 _count: {
                     select: {
                         feedSnapshots: true,
-                        forumPosts: true,
+
                     },
                 },
             },

@@ -102,14 +102,14 @@ const Popup: React.FC = () => {
                 </div>
                 {!isAuthenticated ? (
                     <div className="auth-prompt">
-                        <p>Please log in at the RESMA forum to use this extension.</p>
+                        <p>Please log in at the RESMA Dashboard to use this extension.</p>
                         <a
                             href="http://localhost:5173/login"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-primary"
                         >
-                            Open Forum
+                            Open Dashboard
                         </a>
                     </div>
                 ) : !platform ? (
@@ -168,9 +168,9 @@ const Popup: React.FC = () => {
                             <p className="capture-status">
                                 Captured: <strong>{captureStatus.itemCount}</strong> {
                                     platform === 'tiktok' ? 'videos' :
-                                    platform === 'twitter' ? 'tweets' :
-                                    platform === 'youtube' ? 'YouTube videos' :
-                                    platform === 'instagram' ? 'Instagram posts' : ''
+                                        platform === 'twitter' ? 'tweets' :
+                                            platform === 'youtube' ? 'YouTube videos' :
+                                                platform === 'instagram' ? 'Instagram posts' : ''
                                 }
                             </p>
                         )}
