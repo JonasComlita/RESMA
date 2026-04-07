@@ -45,6 +45,27 @@ interface RecommendationSummary {
     itemsWithParsedRecommendations: number;
     parseCoverage: number;
     avgRecommendationsPerItem: number;
+    surfaceTransitionStability: number;
+    bySurface: RecommendationSurfaceDiagnostics[];
+}
+
+interface RecommendationSurfaceDiagnostics {
+    surface: string;
+    rawRows: number;
+    strictRows: number;
+    parserDropRate: number;
+    parseCoverage: number;
+    uniqueTransitions: number;
+    transitionStabilityScore: number;
+}
+
+interface RecommendationSurfaceTrendPoint {
+    surface: string;
+    rawRows: number;
+    strictRows: number;
+    parserDropRate: number;
+    parseCoverage: number;
+    transitionStabilityScore: number;
 }
 
 interface CohortStabilitySummary {
@@ -87,6 +108,7 @@ export interface DataQualityTrendPoint {
     parserDropRate: number;
     cohortStabilityScore: number;
     networkStrength: number;
+    surfaceMetrics: RecommendationSurfaceTrendPoint[];
 }
 
 export interface DataQualityTrendResult {
@@ -122,6 +144,19 @@ function sanitizeString(value: unknown): string | null {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeSurfaceLabel(value: unknown): string {
+    const sanitized = sanitizeString(value);
+    if (!sanitized) return 'unknown';
+
+    const normalized = sanitized
+        .toLowerCase()
+        .replace(/[^a-z0-9-_ ]/g, '')
+        .trim()
+        .replace(/\s+/g, '-');
+
+    return normalized.length > 0 ? normalized.slice(0, 48) : 'unknown';
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -217,29 +252,50 @@ function stitchSnapshots(
     let snapshotsWithStitchedSessionKey = 0;
 
     for (const [userId, userSnapshots] of snapshotsByUser.entries()) {
-        let sessionIndex = 0;
+        let nextSessionNumber = 0;
+        let lastSessionId: string | null = null;
+        const stitchedSessionKeyToSessionId = new Map<string, string>();
         let previousKept: {
             capturedAtMs: number;
             fingerprintKey: string;
             fingerprintIds: Set<string>;
+            fingerprintHash: string | null;
         } | null = null;
 
         for (const snapshot of userSnapshots) {
             const metadata = decodeSessionMetadata(snapshot.sessionMetadata);
             const quality = asRecord(metadata?.quality);
-            if (sanitizeString(quality.fingerprintHash)) {
+            const qualityFingerprintHash = sanitizeString(quality.fingerprintHash);
+            const stitchedSessionKey = sanitizeString(quality.stitchedSessionKey);
+            if (qualityFingerprintHash) {
                 snapshotsWithQualityFingerprint += 1;
             }
-            if (sanitizeString(quality.stitchedSessionKey)) {
+            if (stitchedSessionKey) {
                 snapshotsWithStitchedSessionKey += 1;
             }
 
             const capturedAtMs = snapshot.capturedAt.getTime();
-            const startsNewSession = !previousKept || (capturedAtMs - previousKept.capturedAtMs > SESSION_GAP_MS);
-            if (startsNewSession) {
-                sessionIndex += 1;
-                stitchedSessions += 1;
-                previousKept = null;
+            let sessionId: string;
+
+            if (stitchedSessionKey) {
+                const existingSessionId = stitchedSessionKeyToSessionId.get(stitchedSessionKey);
+                if (existingSessionId) {
+                    sessionId = existingSessionId;
+                } else {
+                    nextSessionNumber += 1;
+                    stitchedSessions += 1;
+                    sessionId = `${userId}:session-${nextSessionNumber}`;
+                    stitchedSessionKeyToSessionId.set(stitchedSessionKey, sessionId);
+                }
+                lastSessionId = sessionId;
+            } else {
+                const startsNewSession = !previousKept || (capturedAtMs - previousKept.capturedAtMs > SESSION_GAP_MS);
+                if (startsNewSession || !lastSessionId) {
+                    nextSessionNumber += 1;
+                    stitchedSessions += 1;
+                    lastSessionId = `${userId}:session-${nextSessionNumber}`;
+                }
+                sessionId = lastSessionId;
             }
 
             const fingerprint = buildSnapshotFingerprint(snapshot.feedItems);
@@ -249,6 +305,9 @@ function stitchSnapshots(
                 ? (() => {
                     const gapMs = capturedAtMs - previousKept.capturedAtMs;
                     if (gapMs > DUPLICATE_WINDOW_MS) return false;
+                    if (qualityFingerprintHash && previousKept.fingerprintHash && qualityFingerprintHash === previousKept.fingerprintHash) {
+                        return true;
+                    }
                     if (fingerprint.key === previousKept.fingerprintKey) return true;
                     return overlapRatio(fingerprintIds, previousKept.fingerprintIds) >= DUPLICATE_OVERLAP_THRESHOLD;
                 })()
@@ -264,9 +323,9 @@ function stitchSnapshots(
                 capturedAtMs,
                 fingerprintKey: fingerprint.key,
                 fingerprintIds,
+                fingerprintHash: qualityFingerprintHash,
             };
 
-            const sessionId = `${userId}:session-${sessionIndex}`;
             for (const feedItem of snapshot.feedItems) {
                 stitchedItems.push({
                     userId,
@@ -306,6 +365,9 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
     let rawRecommendationRows = 0;
     let strictRecommendationRows = 0;
     let itemsWithParsedRecommendations = 0;
+    const rawRowsBySurface = new Map<string, number>();
+    const strictRowsBySurface = new Map<string, number>();
+    const transitionCountsBySurface = new Map<string, Map<string, number>>();
 
     for (const item of items) {
         if (!item.engagementMetrics) continue;
@@ -318,6 +380,12 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
             if (Array.isArray(recommendations)) {
                 itemsWithRecommendationArray += 1;
                 rawRecommendationRows += recommendations.length;
+                for (const recommendation of recommendations) {
+                    if (!recommendation || typeof recommendation !== 'object') continue;
+                    const rec = recommendation as Record<string, unknown>;
+                    const surface = normalizeSurfaceLabel(rec.surface ?? rec.source ?? rec.placement);
+                    rawRowsBySurface.set(surface, (rawRowsBySurface.get(surface) ?? 0) + 1);
+                }
             }
         }
 
@@ -330,6 +398,18 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
         if (strictRecommendations.length > 0) {
             itemsWithParsedRecommendations += 1;
             strictRecommendationRows += strictRecommendations.length;
+            for (const recommendation of strictRecommendations) {
+                const primarySurface = normalizeSurfaceLabel(recommendation.surface ?? recommendation.surfaces[0]);
+                strictRowsBySurface.set(primarySurface, (strictRowsBySurface.get(primarySurface) ?? 0) + 1);
+
+                const edgeKey = `${item.videoId}->${recommendation.videoId}`;
+                let surfaceTransitions = transitionCountsBySurface.get(primarySurface);
+                if (!surfaceTransitions) {
+                    surfaceTransitions = new Map<string, number>();
+                    transitionCountsBySurface.set(primarySurface, surfaceTransitions);
+                }
+                surfaceTransitions.set(edgeKey, (surfaceTransitions.get(edgeKey) ?? 0) + 1);
+            }
         }
     }
 
@@ -343,6 +423,57 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
         ? strictRecommendationRows / itemsWithParsedRecommendations
         : 0;
 
+    const surfaces = new Set<string>([
+        ...rawRowsBySurface.keys(),
+        ...strictRowsBySurface.keys(),
+        ...transitionCountsBySurface.keys(),
+    ]);
+
+    const bySurface: RecommendationSurfaceDiagnostics[] = Array.from(surfaces.values())
+        .map((surface) => {
+            const rawRows = rawRowsBySurface.get(surface) ?? 0;
+            const strictRows = strictRowsBySurface.get(surface) ?? 0;
+            const parserDropRateForSurface = rawRows > 0
+                ? 1 - (strictRows / rawRows)
+                : 0;
+            const parseCoverageForSurface = rawRows > 0
+                ? strictRows / rawRows
+                : 0;
+
+            const transitions = transitionCountsBySurface.get(surface) ?? new Map<string, number>();
+            let repeatedTransitionRows = 0;
+            for (const count of transitions.values()) {
+                if (count > 1) {
+                    repeatedTransitionRows += count;
+                }
+            }
+
+            const transitionStabilityScore = strictRows > 0
+                ? repeatedTransitionRows / strictRows
+                : 0;
+
+            return {
+                surface,
+                rawRows,
+                strictRows,
+                parserDropRate: roundTo(parserDropRateForSurface),
+                parseCoverage: roundTo(parseCoverageForSurface),
+                uniqueTransitions: transitions.size,
+                transitionStabilityScore: roundTo(transitionStabilityScore),
+            };
+        })
+        .sort((left, right) => {
+            if (right.rawRows !== left.rawRows) return right.rawRows - left.rawRows;
+            if (right.strictRows !== left.strictRows) return right.strictRows - left.strictRows;
+            return left.surface.localeCompare(right.surface);
+        })
+        .slice(0, 12);
+
+    const stabilityWeightTotal = bySurface.reduce((sum, entry) => sum + entry.strictRows, 0);
+    const surfaceTransitionStability = stabilityWeightTotal > 0
+        ? bySurface.reduce((sum, entry) => sum + (entry.transitionStabilityScore * entry.strictRows), 0) / stabilityWeightTotal
+        : 0;
+
     return {
         itemsWithMetrics,
         decodableMetricItems,
@@ -353,6 +484,8 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
         itemsWithParsedRecommendations,
         parseCoverage: roundTo(parseCoverage),
         avgRecommendationsPerItem: roundTo(avgRecommendationsPerItem, 2),
+        surfaceTransitionStability: roundTo(surfaceTransitionStability),
+        bySurface,
     };
 }
 
@@ -547,6 +680,14 @@ export function summarizeDataQualityTrendFromSnapshots(
                 parserDropRate: summary.recommendations.parserDropRate,
                 cohortStabilityScore: summary.cohorts.stabilityScore,
                 networkStrength: summary.cohorts.networkStrength,
+                surfaceMetrics: summary.recommendations.bySurface.map((surface) => ({
+                    surface: surface.surface,
+                    rawRows: surface.rawRows,
+                    strictRows: surface.strictRows,
+                    parserDropRate: surface.parserDropRate,
+                    parseCoverage: surface.parseCoverage,
+                    transitionStabilityScore: surface.transitionStabilityScore,
+                })),
             };
         });
 

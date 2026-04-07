@@ -12,16 +12,20 @@ describe('Recommendation parsing', () => {
                 position: '2',
                 title: 'From URL',
                 channel: 'chan-a',
+                surface: 'watch next sidebar',
             },
             {
                 videoId: 'abc123XYZ09',
                 position: 1,
                 title: 'Direct ID',
                 channel: 'chan-b',
+                surface: 'end-screen-overlay',
+                surfaces: ['watch-next-sidebar', 'end-screen-overlay'],
             },
             {
                 videoId: 'https://youtu.be/def456uvw_01?t=42',
                 position: 3,
+                surface: 'shorts overlay',
             },
             {
                 videoId: 'https://www.youtube.com/shorts/ghi789qwe_2',
@@ -57,6 +61,14 @@ describe('Recommendation parsing', () => {
             position: 1,
             title: 'Direct ID',
             channel: 'chan-b',
+            surface: 'end-screen-overlay',
+        });
+        expect(recommendations[0].surfaces).toEqual(
+            expect.arrayContaining(['watch-next-sidebar', 'end-screen-overlay'])
+        );
+        expect(recommendations[1]).toMatchObject({
+            videoId: 'def456uvw_01',
+            surface: 'shorts-overlay',
         });
     });
 

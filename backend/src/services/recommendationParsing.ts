@@ -5,6 +5,8 @@ export interface ParsedRecommendation {
     title: string | null;
     channel: string | null;
     position: number;
+    surface: string | null;
+    surfaces: string[];
 }
 
 interface ExtractRecommendationOptions {
@@ -30,6 +32,20 @@ function parsePositiveInt(value: unknown): number | null {
         }
     }
     return null;
+}
+
+function normalizeSurface(value: unknown): string | null {
+    const sanitized = sanitizeString(value);
+    if (!sanitized) return null;
+
+    const normalized = sanitized
+        .toLowerCase()
+        .replace(/[^a-z0-9-_ ]/g, '')
+        .trim()
+        .replace(/\s+/g, '-');
+
+    if (!normalized) return null;
+    return normalized.slice(0, 48);
 }
 
 function decodeEngagementMetrics(metrics: Buffer | null): unknown {
@@ -125,16 +141,55 @@ export function extractRecommendationsFromMetrics(
         if (sourceVideoId && videoId === sourceVideoId) continue;
 
         const position = parsePositiveInt(recObj.position) ?? index + 1;
+        const surface = normalizeSurface(recObj.surface ?? recObj.source ?? recObj.placement);
+        const surfaces = new Set<string>();
+        if (surface) {
+            surfaces.add(surface);
+        }
+        if (Array.isArray(recObj.surfaces)) {
+            for (const candidate of recObj.surfaces) {
+                const normalized = normalizeSurface(candidate);
+                if (normalized) {
+                    surfaces.add(normalized);
+                }
+            }
+        }
+
         const normalized: ParsedRecommendation = {
             videoId,
             title: sanitizeString(recObj.title),
             channel: sanitizeString(recObj.channel),
             position,
+            surface,
+            surfaces: Array.from(surfaces),
         };
 
         const existing = deduped.get(videoId);
         if (!existing || position < existing.position) {
-            deduped.set(videoId, normalized);
+            if (existing) {
+                const mergedSurfaces = new Set<string>([...existing.surfaces, ...normalized.surfaces]);
+                deduped.set(videoId, {
+                    ...normalized,
+                    title: normalized.title ?? existing.title,
+                    channel: normalized.channel ?? existing.channel,
+                    surfaces: Array.from(mergedSurfaces),
+                    surface: normalized.surface ?? existing.surface,
+                });
+            } else {
+                deduped.set(videoId, normalized);
+            }
+        } else if (existing) {
+            const mergedSurfaces = new Set<string>([...existing.surfaces, ...normalized.surfaces]);
+            existing.surfaces = Array.from(mergedSurfaces);
+            if (!existing.title && normalized.title) {
+                existing.title = normalized.title;
+            }
+            if (!existing.channel && normalized.channel) {
+                existing.channel = normalized.channel;
+            }
+            if (!existing.surface && normalized.surface) {
+                existing.surface = normalized.surface;
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 /**
  * RESMA - Background Service Worker
- * Handles communication between content scripts and popup
+ * Handles communication between content scripts and popup.
  */
 
 import { packData, getCompressionStats } from '../utils/serialization.js';
@@ -19,20 +19,22 @@ interface StorageData {
 
 const API_URL = 'http://localhost:3001';
 
-// Track active sessions per tab
-const activeSessions = new Map<number, boolean>();
-
-// Listen for messages from content scripts and popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    const tabId = sender.tab?.id;
-
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message.type) {
         case 'NEW_VIDEO_CAPTURED':
-            console.log('[RESMA] Video captured:', message.data.videoId);
+            console.log('[RESMA] Video captured:', message.data?.videoId);
             break;
 
         case 'UPLOAD_SESSION':
             handleSessionUpload(message.data);
+            break;
+
+        case 'YOUTUBE_VIDEO_COMPLETE':
+            handleYouTubeVideoUpload(message.data, message.sessionMetadata);
+            break;
+
+        case 'YOUTUBE_HOMEPAGE_SNAPSHOT':
+            handleYouTubeSnapshotUpload(message.data, message.sessionMetadata);
             break;
 
         case 'GET_AUTH_STATUS':
@@ -48,19 +50,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             chrome.storage.local.remove('token');
             sendResponse({ success: true });
             break;
-        case 'YOUTUBE_VIDEO_COMPLETE':
-            handleYouTubeVideoUpload(message.data);
-            break;
 
-        case 'YOUTUBE_HOMEPAGE_SNAPSHOT':
-            handleYouTubeSnapshotUpload(message.data);
+        default:
             break;
     }
+
+    return false;
 });
 
 async function getAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any }> {
     const data = await chrome.storage.local.get('token') as StorageData;
-
     if (!data.token) {
         return { isAuthenticated: false };
     }
@@ -70,39 +69,43 @@ async function getAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any }
             headers: { Authorization: `Bearer ${data.token}` },
         });
 
-        if (response.ok) {
-            const result = await response.json();
-            return { isAuthenticated: true, user: result.data.user };
+        if (!response.ok) {
+            return { isAuthenticated: false };
         }
+
+        const result = await response.json();
+        return { isAuthenticated: true, user: result.data.user };
     } catch (error) {
         console.error('[RESMA] Auth check failed:', error);
+        return { isAuthenticated: false };
     }
+}
 
-    return { isAuthenticated: false };
+async function getAuthToken(): Promise<string | null> {
+    const data = await chrome.storage.local.get('token') as StorageData;
+    return data.token ?? null;
 }
 
 async function handleSessionUpload(session: SessionData) {
-    const data = await chrome.storage.local.get('token') as StorageData;
-
-    if (!data.token) {
+    const token = await getAuthToken();
+    if (!token) {
         console.error('[RESMA] Not authenticated');
         return;
     }
 
-    // Prepare the payload
     const payload = {
-        items: session.videos.map((v, i) => ({
-            videoId: v.videoId,
-            creatorHandle: v.creatorHandle,
-            caption: v.caption,
-            musicTitle: v.musicTitle,
-            positionInFeed: i,
+        items: session.videos.map((video, index) => ({
+            videoId: video.videoId,
+            creatorHandle: video.creatorHandle,
+            caption: video.caption,
+            musicTitle: video.musicTitle,
+            positionInFeed: index,
             engagementMetrics: {
-                ...v.engagement,
-                analytics: v.analytics,
-                isSponsored: v.isSponsored
+                ...video.engagement,
+                analytics: video.analytics,
+                isSponsored: video.isSponsored,
             },
-            contentTags: v.isSponsored ? ['sponsored'] : [],
+            contentTags: video.isSponsored ? ['sponsored'] : [],
         })),
         sessionMetadata: {
             duration: Date.now() - session.startTime,
@@ -111,112 +114,135 @@ async function handleSessionUpload(session: SessionData) {
     };
 
     try {
-        // Pack with MessagePack for ~80% size reduction
         const packedBody = packData(payload);
-
-        // Log compression stats for debugging
-        const jsonString = JSON.stringify(payload);
-        const stats = getCompressionStats(jsonString, packedBody);
-        console.log(`[RESMA] Compression: ${stats.jsonBytes}B → ${stats.packedBytes}B (${stats.savingsPercent.toFixed(1)}% savings)`);
+        const stats = getCompressionStats(JSON.stringify(payload), packedBody);
+        console.log(
+            `[RESMA] Compression: ${stats.jsonBytes}B -> ${stats.packedBytes}B (${stats.savingsPercent.toFixed(1)}% savings)`
+        );
 
         const response = await fetch(`${API_URL}/feeds`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-msgpack',
-                Authorization: `Bearer ${data.token}`,
+                Authorization: `Bearer ${token}`,
             },
-            body: packedBody.buffer.slice(packedBody.byteOffset, packedBody.byteOffset + packedBody.byteLength) as ArrayBuffer,
+            body: packedBody.buffer.slice(
+                packedBody.byteOffset,
+                packedBody.byteOffset + packedBody.byteLength
+            ) as ArrayBuffer,
         });
 
-        if (response.ok) {
-            console.log('[RESMA] Session uploaded successfully');
-        } else {
+        if (!response.ok) {
             console.error('[RESMA] Upload failed:', response.status);
-            // Fall back to JSON if server doesn't support msgpack yet
-            await uploadAsJson(payload, data.token);
+            await uploadAsJson(payload, token);
+            return;
         }
+
+        console.log('[RESMA] Session uploaded successfully');
     } catch (error) {
         console.error('[RESMA] Upload error:', error);
-        // Fall back to JSON on compression error
         try {
-            const payload = {
-                items: session.videos.map((v, i) => ({
-                    videoId: v.videoId,
-                    creatorHandle: v.creatorHandle,
-                    caption: v.caption,
-                    musicTitle: v.musicTitle,
-                    positionInFeed: i,
-                    engagementMetrics: {
-                        ...v.engagement,
-                        analytics: v.analytics,
-                        isSponsored: v.isSponsored
-                    },
-                    contentTags: v.isSponsored ? ['sponsored'] : [],
-                })),
-                sessionMetadata: {
-                    duration: Date.now() - session.startTime,
-                    scrollEvents: session.scrollEvents,
-                },
-            }
-
-            async function handleYouTubeVideoUpload(videoData: any) {
-                const data = await chrome.storage.local.get('token') as StorageData;
-                if (!data.token) return;
-
-                // Wrap in standard feed structure
-                const payload = {
-                    feed: [{
-                        ...videoData,
-                        engagementMetrics: {
-                            watchTime: videoData.watchTime,
-                            seekCount: videoData.seekCount,
-                            adEvents: videoData.adEvents,
-                            completed: videoData.completed
-                        }
-                    }]
-                };
-
-                await uploadYouTubePayload(payload, data.token);
-            }
-
-            async function handleYouTubeSnapshotUpload(feedData: any[]) {
-                const data = await chrome.storage.local.get('token') as StorageData;
-                if (!data.token) return;
-
-                const payload = { feed: feedData };
-                await uploadYouTubePayload(payload, data.token);
-            }
-
-            async function uploadYouTubePayload(payload: any, token: string) {
-                try {
-                    const packedBody = packData(payload);
-
-                    await fetch(`${API_URL}/youtube/feed`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-msgpack',
-                            Authorization: `Bearer ${token}`,
-                        },
-                        body: packedBody.buffer.slice(packedBody.byteOffset, packedBody.byteOffset + packedBody.byteLength) as ArrayBuffer,
-                    });
-                    console.log('[RESMA] YouTube data uploaded');
-                } catch (error) {
-                    console.error('[RESMA] YouTube upload failed:', error);
-                }
-            }
-            ;
-            await uploadAsJson(payload, data.token);
+            await uploadAsJson(payload, token);
         } catch (fallbackError) {
             console.error('[RESMA] Fallback upload also failed:', fallbackError);
         }
     }
 }
 
-/**
- * Fallback: upload using JSON (for backwards compatibility)
- */
+async function handleYouTubeVideoUpload(videoData: any, sessionMetadata?: Record<string, unknown>) {
+    const token = await getAuthToken();
+    if (!token) {
+        console.error('[RESMA] Not authenticated for YouTube upload');
+        return;
+    }
+
+    const payload = {
+        feed: [videoData],
+        sessionMetadata: {
+            ...(sessionMetadata && typeof sessionMetadata === 'object' ? sessionMetadata : {}),
+            uploadEvent: 'YOUTUBE_VIDEO_COMPLETE',
+        },
+    };
+
+    await uploadYouTubePayload(payload, token);
+}
+
+async function handleYouTubeSnapshotUpload(
+    feedData: any[],
+    sessionMetadata?: Record<string, unknown>
+) {
+    const token = await getAuthToken();
+    if (!token) {
+        console.error('[RESMA] Not authenticated for YouTube snapshot upload');
+        return;
+    }
+
+    const payload = {
+        feed: Array.isArray(feedData) ? feedData : [],
+        sessionMetadata: {
+            ...(sessionMetadata && typeof sessionMetadata === 'object' ? sessionMetadata : {}),
+            uploadEvent: 'YOUTUBE_HOMEPAGE_SNAPSHOT',
+        },
+    };
+
+    await uploadYouTubePayload(payload, token);
+}
+
+async function uploadYouTubePayload(payload: any, token: string) {
+    if (!Array.isArray(payload.feed) || payload.feed.length === 0) {
+        console.warn('[RESMA] Skipping YouTube upload: empty feed payload');
+        return;
+    }
+
+    try {
+        const packedBody = packData(payload);
+
+        const response = await fetch(`${API_URL}/youtube/feed`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-msgpack',
+                Authorization: `Bearer ${token}`,
+            },
+            body: packedBody.buffer.slice(
+                packedBody.byteOffset,
+                packedBody.byteOffset + packedBody.byteLength
+            ) as ArrayBuffer,
+        });
+
+        if (!response.ok) {
+            console.error('[RESMA] YouTube upload failed:', response.status);
+            await fetch(`${API_URL}/youtube/feed`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(payload),
+            });
+            return;
+        }
+
+        console.log('[RESMA] YouTube data uploaded');
+    } catch (error) {
+        console.error('[RESMA] YouTube upload failed:', error);
+        try {
+            await fetch(`${API_URL}/youtube/feed`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(payload),
+            });
+        } catch (fallbackError) {
+            console.error('[RESMA] YouTube JSON fallback failed:', fallbackError);
+        }
+    }
+}
+
 async function uploadAsJson(payload: any, token: string) {
     console.log('[RESMA] Falling back to JSON upload');
+
     const response = await fetch(`${API_URL}/feeds`, {
         method: 'POST',
         headers: {
@@ -226,11 +252,12 @@ async function uploadAsJson(payload: any, token: string) {
         body: JSON.stringify(payload),
     });
 
-    if (response.ok) {
-        console.log('[RESMA] JSON fallback upload successful');
-    } else {
+    if (!response.ok) {
         console.error('[RESMA] JSON fallback upload failed:', response.status);
+        return;
     }
+
+    console.log('[RESMA] JSON fallback upload successful');
 }
 
 import '../background/instagram-service.js';

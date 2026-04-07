@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
+import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
 
 export interface RawAudienceFeedItem {
     userId: string;
@@ -138,6 +139,28 @@ function sanitizeString(value: unknown): string | null {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return {};
+    }
+    return value as Record<string, unknown>;
+}
+
+function decodeSessionMetadata(data: Buffer | null): Record<string, unknown> | null {
+    if (!data) return null;
+    try {
+        const decoded = isCompressedMsgpack(data)
+            ? decompressAndUnpack<unknown>(data)
+            : JSON.parse(data.toString('utf-8'));
+        if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+            return null;
+        }
+        return decoded as Record<string, unknown>;
+    } catch {
+        return null;
+    }
 }
 
 function incrementCounter(counter: Map<string, number>, key: string, amount = 1) {
@@ -652,6 +675,7 @@ interface AudienceSnapshot {
     id: string;
     userId: string;
     capturedAt: Date;
+    sessionMetadata: Buffer | null;
     feedItems: SnapshotFeedItem[];
 }
 
@@ -706,29 +730,51 @@ function stitchAndDedupeSnapshots(snapshots: AudienceSnapshot[]): RawAudienceFee
     for (const [userId, userSnapshots] of snapshotsByUser.entries()) {
         userSnapshots.sort((a, b) => a.capturedAt.getTime() - b.capturedAt.getTime());
 
-        let sessionIndex = 0;
+        let nextSessionNumber = 0;
+        let lastSessionId: string | null = null;
+        const stitchedSessionKeyToSessionId = new Map<string, string>();
         let previousKept: {
-            capturedAt: Date;
+            capturedAtMs: number;
             fingerprintKey: string;
             fingerprintIds: Set<string>;
+            fingerprintHash: string | null;
         } | null = null;
 
         for (const snapshot of userSnapshots) {
-            if (!previousKept) {
-                sessionIndex += 1;
-            } else {
-                const gapMs = snapshot.capturedAt.getTime() - previousKept.capturedAt.getTime();
-                if (gapMs > SESSION_GAP_MS) {
-                    sessionIndex += 1;
-                    previousKept = null;
+            const metadata = decodeSessionMetadata(snapshot.sessionMetadata);
+            const quality = asRecord(metadata?.quality);
+            const stitchedSessionKey = sanitizeString(quality.stitchedSessionKey);
+            const fingerprintHash = sanitizeString(quality.fingerprintHash);
+            const capturedAtMs = snapshot.capturedAt.getTime();
+
+            let sessionId: string;
+            if (stitchedSessionKey) {
+                const existingSessionId = stitchedSessionKeyToSessionId.get(stitchedSessionKey);
+                if (existingSessionId) {
+                    sessionId = existingSessionId;
+                } else {
+                    nextSessionNumber += 1;
+                    sessionId = `${userId}:session-${nextSessionNumber}`;
+                    stitchedSessionKeyToSessionId.set(stitchedSessionKey, sessionId);
                 }
+                lastSessionId = sessionId;
+            } else {
+                const isNewSession = !previousKept || (capturedAtMs - previousKept.capturedAtMs > SESSION_GAP_MS);
+                if (isNewSession || !lastSessionId) {
+                    nextSessionNumber += 1;
+                    lastSessionId = `${userId}:session-${nextSessionNumber}`;
+                }
+                sessionId = lastSessionId;
             }
 
             const fingerprint = buildSnapshotFingerprint(snapshot.feedItems);
             const isDuplicate = previousKept
                 ? (() => {
-                    const gapMs = snapshot.capturedAt.getTime() - previousKept.capturedAt.getTime();
+                    const gapMs = capturedAtMs - previousKept.capturedAtMs;
                     if (gapMs > DUPLICATE_WINDOW_MS) return false;
+                    if (fingerprintHash && previousKept.fingerprintHash && fingerprintHash === previousKept.fingerprintHash) {
+                        return true;
+                    }
                     if (fingerprint.key === previousKept.fingerprintKey) return true;
                     return overlapRatio(fingerprint.ids, previousKept.fingerprintIds) >= DUPLICATE_OVERLAP_THRESHOLD;
                 })()
@@ -739,12 +785,12 @@ function stitchAndDedupeSnapshots(snapshots: AudienceSnapshot[]): RawAudienceFee
             }
 
             previousKept = {
-                capturedAt: snapshot.capturedAt,
+                capturedAtMs,
                 fingerprintKey: fingerprint.key,
                 fingerprintIds: fingerprint.ids,
+                fingerprintHash,
             };
 
-            const sessionId = `${userId}:session-${sessionIndex}`;
             for (const feedItem of snapshot.feedItems) {
                 stitchedItems.push({
                     userId,
@@ -768,6 +814,7 @@ export async function loadAudienceFeedItems(platform: string): Promise<RawAudien
             id: true,
             userId: true,
             capturedAt: true,
+            sessionMetadata: true,
             feedItems: {
                 orderBy: {
                     positionInFeed: 'asc',

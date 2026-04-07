@@ -31,6 +31,16 @@ export interface DataQualityDiagnosticsResult {
         itemsWithParsedRecommendations: number;
         parseCoverage: number;
         avgRecommendationsPerItem: number;
+        surfaceTransitionStability: number;
+        bySurface: Array<{
+            surface: string;
+            rawRows: number;
+            strictRows: number;
+            parserDropRate: number;
+            parseCoverage: number;
+            uniqueTransitions: number;
+            transitionStabilityScore: number;
+        }>;
     };
     cohorts: {
         eligibleUsers: number;
@@ -54,6 +64,14 @@ export interface DataQualityTrendPoint {
     parserDropRate: number;
     cohortStabilityScore: number;
     networkStrength: number;
+    surfaceMetrics: Array<{
+        surface: string;
+        rawRows: number;
+        strictRows: number;
+        parserDropRate: number;
+        parseCoverage: number;
+        transitionStabilityScore: number;
+    }>;
 }
 
 export interface DataQualityTrendResult {

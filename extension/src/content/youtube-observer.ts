@@ -1,289 +1,532 @@
 /**
  * RESMA - YouTube Feed & Video Observer
- * Captures homepage feed, video telemetry, ads, and recommendations.
+ * Captures homepage feed, video telemetry, ads, and recommendation surfaces.
  */
 
+type RecommendationSurface =
+    | 'watch-next-sidebar'
+    | 'end-screen-overlay'
+    | 'shorts-overlay'
+    | 'home-feed-grid'
+    | 'unknown';
+
+type CaptureSurface = 'watch' | 'shorts' | 'unknown';
+
 interface AdEvent {
-	type: 'ad_start' | 'ad_skip' | 'ad_end';
-	adId?: string; // Often hard to get, might use current video ID if available
-	duration?: number;
-	skippedAt?: number;
-	timestamp: number;
+    type: 'ad_start' | 'ad_skip' | 'ad_end';
+    adId?: string;
+    duration?: number;
+    skippedAt?: number;
+    timestamp: number;
+}
+
+interface YouTubeRecommendation {
+    position: number;
+    videoId: string;
+    title: string | null;
+    channel: string | null;
+    surface: RecommendationSurface;
+    surfaces?: RecommendationSurface[];
 }
 
 interface YouTubeVideo {
-	videoId: string;
-	title: string | null;
-	channelName: string | null;
-	channelHandle: string | null;
-	duration: number;
-	views: string | null;
-	uploadDate: string | null;
+    videoId: string;
+    title: string | null;
+    channelName: string | null;
+    channelHandle: string | null;
+    duration: number;
+    views: string | null;
+    uploadDate: string | null;
 
-	// Telemetry
-	watchTime: number; // Actual seconds watched
-	seekCount: number;
-	pauseCount: number;
-	completed: boolean;
+    watchTime: number;
+    seekCount: number;
+    pauseCount: number;
+    completed: boolean;
 
-	// Recommendations (Sidebar)
-	recommendations: any[];
+    recommendations: YouTubeRecommendation[];
+    adEvents: AdEvent[];
+    captureSurface: CaptureSurface;
+    timestamp: number;
+}
 
-	// Ad Exposure during this video
-	adEvents: AdEvent[];
-
-	timestamp: number;
+interface HomeFeedItem {
+    position: number;
+    title: string | null;
+    videoId: string;
+    channel: string | null;
+    section: string | null;
+    surface: 'home-feed-grid';
 }
 
 interface YouTubeSession {
-	startTime: number;
-	videos: YouTubeVideo[];
-	homeFeedSnapshot: any[]; // Data from the homepage grid
+    sessionId: string;
+    startTime: number;
+    videos: YouTubeVideo[];
+    homeFeedSnapshot: HomeFeedItem[];
 }
 
 class YouTubeObserver {
-	private session: YouTubeSession;
-	private videoObserver: MutationObserver | null = null; // Watches for player state changes
+    private session: YouTubeSession;
 
-	// Active Video State
-	private activeVideoId: string | null = null;
-	private activeVideoElement: HTMLVideoElement | null = null;
-	private videoStartTime: number = 0;
-	private maxTimeWatched: number = 0;
-	private lastCurrentTime: number = 0;
+    private activeVideoId: string | null = null;
+    private activeVideoElement: HTMLVideoElement | null = null;
+    private maxTimeWatched = 0;
+    private lastCurrentTime = 0;
 
-	// Ad State
-	private isAdPlaying: boolean = false;
-	private currentAdStart: number = 0;
+    private isAdPlaying = false;
 
-	constructor() {
-		this.session = {
-			startTime: Date.now(),
-			videos: [],
-			homeFeedSnapshot: []
-		};
+    constructor() {
+        this.session = {
+            sessionId: `yt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+            startTime: Date.now(),
+            videos: [],
+            homeFeedSnapshot: [],
+        };
 
-		console.log('[RESMA] YouTube Observer initialized');
-		this.init();
-	}
+        console.log('[RESMA] YouTube Observer initialized');
+        this.init();
+    }
 
-	private init() {
-		// 1. Snapshot Home Feed if on homepage
-		if (location.pathname === '/') {
-			this.snapshotHomeFeed();
-		}
+    private init() {
+        if (this.isHomeRoute()) {
+            this.snapshotHomeFeed();
+        }
 
-		// 2. Setup Navigation Listener (YouTube is a SPA)
-		// YouTube fires 'yt-navigate-finish' event on internal navigation
-		window.addEventListener('yt-navigate-finish', () => {
-			this.handleNavigation();
-		});
+        window.addEventListener('yt-navigate-finish', () => {
+            this.handleNavigation();
+        });
 
-		// 3. Initial check in case we loaded directly on a video
-		if (location.pathname === '/watch') {
-			this.handleNavigation();
-		}
+        if (this.getCurrentVideoId()) {
+            this.handleNavigation();
+        }
 
-		this.setupMessageListener();
-	}
+        this.setupMessageListener();
+    }
 
-	private setupMessageListener() {
-		chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-			if (message.type === 'GET_STATUS') {
-				sendResponse({
-					videoCount: this.session.videos.length,
-					active: !!this.activeVideoId
-				});
-			}
-		});
-	}
+    private setupMessageListener() {
+        chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+            if (message.type === 'GET_STATUS') {
+                sendResponse({
+                    videoCount: this.session.videos.length,
+                    active: Boolean(this.activeVideoId),
+                });
+            }
+        });
+    }
 
-	private handleNavigation() {
-		const urlParams = new URLSearchParams(location.search);
-		const videoId = urlParams.get('v');
+    private isHomeRoute() {
+        return location.pathname === '/';
+    }
 
-		if (videoId && videoId !== this.activeVideoId) {
-			// Finalize previous video if exists
-			this.finalizeActiveVideo();
+    private getCurrentCaptureSurface(): CaptureSurface {
+        if (location.pathname.startsWith('/shorts/')) {
+            return 'shorts';
+        }
+        if (location.pathname === '/watch') {
+            return 'watch';
+        }
+        return 'unknown';
+    }
 
-			// Start new video tracking
-			this.startVideoTracking(videoId);
-		} else if (!videoId) {
-			// Probably went back to home or channel page
-			this.finalizeActiveVideo();
-		}
-	}
+    private getCurrentVideoId(): string | null {
+        if (location.pathname === '/watch') {
+            const queryVideoId = new URLSearchParams(location.search).get('v');
+            if (queryVideoId) {
+                return queryVideoId.trim();
+            }
+        }
 
-	private snapshotHomeFeed() {
-		// Basic delay to ensure grid loaded
-		setTimeout(() => {
-			const items = Array.from(document.querySelectorAll('ytd-rich-item-renderer'));
-			const feed = items.map((item, idx) => {
-				const titleEl = item.querySelector('#video-title');
-				return {
-					position: idx + 1,
-					title: titleEl?.textContent?.trim(),
-					videoId: (titleEl as HTMLAnchorElement)?.href?.split('v=')[1]?.split('&')[0],
-					channel: item.querySelector('ytd-channel-name')?.textContent?.trim()
-				};
-			}).filter(i => i.videoId);
+        const shortsMatch = location.pathname.match(/^\/shorts\/([A-Za-z0-9_-]{6,20})/);
+        if (shortsMatch?.[1]) {
+            return shortsMatch[1];
+        }
 
-			this.session.homeFeedSnapshot = feed;
-			// Optionally send immediately
-			chrome.runtime.sendMessage({ type: 'YOUTUBE_HOMEPAGE_SNAPSHOT', data: feed });
-		}, 2000);
-	}
+        return null;
+    }
 
-	private startVideoTracking(videoId: string) {
-		console.log(`[RESMA] Tracking video: ${videoId}`);
-		this.activeVideoId = videoId;
-		this.activeVideoElement = document.querySelector('video.html5-main-video');
+    private handleNavigation() {
+        const videoId = this.getCurrentVideoId();
+        if (videoId && videoId !== this.activeVideoId) {
+            this.finalizeActiveVideo();
+            this.startVideoTracking(videoId, this.getCurrentCaptureSurface());
+            return;
+        }
 
-		if (!this.activeVideoElement) {
-			// Retry if video element not ready (rare on SPA nav but possible on refresh)
-			setTimeout(() => this.startVideoTracking(videoId), 500);
-			return;
-		}
+        if (!videoId) {
+            this.finalizeActiveVideo();
+            if (this.isHomeRoute()) {
+                this.snapshotHomeFeed();
+            }
+        }
+    }
 
-		// Reset Telemetry
-		this.videoStartTime = Date.now();
-		this.maxTimeWatched = 0;
-		this.lastCurrentTime = 0;
-		this.isAdPlaying = false;
+    private snapshotHomeFeed() {
+        setTimeout(() => {
+            const items = Array.from(document.querySelectorAll('ytd-rich-item-renderer'));
+            const feed: HomeFeedItem[] = items
+                .map((item, idx) => {
+                    const titleAnchor = item.querySelector<HTMLAnchorElement>('#video-title-link, #video-title');
+                    const videoId = this.extractVideoIdFromHref(titleAnchor?.href ?? null);
+                    if (!videoId) return null;
 
-		// Attach Listeners
-		this.activeVideoElement.addEventListener('timeupdate', this.onTimeUpdate);
-		this.activeVideoElement.addEventListener('playing', this.checkAdState);
+                    const section = item
+                        .closest('ytd-rich-section-renderer')
+                        ?.querySelector('#title')
+                        ?.textContent
+                        ?.trim() ?? null;
 
-		// Create initial entry in session
-		const entry: YouTubeVideo = {
-			videoId,
-			title: document.querySelector('h1.ytd-video-primary-info-renderer')?.textContent?.trim() || null,
-			channelName: document.querySelector('ytd-video-owner-renderer #channel-name')?.textContent?.trim() || null,
-			channelHandle: document.querySelector('ytd-video-owner-renderer a[href^="/@"]')?.getAttribute('href') || null,
-			duration: this.activeVideoElement.duration,
-			views: document.querySelector('ytd-video-primary-info-renderer #count')?.textContent?.trim() || null,
-			uploadDate: document.querySelector('#info-strings yt-formatted-string')?.textContent?.trim() || null,
+                    return {
+                        position: idx + 1,
+                        title: titleAnchor?.textContent?.trim() || null,
+                        videoId,
+                        channel: item.querySelector('ytd-channel-name')?.textContent?.trim() || null,
+                        section,
+                        surface: 'home-feed-grid' as const,
+                    };
+                })
+                .filter((entry): entry is HomeFeedItem => Boolean(entry));
 
-			watchTime: 0,
-			seekCount: 0,
-			pauseCount: 0,
-			completed: false,
-			recommendations: [], // To be populated
-			adEvents: [],
-			timestamp: Date.now()
-		};
+            this.session.homeFeedSnapshot = feed;
+            chrome.runtime.sendMessage({
+                type: 'YOUTUBE_HOMEPAGE_SNAPSHOT',
+                data: feed,
+                sessionMetadata: {
+                    type: 'HOMEPAGE_SNAPSHOT',
+                    captureSurface: 'home-feed-grid',
+                    observerVersion: 'youtube-observer-v2',
+                    clientSessionId: this.session.sessionId,
+                    capturedAt: new Date().toISOString(),
+                },
+            });
+        }, 2000);
+    }
 
-		this.session.videos.push(entry);
+    private startVideoTracking(videoId: string, captureSurface: CaptureSurface) {
+        console.log(`[RESMA] Tracking video: ${videoId} (${captureSurface})`);
+        this.activeVideoId = videoId;
+        this.activeVideoElement = document.querySelector('video.html5-main-video');
 
-		// Scrape sidebar recommendations after a delay
-		setTimeout(() => this.scrapeSidebar(videoId), 3000);
-	}
+        if (!this.activeVideoElement) {
+            setTimeout(() => {
+                if (this.activeVideoId === videoId) {
+                    this.startVideoTracking(videoId, captureSurface);
+                }
+            }, 500);
+            return;
+        }
 
-	private onTimeUpdate = () => {
-		if (!this.activeVideoElement || !this.activeVideoId) return;
+        this.maxTimeWatched = 0;
+        this.lastCurrentTime = 0;
+        this.isAdPlaying = false;
 
-		// Check for Ad
-		const isAd = document.querySelector('.ad-showing') !== null;
+        this.activeVideoElement.addEventListener('timeupdate', this.onTimeUpdate);
+        this.activeVideoElement.addEventListener('playing', this.checkAdState);
 
-		if (isAd) {
-			if (!this.isAdPlaying) {
-				this.isAdPlaying = true;
-				this.recordAdEvent('ad_start');
-			}
-			return; // Don't track watch time for main video if ad is playing
-		} else {
-			if (this.isAdPlaying) {
-				this.isAdPlaying = false;
-				this.recordAdEvent('ad_end');
-			}
-		}
+        const entry: YouTubeVideo = {
+            videoId,
+            title: document.querySelector('h1.ytd-video-primary-info-renderer')?.textContent?.trim() || null,
+            channelName: document.querySelector('ytd-video-owner-renderer #channel-name')?.textContent?.trim() || null,
+            channelHandle: document.querySelector('ytd-video-owner-renderer a[href^="/@"]')?.getAttribute('href') || null,
+            duration: this.activeVideoElement.duration,
+            views: document.querySelector('ytd-video-primary-info-renderer #count')?.textContent?.trim() || null,
+            uploadDate: document.querySelector('#info-strings yt-formatted-string')?.textContent?.trim() || null,
+            watchTime: 0,
+            seekCount: 0,
+            pauseCount: 0,
+            completed: false,
+            recommendations: [],
+            adEvents: [],
+            captureSurface,
+            timestamp: Date.now(),
+        };
 
-		const currentTime = this.activeVideoElement.currentTime;
+        this.session.videos.push(entry);
 
-		// Logic to track "Max Time Watched" linearly
-		// If we moved forward by ~0.2-1.0s, we watched that chunk.
-		// If jump is large (>2s), it's a seek.
-		const delta = currentTime - this.lastCurrentTime;
+        setTimeout(() => this.scrapeRecommendations(videoId), 2500);
+        setTimeout(() => this.scrapeRecommendations(videoId), 8000);
+    }
 
-		if (delta > 0 && delta < 2) {
-			this.maxTimeWatched += delta;
-			this.updateActiveEntry(entry => entry.watchTime = this.maxTimeWatched);
-		} else if (Math.abs(delta) > 2) {
-			this.updateActiveEntry(entry => entry.seekCount++);
-		}
+    private onTimeUpdate = () => {
+        if (!this.activeVideoElement || !this.activeVideoId) return;
 
-		this.lastCurrentTime = currentTime;
-	};
+        const isAd = document.querySelector('.ad-showing') !== null;
+        if (isAd) {
+            if (!this.isAdPlaying) {
+                this.isAdPlaying = true;
+                this.recordAdEvent('ad_start');
+            }
+            return;
+        }
 
-	private checkAdState = () => {
-		// Triggered on 'playing' event to catch start of content or ad
-		const isAd = document.querySelector('.ad-showing') !== null;
-		if (isAd && !this.isAdPlaying) {
-			this.isAdPlaying = true;
-			this.recordAdEvent('ad_start');
-		}
-	};
+        if (this.isAdPlaying) {
+            this.isAdPlaying = false;
+            this.recordAdEvent('ad_end');
+        }
 
-	private recordAdEvent(type: 'ad_start' | 'ad_end') {
-		const entry = this.getActiveEntry();
-		if (entry) {
-			entry.adEvents.push({
-				type,
-				timestamp: Date.now()
-			});
-			console.log(`[RESMA] Ad Event: ${type}`);
-		}
-	}
+        const currentTime = this.activeVideoElement.currentTime;
+        const delta = currentTime - this.lastCurrentTime;
 
-	private scrapeSidebar(currentVideoId: string) {
-		const sidebarItems = document.querySelectorAll('ytd-watch-next-secondary-results-renderer ytd-compact-video-renderer');
-		const recommendations = Array.from(sidebarItems).slice(0, 10).map((item, idx) => ({
-			position: idx + 1,
-			videoId: item.querySelector('a')?.href?.split('v=')[1]?.split('&')[0],
-			title: item.querySelector('#video-title')?.textContent?.trim(),
-			channel: item.querySelector('.ytd-channel-name')?.textContent?.trim()
-		}));
+        if (delta > 0 && delta < 2) {
+            this.maxTimeWatched += delta;
+            this.updateActiveEntry((entry) => {
+                entry.watchTime = this.maxTimeWatched;
+            });
+        } else if (Math.abs(delta) > 2) {
+            this.updateActiveEntry((entry) => {
+                entry.seekCount += 1;
+            });
+        }
 
-		this.updateActiveEntry(entry => {
-			if (entry.videoId === currentVideoId) {
-				entry.recommendations = recommendations;
-			}
-		});
-	}
+        this.lastCurrentTime = currentTime;
+    };
 
-	private finalizeActiveVideo() {
-		if (!this.activeVideoId || !this.activeVideoElement) return;
+    private checkAdState = () => {
+        const isAd = document.querySelector('.ad-showing') !== null;
+        if (isAd && !this.isAdPlaying) {
+            this.isAdPlaying = true;
+            this.recordAdEvent('ad_start');
+        }
+    };
 
-		console.log(`[RESMA] Finalizing video: ${this.activeVideoId}, Watched: ${this.maxTimeWatched.toFixed(1)}s`);
+    private recordAdEvent(type: 'ad_start' | 'ad_end') {
+        const entry = this.getActiveEntry();
+        if (!entry) return;
 
-		// 1. Update final duration if it was 0 initially
-		this.updateActiveEntry(entry => {
-			entry.duration = this.activeVideoElement?.duration || 0;
-			if (entry.watchTime / entry.duration > 0.9) entry.completed = true;
-		});
+        entry.adEvents.push({
+            type,
+            timestamp: Date.now(),
+        });
 
-		// 2. Send to background immediately (streaming approach)
-		const entry = this.getActiveEntry();
-		if (entry) {
-			chrome.runtime.sendMessage({ type: 'YOUTUBE_VIDEO_COMPLETE', data: entry });
-		}
+        console.log(`[RESMA] Ad Event: ${type}`);
+    }
 
-		// 3. Cleanup
-		this.activeVideoElement.removeEventListener('timeupdate', this.onTimeUpdate);
-		this.activeVideoElement.removeEventListener('playing', this.checkAdState);
-		this.activeVideoId = null;
-		this.activeVideoElement = null;
-	}
+    private scrapeRecommendations(currentVideoId: string) {
+        const activeEntry = this.getActiveEntry();
+        if (!activeEntry || activeEntry.videoId !== currentVideoId) {
+            return;
+        }
 
-	private getActiveEntry() {
-		return this.session.videos.find(v => v.videoId === this.activeVideoId);
-	}
+        const candidates: YouTubeRecommendation[] = [
+            ...this.collectFromRenderer(
+                'ytd-watch-next-secondary-results-renderer ytd-compact-video-renderer',
+                'watch-next-sidebar',
+                20
+            ),
+            ...this.collectFromAnchors(
+                '.ytp-ce-element .ytp-ce-covering-overlay[href], .ytp-endscreen-content a.ytp-videowall-still[href]',
+                'end-screen-overlay',
+                14
+            ),
+            ...this.collectFromRenderer(
+                'ytd-reel-video-renderer ytd-compact-video-renderer, ytd-reel-player-overlay-renderer ytd-compact-video-renderer',
+                'shorts-overlay',
+                12
+            ),
+            ...this.collectFromAnchors(
+                'ytd-reel-video-renderer a#thumbnail[href], ytd-reel-player-overlay-renderer a#thumbnail[href]',
+                'shorts-overlay',
+                12
+            ),
+        ].filter((candidate) => candidate.videoId !== currentVideoId);
 
-	private updateActiveEntry(updater: (entry: YouTubeVideo) => void) {
-		const entry = this.getActiveEntry();
-		if (entry) updater(entry);
-	}
+        const recommendations = this.mergeRecommendations(candidates, 30);
+
+        this.updateActiveEntry((entry) => {
+            if (entry.videoId === currentVideoId) {
+                entry.recommendations = recommendations;
+            }
+        });
+    }
+
+    private collectFromRenderer(
+        selector: string,
+        surface: RecommendationSurface,
+        limit: number
+    ): YouTubeRecommendation[] {
+        const elements = Array.from(document.querySelectorAll(selector)).slice(0, limit);
+
+        return elements
+            .map((element, index) => {
+                const anchor = element.querySelector<HTMLAnchorElement>(
+                    'a#thumbnail[href], a#video-title-link[href], a[href*="/watch"], a[href*="/shorts/"]'
+                );
+                const videoId = this.extractVideoIdFromHref(anchor?.href ?? null);
+                if (!videoId) return null;
+
+                const title =
+                    element.querySelector('#video-title')?.textContent?.trim()
+                    || element.querySelector('#video-title-link')?.textContent?.trim()
+                    || anchor?.getAttribute('title')
+                    || null;
+
+                const channel =
+                    element.querySelector('.ytd-channel-name')?.textContent?.trim()
+                    || element.querySelector('#channel-name')?.textContent?.trim()
+                    || null;
+
+                return {
+                    position: index + 1,
+                    videoId,
+                    title,
+                    channel,
+                    surface,
+                };
+            })
+            .filter((entry): entry is YouTubeRecommendation => Boolean(entry));
+    }
+
+    private collectFromAnchors(
+        selector: string,
+        surface: RecommendationSurface,
+        limit: number
+    ): YouTubeRecommendation[] {
+        const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>(selector)).slice(0, limit);
+
+        return anchors
+            .map((anchor, index) => {
+                const videoId = this.extractVideoIdFromHref(anchor.href);
+                if (!videoId) return null;
+
+                const title = anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null;
+
+                return {
+                    position: index + 1,
+                    videoId,
+                    title,
+                    channel: null,
+                    surface,
+                };
+            })
+            .filter((entry): entry is YouTubeRecommendation => Boolean(entry));
+    }
+
+    private mergeRecommendations(recommendations: YouTubeRecommendation[], maxItems: number): YouTubeRecommendation[] {
+        const merged = new Map<string, {
+            videoId: string;
+            position: number;
+            title: string | null;
+            channel: string | null;
+            primarySurface: RecommendationSurface;
+            surfaces: Set<RecommendationSurface>;
+        }>();
+
+        for (const recommendation of recommendations) {
+            const existing = merged.get(recommendation.videoId);
+            if (!existing) {
+                merged.set(recommendation.videoId, {
+                    videoId: recommendation.videoId,
+                    position: recommendation.position,
+                    title: recommendation.title,
+                    channel: recommendation.channel,
+                    primarySurface: recommendation.surface,
+                    surfaces: new Set([recommendation.surface]),
+                });
+                continue;
+            }
+
+            existing.surfaces.add(recommendation.surface);
+            if (recommendation.position < existing.position) {
+                existing.position = recommendation.position;
+                existing.primarySurface = recommendation.surface;
+            }
+            if (!existing.title && recommendation.title) {
+                existing.title = recommendation.title;
+            }
+            if (!existing.channel && recommendation.channel) {
+                existing.channel = recommendation.channel;
+            }
+        }
+
+        return Array.from(merged.values())
+            .sort((left, right) => left.position - right.position || left.videoId.localeCompare(right.videoId))
+            .slice(0, maxItems)
+            .map((entry, index) => ({
+                position: index + 1,
+                videoId: entry.videoId,
+                title: entry.title,
+                channel: entry.channel,
+                surface: entry.primarySurface,
+                surfaces: Array.from(entry.surfaces),
+            }));
+    }
+
+    private extractVideoIdFromHref(href: string | null): string | null {
+        if (!href) return null;
+
+        try {
+            const parsed = new URL(href, location.origin);
+            const fromWatchQuery = parsed.searchParams.get('v');
+            if (fromWatchQuery && /^[A-Za-z0-9_-]{6,20}$/.test(fromWatchQuery)) {
+                return fromWatchQuery;
+            }
+
+            const shortsMatch = parsed.pathname.match(/\/shorts\/([A-Za-z0-9_-]{6,20})/);
+            if (shortsMatch?.[1]) {
+                return shortsMatch[1];
+            }
+
+            if (parsed.hostname.includes('youtu.be')) {
+                const shortPathId = parsed.pathname.replace(/^\/+/, '').split('/')[0];
+                if (shortPathId && /^[A-Za-z0-9_-]{6,20}$/.test(shortPathId)) {
+                    return shortPathId;
+                }
+            }
+        } catch {
+            return null;
+        }
+
+        return null;
+    }
+
+    private finalizeActiveVideo() {
+        if (!this.activeVideoId || !this.activeVideoElement) return;
+
+        console.log(`[RESMA] Finalizing video: ${this.activeVideoId}, watched: ${this.maxTimeWatched.toFixed(1)}s`);
+
+        const finalizedVideoId = this.activeVideoId;
+
+        this.updateActiveEntry((entry) => {
+            entry.duration = this.activeVideoElement?.duration || 0;
+            if (entry.duration > 0 && (entry.watchTime / entry.duration) > 0.9) {
+                entry.completed = true;
+            }
+        });
+
+        const entry = this.getActiveEntry();
+        if (entry) {
+            chrome.runtime.sendMessage({
+                type: 'YOUTUBE_VIDEO_COMPLETE',
+                data: entry,
+                sessionMetadata: {
+                    type: 'VIDEO_WATCH',
+                    captureSurface: entry.captureSurface,
+                    observerVersion: 'youtube-observer-v2',
+                    clientSessionId: this.session.sessionId,
+                    sourceVideoId: entry.videoId,
+                    capturedAt: new Date().toISOString(),
+                },
+            });
+        }
+
+        this.activeVideoElement.removeEventListener('timeupdate', this.onTimeUpdate);
+        this.activeVideoElement.removeEventListener('playing', this.checkAdState);
+
+        if (this.activeVideoId === finalizedVideoId) {
+            this.activeVideoId = null;
+        }
+        this.activeVideoElement = null;
+    }
+
+    private getActiveEntry() {
+        return this.session.videos.find((video) => video.videoId === this.activeVideoId);
+    }
+
+    private updateActiveEntry(updater: (entry: YouTubeVideo) => void) {
+        const entry = this.getActiveEntry();
+        if (entry) {
+            updater(entry);
+        }
+    }
 }
 
 new YouTubeObserver();

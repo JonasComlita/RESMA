@@ -40,6 +40,14 @@ const QUALITY_BUCKET_OPTIONS = [
     { label: '24h', hours: 24 },
     { label: '48h', hours: 48 },
 ];
+const SURFACE_TREND_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed'];
+
+type SurfaceTrendMetric = 'parseCoverage' | 'parserDropRate' | 'transitionStabilityScore';
+const SURFACE_TREND_METRIC_OPTIONS: Array<{ id: SurfaceTrendMetric; label: string }> = [
+    { id: 'parseCoverage', label: 'Parse Coverage %' },
+    { id: 'parserDropRate', label: 'Parser Drop %' },
+    { id: 'transitionStabilityScore', label: 'Transition Stability %' },
+];
 
 interface QualityThresholds {
     parserDropWarn: number;
@@ -47,6 +55,10 @@ interface QualityThresholds {
     stabilityWarn: number;
     stabilityCritical: number;
     fingerprintCoverageWarn: number;
+    surfaceParserDropWarn: number;
+    surfaceParserDropCritical: number;
+    surfaceStabilityWarn: number;
+    surfaceStabilityCritical: number;
 }
 
 const DEFAULT_QUALITY_THRESHOLDS: QualityThresholds = {
@@ -55,6 +67,10 @@ const DEFAULT_QUALITY_THRESHOLDS: QualityThresholds = {
     stabilityWarn: 0.75,
     stabilityCritical: 0.6,
     fingerprintCoverageWarn: 0.6,
+    surfaceParserDropWarn: 0.4,
+    surfaceParserDropCritical: 0.6,
+    surfaceStabilityWarn: 0.25,
+    surfaceStabilityCritical: 0.12,
 };
 
 export function Dashboard() {
@@ -83,6 +99,7 @@ export function Dashboard() {
     const [qualityWindowHours, setQualityWindowHours] = useState(DEFAULT_QUALITY_WINDOW_HOURS);
     const [qualityBucketHours, setQualityBucketHours] = useState(DEFAULT_QUALITY_TREND_BUCKET_HOURS);
     const [qualityThresholds, setQualityThresholds] = useState<QualityThresholds>(DEFAULT_QUALITY_THRESHOLDS);
+    const [surfaceTrendMetric, setSurfaceTrendMetric] = useState<SurfaceTrendMetric>('parseCoverage');
     const [isBriefExporting, setIsBriefExporting] = useState(false);
     const [briefExportMessage, setBriefExportMessage] = useState<string | null>(null);
     const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
@@ -132,6 +149,18 @@ export function Dashboard() {
                 fingerprintCoverageWarn: typeof parsed.fingerprintCoverageWarn === 'number'
                     ? parsed.fingerprintCoverageWarn
                     : current.fingerprintCoverageWarn,
+                surfaceParserDropWarn: typeof parsed.surfaceParserDropWarn === 'number'
+                    ? parsed.surfaceParserDropWarn
+                    : current.surfaceParserDropWarn,
+                surfaceParserDropCritical: typeof parsed.surfaceParserDropCritical === 'number'
+                    ? parsed.surfaceParserDropCritical
+                    : current.surfaceParserDropCritical,
+                surfaceStabilityWarn: typeof parsed.surfaceStabilityWarn === 'number'
+                    ? parsed.surfaceStabilityWarn
+                    : current.surfaceStabilityWarn,
+                surfaceStabilityCritical: typeof parsed.surfaceStabilityCritical === 'number'
+                    ? parsed.surfaceStabilityCritical
+                    : current.surfaceStabilityCritical,
             }));
         } catch {
             // Ignore malformed local storage payloads.
@@ -272,6 +301,12 @@ export function Dashboard() {
         const stabilitySeries = dataQualityTrend.points
             .map((point) => point.cohortStabilityScore)
             .filter((value) => Number.isFinite(value));
+        const surfaceParserSeries = dataQualityTrend.points
+            .flatMap((point) => point.surfaceMetrics.map((surface) => surface.parserDropRate))
+            .filter((value) => Number.isFinite(value));
+        const surfaceStabilitySeries = dataQualityTrend.points
+            .flatMap((point) => point.surfaceMetrics.map((surface) => surface.transitionStabilityScore))
+            .filter((value) => Number.isFinite(value));
         const fingerprintCoverage = dataQuality.stitching.totalSnapshots > 0
             ? dataQuality.stitching.snapshotsWithQualityFingerprint / dataQuality.stitching.totalSnapshots
             : DEFAULT_QUALITY_THRESHOLDS.fingerprintCoverageWarn;
@@ -282,6 +317,18 @@ export function Dashboard() {
             stabilityWarn: clampUnit(percentile(stabilitySeries, 0.25) - 0.01),
             stabilityCritical: clampUnit(percentile(stabilitySeries, 0.1) - 0.02),
             fingerprintCoverageWarn: clampUnit(fingerprintCoverage - 0.08),
+            surfaceParserDropWarn: surfaceParserSeries.length > 0
+                ? clampUnit(percentile(surfaceParserSeries, 0.75) + 0.02)
+                : DEFAULT_QUALITY_THRESHOLDS.surfaceParserDropWarn,
+            surfaceParserDropCritical: surfaceParserSeries.length > 0
+                ? clampUnit(percentile(surfaceParserSeries, 0.9) + 0.04)
+                : DEFAULT_QUALITY_THRESHOLDS.surfaceParserDropCritical,
+            surfaceStabilityWarn: surfaceStabilitySeries.length > 0
+                ? clampUnit(percentile(surfaceStabilitySeries, 0.25) - 0.01)
+                : DEFAULT_QUALITY_THRESHOLDS.surfaceStabilityWarn,
+            surfaceStabilityCritical: surfaceStabilitySeries.length > 0
+                ? clampUnit(percentile(surfaceStabilitySeries, 0.1) - 0.02)
+                : DEFAULT_QUALITY_THRESHOLDS.surfaceStabilityCritical,
         });
 
         setQualityThresholds(tuned);
@@ -337,6 +384,50 @@ export function Dashboard() {
             })
             .finally(() => setIsBriefExporting(false));
     };
+
+    const surfaceTrendLeaders = (() => {
+        if (!dataQualityTrend || dataQualityTrend.points.length === 0) return [];
+        const strictRowsBySurface = new Map<string, number>();
+
+        for (const point of dataQualityTrend.points) {
+            const surfaceMetrics = Array.isArray(point.surfaceMetrics) ? point.surfaceMetrics : [];
+            for (const surface of surfaceMetrics) {
+                strictRowsBySurface.set(
+                    surface.surface,
+                    (strictRowsBySurface.get(surface.surface) ?? 0) + surface.strictRows
+                );
+            }
+        }
+
+        return Array.from(strictRowsBySurface.entries())
+            .filter(([, strictRows]) => strictRows > 0)
+            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+            .slice(0, 4)
+            .map(([surface]) => surface);
+    })();
+
+    const surfaceTrendSeries = (() => {
+        if (!dataQualityTrend || dataQualityTrend.points.length === 0 || surfaceTrendLeaders.length === 0) {
+            return [];
+        }
+
+        return dataQualityTrend.points.map((point) => {
+            const row: Record<string, string | number | null> = {
+                time: new Date(point.windowStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+            };
+
+            for (const surface of surfaceTrendLeaders) {
+                const pointSurfaces = Array.isArray(point.surfaceMetrics) ? point.surfaceMetrics : [];
+                const surfaceMetrics = pointSurfaces.find((entry) => entry.surface === surface);
+                const value = surfaceMetrics ? surfaceMetrics[surfaceTrendMetric] : null;
+                row[`surface:${surface}`] = typeof value === 'number'
+                    ? Math.round(value * 100)
+                    : null;
+            }
+
+            return row;
+        });
+    })();
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -427,10 +518,11 @@ export function Dashboard() {
 
                     {dataQuality ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
                                 <MapMetric title="Dedupe Rate" value={`${Math.round(dataQuality.stitching.duplicateRate * 100)}%`} />
                                 <MapMetric title="Parse Coverage" value={`${Math.round(dataQuality.recommendations.parseCoverage * 100)}%`} />
                                 <MapMetric title="Parser Drop" value={`${Math.round(dataQuality.recommendations.parserDropRate * 100)}%`} />
+                                <MapMetric title="Surface Stability" value={`${Math.round(dataQuality.recommendations.surfaceTransitionStability * 100)}%`} />
                                 <MapMetric title="Cohort Stability" value={`${Math.round(dataQuality.cohorts.stabilityScore * 100)}%`} />
                                 <MapMetric title="Network Strength" value={`${Math.round(dataQuality.cohorts.networkStrength * 100)}%`} />
                                 <MapMetric title="Stitched Sessions" value={dataQuality.stitching.stitchedSessions} />
@@ -438,7 +530,7 @@ export function Dashboard() {
 
                             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                                 <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">Alert Thresholds</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                     <ThresholdInput
                                         label="Parser Warn %"
                                         value={qualityThresholds.parserDropWarn}
@@ -464,6 +556,26 @@ export function Dashboard() {
                                         value={qualityThresholds.fingerprintCoverageWarn}
                                         onChange={(value) => setQualityThresholds((current) => ({ ...current, fingerprintCoverageWarn: value }))}
                                     />
+                                    <ThresholdInput
+                                        label="Surface Drop Warn %"
+                                        value={qualityThresholds.surfaceParserDropWarn}
+                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceParserDropWarn: value }))}
+                                    />
+                                    <ThresholdInput
+                                        label="Surface Drop Critical %"
+                                        value={qualityThresholds.surfaceParserDropCritical}
+                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceParserDropCritical: value }))}
+                                    />
+                                    <ThresholdInput
+                                        label="Surface Stability Warn %"
+                                        value={qualityThresholds.surfaceStabilityWarn}
+                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceStabilityWarn: value }))}
+                                    />
+                                    <ThresholdInput
+                                        label="Surface Stability Critical %"
+                                        value={qualityThresholds.surfaceStabilityCritical}
+                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceStabilityCritical: value }))}
+                                    />
                                 </div>
                                 <div className="flex items-center justify-end gap-2 mt-3">
                                     <button
@@ -485,6 +597,41 @@ export function Dashboard() {
                             </div>
 
                             <QualityAlerts diagnostics={dataQuality} thresholds={qualityThresholds} />
+
+                            {dataQuality.recommendations.bySurface.length > 0 && (
+                                <div className="rounded-xl border border-gray-200 p-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Recommendation Surface Quality</h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full text-xs">
+                                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                                                <tr className="text-left">
+                                                    <th className="px-3 py-2 font-semibold">Surface</th>
+                                                    <th className="px-3 py-2 font-semibold">Raw Rows</th>
+                                                    <th className="px-3 py-2 font-semibold">Strict Rows</th>
+                                                    <th className="px-3 py-2 font-semibold">Parse Coverage</th>
+                                                    <th className="px-3 py-2 font-semibold">Parser Drop</th>
+                                                    <th className="px-3 py-2 font-semibold">Transition Stability</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {dataQuality.recommendations.bySurface.slice(0, 8).map((surface) => (
+                                                    <tr key={surface.surface} className="border-b border-gray-100 last:border-b-0">
+                                                        <td className="px-3 py-2 font-medium text-gray-800">{surface.surface}</td>
+                                                        <td className="px-3 py-2 text-gray-700">{surface.rawRows.toLocaleString()}</td>
+                                                        <td className="px-3 py-2 text-gray-700">{surface.strictRows.toLocaleString()}</td>
+                                                        <td className="px-3 py-2 text-gray-700">{Math.round(surface.parseCoverage * 100)}%</td>
+                                                        <td className="px-3 py-2 text-gray-700">{Math.round(surface.parserDropRate * 100)}%</td>
+                                                        <td className="px-3 py-2 text-gray-700">{Math.round(surface.transitionStabilityScore * 100)}%</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p className="mt-2 text-[11px] text-gray-500">
+                                        Surface stability is transition repeat strength within each recommendation surface after strict parsing.
+                                    </p>
+                                </div>
+                            )}
 
                             {dataQualityTrend && dataQualityTrend.points.length > 0 && (
                                 <div className="rounded-xl border border-gray-200 p-4">
@@ -510,6 +657,58 @@ export function Dashboard() {
                                                 <Line type="monotone" dataKey="stability" name="Cohort Stability %" stroke="#16a34a" strokeWidth={2} dot={false} />
                                                 <Line type="monotone" dataKey="parserDropRate" name="Parser Drop %" stroke="#dc2626" strokeWidth={2} dot={false} />
                                                 <Line type="monotone" dataKey="dedupeRate" name="Dedupe %" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            )}
+
+                            {surfaceTrendSeries.length > 0 && (
+                                <div className="rounded-xl border border-gray-200 p-4">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
+                                        <h3 className="text-sm font-semibold text-gray-900">Surface Trend</h3>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {SURFACE_TREND_METRIC_OPTIONS.map((option) => {
+                                                const isActive = surfaceTrendMetric === option.id;
+                                                return (
+                                                    <button
+                                                        key={`surface-metric-${option.id}`}
+                                                        type="button"
+                                                        onClick={() => setSurfaceTrendMetric(option.id)}
+                                                        className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${isActive
+                                                            ? 'border-blue-400 bg-blue-50 text-blue-700'
+                                                            : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                                                            }`}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div className="h-60 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart
+                                                data={surfaceTrendSeries}
+                                                margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" />
+                                                <XAxis dataKey="time" />
+                                                <YAxis domain={[0, 100]} />
+                                                <Tooltip />
+                                                <Legend />
+                                                {surfaceTrendLeaders.map((surface, index) => (
+                                                    <Line
+                                                        key={`surface-line-${surface}`}
+                                                        type="monotone"
+                                                        dataKey={`surface:${surface}`}
+                                                        name={`${surface} %`}
+                                                        stroke={SURFACE_TREND_COLORS[index % SURFACE_TREND_COLORS.length]}
+                                                        strokeWidth={2}
+                                                        dot={false}
+                                                        connectNulls
+                                                    />
+                                                ))}
                                             </LineChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -959,6 +1158,10 @@ function normalizeThresholds(input: QualityThresholds): QualityThresholds {
     const stabilityCritical = clampUnit(Math.min(input.stabilityCritical, input.stabilityWarn));
     const stabilityWarn = clampUnit(Math.max(input.stabilityCritical, input.stabilityWarn));
     const fingerprintCoverageWarn = clampUnit(input.fingerprintCoverageWarn);
+    const surfaceParserDropWarn = clampUnit(Math.min(input.surfaceParserDropWarn, input.surfaceParserDropCritical));
+    const surfaceParserDropCritical = clampUnit(Math.max(input.surfaceParserDropWarn, input.surfaceParserDropCritical));
+    const surfaceStabilityCritical = clampUnit(Math.min(input.surfaceStabilityCritical, input.surfaceStabilityWarn));
+    const surfaceStabilityWarn = clampUnit(Math.max(input.surfaceStabilityCritical, input.surfaceStabilityWarn));
 
     return {
         parserDropWarn: parserWarn,
@@ -966,6 +1169,10 @@ function normalizeThresholds(input: QualityThresholds): QualityThresholds {
         stabilityWarn,
         stabilityCritical,
         fingerprintCoverageWarn,
+        surfaceParserDropWarn,
+        surfaceParserDropCritical,
+        surfaceStabilityWarn,
+        surfaceStabilityCritical,
     };
 }
 
@@ -975,6 +1182,7 @@ function deriveQualityAlerts(
 ): QualityAlert[] {
     const normalized = normalizeThresholds(thresholds);
     const alerts: QualityAlert[] = [];
+    const MIN_SURFACE_ROWS_FOR_ALERTS = 20;
 
     if (diagnostics.recommendations.parserDropRate >= normalized.parserDropCritical) {
         alerts.push({
@@ -1034,7 +1242,62 @@ function deriveQualityAlerts(
         });
     }
 
-    return alerts.slice(0, 4);
+    const surfacedRecommendations = diagnostics.recommendations.bySurface
+        .filter((surface) => surface.rawRows >= MIN_SURFACE_ROWS_FOR_ALERTS || surface.strictRows >= MIN_SURFACE_ROWS_FOR_ALERTS);
+
+    if (surfacedRecommendations.length > 0) {
+        const highestSurfaceDrop = [...surfacedRecommendations]
+            .sort((left, right) => right.parserDropRate - left.parserDropRate)[0];
+        if (highestSurfaceDrop.parserDropRate >= normalized.surfaceParserDropCritical) {
+            alerts.push({
+                id: `surface-drop-critical-${highestSurfaceDrop.surface}`,
+                severity: 'critical',
+                title: `High Surface Parser Loss (${highestSurfaceDrop.surface})`,
+                detail: `${Math.round(highestSurfaceDrop.parserDropRate * 100)}% of rows are dropped on this surface; prediction transitions may be biased.`,
+            });
+        } else if (highestSurfaceDrop.parserDropRate >= normalized.surfaceParserDropWarn) {
+            alerts.push({
+                id: `surface-drop-warning-${highestSurfaceDrop.surface}`,
+                severity: 'warning',
+                title: `Surface Parser Loss Rising (${highestSurfaceDrop.surface})`,
+                detail: `${Math.round(highestSurfaceDrop.parserDropRate * 100)}% row drop rate suggests parser drift on this recommendation surface.`,
+            });
+        }
+
+        const lowestSurfaceStability = [...surfacedRecommendations]
+            .sort((left, right) => left.transitionStabilityScore - right.transitionStabilityScore)[0];
+        if (lowestSurfaceStability.transitionStabilityScore <= normalized.surfaceStabilityCritical) {
+            alerts.push({
+                id: `surface-stability-critical-${lowestSurfaceStability.surface}`,
+                severity: 'critical',
+                title: `Surface Transition Stability Is Low (${lowestSurfaceStability.surface})`,
+                detail: `${Math.round(lowestSurfaceStability.transitionStabilityScore * 100)}% repeat strength indicates noisy transitions on this surface.`,
+            });
+        } else if (lowestSurfaceStability.transitionStabilityScore <= normalized.surfaceStabilityWarn) {
+            alerts.push({
+                id: `surface-stability-warning-${lowestSurfaceStability.surface}`,
+                severity: 'warning',
+                title: `Surface Transition Stability Needs Work (${lowestSurfaceStability.surface})`,
+                detail: `${Math.round(lowestSurfaceStability.transitionStabilityScore * 100)}% repeat strength is below target for stable pathing.`,
+            });
+        }
+    }
+
+    const severityRank: Record<QualityAlert['severity'], number> = {
+        critical: 0,
+        warning: 1,
+        good: 2,
+    };
+
+    return alerts
+        .sort((left, right) => {
+            const severityDiff = severityRank[left.severity] - severityRank[right.severity];
+            if (severityDiff !== 0) {
+                return severityDiff;
+            }
+            return left.title.localeCompare(right.title);
+        })
+        .slice(0, 6);
 }
 
 function QualityAlerts({
