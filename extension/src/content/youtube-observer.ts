@@ -67,6 +67,7 @@ interface YouTubeSession {
 
 class YouTubeObserver {
     private session: YouTubeSession;
+    private isManualCaptureActive = false;
 
     private activeVideoId: string | null = null;
     private activeVideoElement: HTMLVideoElement | null = null;
@@ -107,10 +108,36 @@ class YouTubeObserver {
         chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             if (message.type === 'GET_STATUS') {
                 sendResponse({
-                    videoCount: this.session.videos.length,
+                    isCapturing: this.isManualCaptureActive,
+                    itemCount: this.session.videos.length + this.session.homeFeedSnapshot.length,
                     active: Boolean(this.activeVideoId),
                 });
+                return true;
             }
+
+            if (message.type === 'START_CAPTURE') {
+                this.isManualCaptureActive = true;
+                sendResponse({
+                    success: true,
+                    data: {
+                        itemCount: this.session.videos.length + this.session.homeFeedSnapshot.length,
+                    },
+                });
+                return true;
+            }
+
+            if (message.type === 'STOP_CAPTURE') {
+                this.isManualCaptureActive = false;
+                sendResponse({
+                    success: true,
+                    data: {
+                        itemCount: this.session.videos.length + this.session.homeFeedSnapshot.length,
+                    },
+                });
+                return true;
+            }
+
+            return false;
         });
     }
 
@@ -188,14 +215,18 @@ class YouTubeObserver {
 
             this.session.homeFeedSnapshot = feed;
             chrome.runtime.sendMessage({
-                type: 'YOUTUBE_HOMEPAGE_SNAPSHOT',
-                data: feed,
-                sessionMetadata: {
-                    type: 'HOMEPAGE_SNAPSHOT',
-                    captureSurface: 'home-feed-grid',
-                    observerVersion: 'youtube-observer-v2',
-                    clientSessionId: this.session.sessionId,
-                    capturedAt: new Date().toISOString(),
+                type: 'UPLOAD_PLATFORM_FEED',
+                payload: {
+                    platform: 'youtube',
+                    feed,
+                    sessionMetadata: {
+                        type: 'HOMEPAGE_SNAPSHOT',
+                        captureSurface: 'home-feed-grid',
+                        observerVersion: 'youtube-observer-v2',
+                        ingestVersion: 'cross-platform-v1',
+                        clientSessionId: this.session.sessionId,
+                        capturedAt: new Date().toISOString(),
+                    },
                 },
             });
         }, 2000);
@@ -495,15 +526,19 @@ class YouTubeObserver {
         const entry = this.getActiveEntry();
         if (entry) {
             chrome.runtime.sendMessage({
-                type: 'YOUTUBE_VIDEO_COMPLETE',
-                data: entry,
-                sessionMetadata: {
-                    type: 'VIDEO_WATCH',
-                    captureSurface: entry.captureSurface,
-                    observerVersion: 'youtube-observer-v2',
-                    clientSessionId: this.session.sessionId,
-                    sourceVideoId: entry.videoId,
-                    capturedAt: new Date().toISOString(),
+                type: 'UPLOAD_PLATFORM_FEED',
+                payload: {
+                    platform: 'youtube',
+                    feed: [entry],
+                    sessionMetadata: {
+                        type: 'VIDEO_WATCH',
+                        captureSurface: entry.captureSurface,
+                        observerVersion: 'youtube-observer-v2',
+                        ingestVersion: 'cross-platform-v1',
+                        clientSessionId: this.session.sessionId,
+                        sourceVideoId: entry.videoId,
+                        capturedAt: new Date().toISOString(),
+                    },
                 },
             });
         }

@@ -31,10 +31,19 @@ interface CapturedVideo {
         saves: number;
     };
     isSponsored: boolean;
+    recommendations: Array<{
+        videoId: string;
+        position: number;
+        title: string | null;
+        channel: string | null;
+        surface: string;
+        surfaces: string[];
+    }>;
     analytics: VideoAnalytics;
 }
 
 interface FeedSession {
+    sessionId: string;
     startTime: number;
     videos: CapturedVideo[];
     scrollEvents: number;
@@ -65,6 +74,7 @@ class TikTokObserver {
 
     private createNewSession(): FeedSession {
         return {
+            sessionId: `tt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
             startTime: Date.now(),
             videos: [],
             scrollEvents: 0,
@@ -96,7 +106,7 @@ class TikTokObserver {
                 case 'GET_STATUS':
                     sendResponse({
                         isCapturing: this.isCapturing,
-                        videoCount: this.session.videos.length,
+                        itemCount: this.session.videos.length,
                     });
                     break;
             }
@@ -107,7 +117,7 @@ class TikTokObserver {
     private setupGlobalListeners() {
         // Detect tab switching/closing
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden && this.activeVideoId) {
+        if (document.hidden && this.activeVideoId) {
                 this.finalizeActiveVideo('switched_tab');
             }
         });
@@ -216,7 +226,7 @@ class TikTokObserver {
 
         // If we were tracking another video, finalize it (user scrolled to next)
         if (this.activeVideoId && this.activeVideoId !== videoId) {
-            this.finalizeActiveVideo('next_video');
+            this.finalizeActiveVideo('next_video', videoId);
         }
 
         // Start tracking new video
@@ -282,12 +292,28 @@ class TikTokObserver {
         });
     }
 
-    private finalizeActiveVideo(reason: 'next_video' | 'closed_tab' | 'switched_tab' | 'unknown') {
+    private finalizeActiveVideo(
+        reason: 'next_video' | 'closed_tab' | 'switched_tab' | 'unknown',
+        nextVideoId?: string
+    ) {
         if (!this.activeVideoId) return;
 
         // Find the video in our session to update it
         const videoEntry = this.session.videos.find(v => v.videoId === this.activeVideoId);
         if (videoEntry) {
+            if (reason === 'next_video' && nextVideoId && nextVideoId !== this.activeVideoId) {
+                const existing = videoEntry.recommendations.find((row) => row.videoId === nextVideoId);
+                if (!existing) {
+                    videoEntry.recommendations.unshift({
+                        videoId: nextVideoId,
+                        position: 1,
+                        title: null,
+                        channel: null,
+                        surface: 'for-you-next',
+                        surfaces: ['for-you-next'],
+                    });
+                }
+            }
             videoEntry.analytics = {
                 duration: this.activeVideoElement?.duration || 0,
                 watchedSeconds: this.maxTimeWatched, // best approximation of linear watch
@@ -352,6 +378,7 @@ class TikTokObserver {
                 isVisible: this.isElementVisible(element),
                 engagement: { likes, comments, shares, saves },
                 isSponsored,
+                recommendations: this.extractRecommendationCandidates(element, videoId),
                 analytics: { // Initialize with defaults, will be updated by finalizeActiveVideo
                     duration: 0,
                     watchedSeconds: 0,
@@ -366,6 +393,37 @@ class TikTokObserver {
             console.error('[RESMA] Error extracting video data:', error);
             return null;
         }
+    }
+
+    private extractRecommendationCandidates(element: HTMLElement, currentVideoId: string) {
+        const anchors = Array.from(element.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
+        const deduped = new Map<string, {
+            videoId: string;
+            position: number;
+            title: string | null;
+            channel: string | null;
+            surface: string;
+            surfaces: string[];
+        }>();
+
+        for (const anchor of anchors) {
+            const candidateId = anchor.getAttribute('href')?.match(/\/video\/(\d{5,32})/)?.[1];
+            if (!candidateId || candidateId === currentVideoId) continue;
+            if (deduped.has(candidateId)) continue;
+
+            deduped.set(candidateId, {
+                videoId: candidateId,
+                position: deduped.size + 1,
+                title: anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null,
+                channel: null,
+                surface: 'related-link',
+                surfaces: ['related-link'],
+            });
+
+            if (deduped.size >= 20) break;
+        }
+
+        return Array.from(deduped.values());
     }
 
     private isElementVisible(element: HTMLElement): boolean {

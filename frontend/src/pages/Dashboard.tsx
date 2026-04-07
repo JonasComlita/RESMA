@@ -1002,6 +1002,18 @@ export function Dashboard() {
                                 {' '}calibration {evaluation ? `${Math.round(evaluation.metrics.calibrationScore * 100)}%` : '-'}.
                             </p>
 
+                            <div className={`rounded-xl border px-3 py-2 text-xs ${forecast.qualityGate.status === 'degraded'
+                                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                }`}>
+                                Parser coverage: {Math.round(forecast.qualityGate.parseCoverage * 100)}%
+                                {' '}| parser drop: {Math.round(forecast.qualityGate.parserDropRate * 100)}%
+                                {' '}| minimum target: {Math.round(forecast.qualityGate.minimumParseCoverage * 100)}%
+                                {forecast.qualityGate.status === 'degraded'
+                                    ? ' | Confidence is currently degraded for forecast scoring.'
+                                    : ' | Confidence quality gate passed.'}
+                            </div>
+
                             <div className="rounded-xl border border-gray-200 overflow-hidden">
                                 <div className="flex items-center justify-between bg-gray-50 px-4 py-3 border-b border-gray-200">
                                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">

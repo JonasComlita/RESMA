@@ -1,5 +1,4 @@
 import { Router, Response, NextFunction } from 'express';
-import { body, query, validationResult } from 'express-validator';
 import { prisma } from '../lib/prisma.js';
 import { createError } from '../middleware/errorHandler.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
@@ -51,27 +50,67 @@ function transformSnapshotForResponse(snapshot: any) {
 feedsRouter.post(
     '/',
     authenticate,
-    [
-        body('items').isArray({ min: 1 }).withMessage('Feed items required'),
-        body('items.*.videoId').notEmpty().withMessage('Video ID required'),
-        body('items.*.positionInFeed').isInt({ min: 0 }).withMessage('Position required'),
-    ],
     async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return next(createError(errors.array()[0].msg, 400));
+            const { items, feed, sessionMetadata } = req.body;
+            const normalizedItems = Array.isArray(feed) ? feed : (Array.isArray(items) ? items : null);
+            if (!normalizedItems || normalizedItems.length === 0) {
+                return next(createError('Feed items required', 400));
             }
 
-            const { items, sessionMetadata } = req.body;
+            const invalidFeedItem = normalizedItems.find((item: any) => {
+                if (!item || typeof item !== 'object') return true;
+                const videoId = typeof item.videoId === 'string' ? item.videoId.trim() : '';
+                return videoId.length === 0;
+            });
+            if (invalidFeedItem) {
+                return next(createError('Video ID required', 400));
+            }
+
+            const incomingPlatform = typeof req.body.platform === 'string'
+                ? req.body.platform.trim().toLowerCase()
+                : 'tiktok';
+            const platform = incomingPlatform || 'tiktok';
             const capturedAt = new Date();
 
             // Anonymize the data
-            const anonymizedItems = items.map(anonymizeSnapshot);
+            const anonymizedItems = normalizedItems.map((item: any, index: number) => {
+                const safePosition = Number.isFinite(item.positionInFeed)
+                    ? item.positionInFeed
+                    : Number.isFinite(item.position)
+                        ? item.position
+                        : index;
+
+                const normalizedEngagementMetrics = item.engagementMetrics && typeof item.engagementMetrics === 'object'
+                    ? item.engagementMetrics
+                    : {
+                        likes: item.likes,
+                        comments: item.comments,
+                        shares: item.shares,
+                        views: item.views,
+                        watchTime: item.watchTime,
+                        recommendations: Array.isArray(item.recommendations) ? item.recommendations : [],
+                    };
+
+                return anonymizeSnapshot({
+                    videoId: item.videoId,
+                    creatorId: item.creatorId,
+                    creatorHandle: item.creatorHandle,
+                    caption: item.caption,
+                    musicId: item.musicId,
+                    musicTitle: item.musicTitle,
+                    engagementMetrics: normalizedEngagementMetrics,
+                    contentTags: item.contentTags || [],
+                    watchDuration: item.watchDuration,
+                    interacted: item.interacted || false,
+                    interactionType: item.interactionType,
+                    positionInFeed: safePosition,
+                });
+            });
 
             const enrichedSessionMetadata = buildSessionQualityMetadata({
                 userId: req.userId!,
-                platform: 'tiktok',
+                platform,
                 capturedAt,
                 feedItems: anonymizedItems.map((item: any, index: number) => ({
                     videoId: item.videoId,
@@ -87,9 +126,9 @@ feedsRouter.post(
             const snapshot = await prisma.feedSnapshot.create({
                 data: {
                     userId: req.userId!,
-                    platform: 'tiktok',
+                    platform,
                     capturedAt,
-                    itemCount: items.length,
+                    itemCount: normalizedItems.length,
                     sessionMetadata: compressedSessionMetadata,
                     feedItems: {
                         create: anonymizedItems.map((item: any, index: number) => ({
@@ -103,6 +142,7 @@ feedsRouter.post(
                             // Serialize engagementMetrics to compressed MessagePack
                             engagementMetrics: serializeMetadata(item.engagementMetrics),
                             contentTags: item.contentTags || [],
+                            contentCategories: item.contentCategories || [],
                             watchDuration: item.watchDuration,
                             interacted: item.interacted || false,
                             interactionType: item.interactionType,

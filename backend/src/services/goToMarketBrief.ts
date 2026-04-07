@@ -4,6 +4,7 @@ import {
     AudienceModel,
     buildAudienceModel,
     computeAudienceForecastFromModel,
+    deriveRecommendationQualityGate,
     loadAudienceFeedItems,
 } from './audienceForecast.js';
 
@@ -62,6 +63,13 @@ export interface GoToMarketBriefResult {
         };
         directProbabilityFromSeed: number | null;
         reachProbabilityFromSeed: number | null;
+    };
+    qualityGate: {
+        status: 'ok' | 'degraded';
+        parseCoverage: number;
+        parserDropRate: number;
+        minimumParseCoverage: number;
+        confidenceMultiplier: number;
     };
     topCohorts: GoToMarketCohortBrief[];
     keyTakeaways: string[];
@@ -196,6 +204,12 @@ function computeTopReachPaths(
 function buildTakeaways(brief: GoToMarketBriefResult): string[] {
     const takeaways: string[] = [];
 
+    if (brief.qualityGate.status === 'degraded') {
+        takeaways.push(
+            `Recommendation parse coverage is ${percent(brief.qualityGate.parseCoverage)} (minimum target ${percent(brief.qualityGate.minimumParseCoverage)}); confidence is currently degraded.`
+        );
+    }
+
     if (brief.topCohorts.length === 0) {
         takeaways.push('No stable cohorts were available yet. Gather more cross-user comparisons to produce a reliable launch plan.');
         return takeaways;
@@ -251,6 +265,7 @@ function buildMarkdownBrief(brief: GoToMarketBriefResult): string {
     lines.push(`- Platform: ${brief.platform}`);
     lines.push(`- Target Video: ${brief.targetVideoId}`);
     lines.push(`- Seed Context: ${brief.seedVideoId ?? 'none'}`);
+    lines.push(`- Quality Gate: ${brief.qualityGate.status} (coverage ${percent(brief.qualityGate.parseCoverage)}, parser drop ${percent(brief.qualityGate.parserDropRate)})`);
     lines.push('');
     lines.push('## Global Baseline');
     lines.push(`- Exposure: ${percent(brief.global.targetExposureRate)} (${percent(brief.global.targetExposureConfidenceInterval.low)}-${percent(brief.global.targetExposureConfidenceInterval.high)})`);
@@ -293,6 +308,13 @@ export function buildGoToMarketCohortBriefFromModel(
     model: AudienceModel,
     currentUserId: string,
     options: AudienceForecastOptions,
+    qualityGate: {
+        status: 'ok' | 'degraded';
+        parseCoverage: number;
+        parserDropRate: number;
+        minimumParseCoverage: number;
+        confidenceMultiplier: number;
+    },
     settings?: {
         topCohorts?: number;
         maxPathsPerCohort?: number;
@@ -302,7 +324,7 @@ export function buildGoToMarketCohortBriefFromModel(
     const topCohortsLimit = clamp(settings?.topCohorts ?? 5, 1, 12);
     const maxPathsPerCohort = clamp(settings?.maxPathsPerCohort ?? 3, 1, 10);
     const pathBranchLimit = clamp(settings?.pathBranchLimit ?? 6, 1, 25);
-    const forecast = computeAudienceForecastFromModel(model, currentUserId, options);
+    const forecast = computeAudienceForecastFromModel(model, currentUserId, options, qualityGate);
 
     const selectedCohorts = (forecast.recommendedAudienceCohorts.length > 0
         ? forecast.recommendedAudienceCohorts
@@ -359,6 +381,7 @@ export function buildGoToMarketCohortBriefFromModel(
             directProbabilityFromSeed: forecast.global.directProbabilityFromSeed,
             reachProbabilityFromSeed: forecast.global.reachProbabilityFromSeed,
         },
+        qualityGate: forecast.qualityGate,
         topCohorts,
     };
 
@@ -396,7 +419,8 @@ export async function generateGoToMarketCohortBrief(
         );
     }
 
-    const model = buildAudienceModel(items);
+    const model = buildAudienceModel(items, options.platform);
+    const qualityGate = deriveRecommendationQualityGate(items, options.platform);
     return buildGoToMarketCohortBriefFromModel(
         model,
         currentUserId,
@@ -407,6 +431,7 @@ export async function generateGoToMarketCohortBrief(
             maxDepth: options.maxDepth,
             beamWidth: options.beamWidth,
         },
+        qualityGate,
         {
             topCohorts: options.topCohorts,
             maxPathsPerCohort: options.maxPathsPerCohort,

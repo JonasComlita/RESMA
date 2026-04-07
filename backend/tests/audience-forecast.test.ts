@@ -3,12 +3,98 @@ import {
     buildAudienceModel,
     computeAudienceForecastFromModel,
     computeReachProbability,
+    deriveRecommendationQualityGate,
 } from '../src/services/audienceForecast';
 
 const jsonMetrics = (recommendations: Array<{ videoId: string; position?: number }>) =>
     Buffer.from(JSON.stringify({ recommendations }), 'utf-8');
 
 describe('Audience forecast service', () => {
+    it('marks quality gate degraded when strict parsing coverage is low', () => {
+        const gate = deriveRecommendationQualityGate([
+            {
+                userId: 'u1',
+                videoId: 'seed001',
+                creatorHandle: 'creatorA',
+                contentCategories: ['reels'],
+                engagementMetrics: Buffer.from(JSON.stringify({
+                    recommendations: [
+                        { videoId: '***invalid***' },
+                        { videoId: '' },
+                    ],
+                }), 'utf-8'),
+            },
+        ], 'instagram');
+
+        expect(gate.status).toBe('degraded');
+        expect(gate.parseCoverage).toBe(0);
+        expect(gate.confidenceMultiplier).toBeLessThan(1);
+    });
+
+    it('builds transitions with platform-aware parsing for Instagram and TikTok', () => {
+        const instagramModel = buildAudienceModel([
+            {
+                userId: 'ig-u1',
+                videoId: 'C_seed001',
+                creatorHandle: 'igCreator',
+                contentCategories: ['reels'],
+                engagementMetrics: jsonMetrics([
+                    { videoId: 'https://www.instagram.com/reel/C_target001/' },
+                ]),
+            },
+            {
+                userId: 'ig-u1',
+                videoId: 'C_side001',
+                creatorHandle: 'igCreator2',
+                contentCategories: ['reels'],
+                engagementMetrics: jsonMetrics([]),
+            },
+            {
+                userId: 'ig-u1',
+                videoId: 'C_side002',
+                creatorHandle: 'igCreator3',
+                contentCategories: ['reels'],
+                engagementMetrics: jsonMetrics([]),
+            },
+        ], 'instagram');
+
+        const instagramEdge = instagramModel.userProfiles.get('ig-u1')
+            ?.transitionCounts.get('C_seed001')
+            ?.get('C_target001');
+        expect(instagramEdge).toBeGreaterThan(0);
+
+        const tiktokModel = buildAudienceModel([
+            {
+                userId: 'tt-u1',
+                videoId: '7429000000000000001',
+                creatorHandle: 'ttCreator',
+                contentCategories: ['for-you'],
+                engagementMetrics: jsonMetrics([
+                    { videoId: 'https://www.tiktok.com/@creator/video/7429000000000000002' },
+                ]),
+            },
+            {
+                userId: 'tt-u1',
+                videoId: '7429000000000000010',
+                creatorHandle: 'ttCreator2',
+                contentCategories: ['for-you'],
+                engagementMetrics: jsonMetrics([]),
+            },
+            {
+                userId: 'tt-u1',
+                videoId: '7429000000000000011',
+                creatorHandle: 'ttCreator3',
+                contentCategories: ['for-you'],
+                engagementMetrics: jsonMetrics([]),
+            },
+        ], 'tiktok');
+
+        const tiktokEdge = tiktokModel.userProfiles.get('tt-u1')
+            ?.transitionCounts.get('7429000000000000001')
+            ?.get('7429000000000000002');
+        expect(tiktokEdge).toBeGreaterThan(0);
+    });
+
     it('prioritizes cohorts where target video is more likely and better fit', () => {
         const model = buildAudienceModel([
             {

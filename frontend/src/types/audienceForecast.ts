@@ -39,7 +39,13 @@ export interface AudienceForecastResult {
         directProbabilityFromSeed: number | null;
         reachProbabilityFromSeed: number | null;
     };
+    qualityGate: {
+        status: 'ok' | 'degraded';
+        parseCoverage: number;
+        parserDropRate: number;
+        minimumParseCoverage: number;
+        confidenceMultiplier: number;
+    };
     recommendedAudienceCohorts: CohortAudienceForecast[];
     cohorts: CohortAudienceForecast[];
 }
-

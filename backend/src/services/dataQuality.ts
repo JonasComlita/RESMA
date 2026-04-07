@@ -1,8 +1,16 @@
-import { prisma } from '../lib/prisma.js';
 import { buildAudienceModel, RawAudienceFeedItem } from './audienceForecast.js';
 import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
 import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
 import { buildSnapshotFingerprint } from './snapshotQuality.js';
+
+let prismaClientPromise: Promise<any> | null = null;
+
+async function getPrismaClient() {
+    if (!prismaClientPromise) {
+        prismaClientPromise = import('../lib/prisma.js').then((module) => module.prisma);
+    }
+    return prismaClientPromise;
+}
 
 const SESSION_GAP_MS = 25 * 60 * 1000;
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
@@ -489,7 +497,7 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
     };
 }
 
-function summarizeCohorts(items: RawAudienceFeedItem[]): CohortStabilitySummary {
+function summarizeCohorts(items: RawAudienceFeedItem[], platform: string): CohortStabilitySummary {
     const userSessionVideoSet = new Map<string, Set<string>>();
 
     for (const item of items) {
@@ -514,7 +522,7 @@ function summarizeCohorts(items: RawAudienceFeedItem[]): CohortStabilitySummary 
         }
     }
 
-    const model = buildAudienceModel(items);
+    const model = buildAudienceModel(items, platform);
     let smallCohortCount = 0;
     let smallCohortUsers = 0;
     for (const cohort of model.cohorts.values()) {
@@ -567,7 +575,7 @@ export function summarizeDataQualityFromSnapshots(
 
     const { stitchedItems, stitching } = stitchSnapshots(snapshots);
     const recommendationSummary = summarizeRecommendations(stitchedItems, platform);
-    const cohortSummary = summarizeCohorts(stitchedItems);
+    const cohortSummary = summarizeCohorts(stitchedItems, platform);
 
     return {
         platform,
@@ -602,6 +610,7 @@ export async function generateDataQualityDiagnostics(
     const boundedWindowHours = clamp(Math.round(windowHours), 1, 24 * 180);
     const since = new Date(Date.now() - boundedWindowHours * 60 * 60 * 1000);
 
+    const prisma = await getPrismaClient();
     const snapshots = await prisma.feedSnapshot.findMany({
         where: {
             platform: normalizedPlatform,
@@ -714,6 +723,7 @@ export async function generateDataQualityTrends(
     const boundedBucketHours = clamp(Math.round(bucketHours), 1, boundedWindowHours);
     const since = new Date(Date.now() - boundedWindowHours * 60 * 60 * 1000);
 
+    const prisma = await getPrismaClient();
     const snapshots = await prisma.feedSnapshot.findMany({
         where: {
             platform: normalizedPlatform,

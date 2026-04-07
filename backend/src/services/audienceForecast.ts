@@ -1,6 +1,14 @@
-import { prisma } from '../lib/prisma.js';
 import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
 import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
+
+let prismaClientPromise: Promise<any> | null = null;
+
+async function getPrismaClient() {
+    if (!prismaClientPromise) {
+        prismaClientPromise = import('../lib/prisma.js').then((module) => module.prisma);
+    }
+    return prismaClientPromise;
+}
 
 export interface RawAudienceFeedItem {
     userId: string;
@@ -110,8 +118,17 @@ export interface AudienceForecastResult {
         directProbabilityFromSeed: number | null;
         reachProbabilityFromSeed: number | null;
     };
+    qualityGate: RecommendationQualityGate;
     recommendedAudienceCohorts: CohortAudienceForecast[];
     cohorts: CohortAudienceForecast[];
+}
+
+export interface RecommendationQualityGate {
+    status: 'ok' | 'degraded';
+    parseCoverage: number;
+    parserDropRate: number;
+    minimumParseCoverage: number;
+    confidenceMultiplier: number;
 }
 
 export class AudienceForecastInputError extends Error {
@@ -158,6 +175,17 @@ function decodeSessionMetadata(data: Buffer | null): Record<string, unknown> | n
             return null;
         }
         return decoded as Record<string, unknown>;
+    } catch {
+        return null;
+    }
+}
+
+function decodeMetrics(data: Buffer | null): unknown {
+    if (!data) return null;
+    try {
+        return isCompressedMsgpack(data)
+            ? decompressAndUnpack<unknown>(data)
+            : JSON.parse(data.toString('utf-8'));
     } catch {
         return null;
     }
@@ -364,7 +392,7 @@ function deriveNetworkStrength(comparedUsers: number, comparedTransitions: numbe
     return roundTo(clamp(userSignal * 0.6 + transitionSignal * 0.4, 0, 1));
 }
 
-export function buildAudienceModel(items: RawAudienceFeedItem[]): AudienceModel {
+export function buildAudienceModel(items: RawAudienceFeedItem[], platform = 'youtube'): AudienceModel {
     const MIN_PROFILE_ITEMS = 3;
     const MIN_COHORT_USERS = 3;
     const MAX_EDGE_REPEATS_PER_SESSION = 3;
@@ -425,7 +453,7 @@ export function buildAudienceModel(items: RawAudienceFeedItem[]): AudienceModel 
 
         profile.seenVideos.add(videoId);
         const recommendations = extractRecommendationsFromMetrics(item.engagementMetrics, {
-            platform: 'youtube',
+            platform,
             sourceVideoId: videoId,
             maxRecommendations: 25,
         });
@@ -546,10 +574,89 @@ export function buildAudienceModel(items: RawAudienceFeedItem[]): AudienceModel 
     };
 }
 
+function defaultQualityGate(): RecommendationQualityGate {
+    return {
+        status: 'ok',
+        parseCoverage: 1,
+        parserDropRate: 0,
+        minimumParseCoverage: 0.2,
+        confidenceMultiplier: 1,
+    };
+}
+
+function scaleProbability(value: number | null, multiplier: number): number | null {
+    if (value === null || !Number.isFinite(value)) return null;
+    return roundTo(clamp(value * multiplier, 0, 1));
+}
+
+function widenInterval(
+    interval: { low: number; high: number },
+    confidenceMultiplier: number
+): { low: number; high: number } {
+    if (confidenceMultiplier >= 0.999) return interval;
+
+    const center = (interval.low + interval.high) / 2;
+    const halfWidth = (interval.high - interval.low) / 2;
+    const expansionFactor = 1 + ((1 - confidenceMultiplier) * 1.15);
+    const widenedHalfWidth = clamp(halfWidth * expansionFactor + ((1 - confidenceMultiplier) * 0.02), 0, 0.5);
+
+    return {
+        low: roundTo(clamp(center - widenedHalfWidth, 0, 1)),
+        high: roundTo(clamp(center + widenedHalfWidth, 0, 1)),
+    };
+}
+
+export function deriveRecommendationQualityGate(
+    items: RawAudienceFeedItem[],
+    platform: string,
+    minimumParseCoverage = 0.2
+): RecommendationQualityGate {
+    let rawRecommendationRows = 0;
+    let strictRecommendationRows = 0;
+
+    for (const item of items) {
+        if (!item.engagementMetrics) continue;
+        const decoded = decodeMetrics(item.engagementMetrics);
+        if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
+            const recommendations = (decoded as { recommendations?: unknown }).recommendations;
+            if (Array.isArray(recommendations)) {
+                rawRecommendationRows += recommendations.length;
+            }
+        }
+
+        const parsed = extractRecommendationsFromMetrics(item.engagementMetrics, {
+            platform,
+            sourceVideoId: item.videoId,
+            maxRecommendations: 25,
+        });
+        strictRecommendationRows += parsed.length;
+    }
+
+    const parseCoverage = rawRecommendationRows > 0
+        ? strictRecommendationRows / rawRecommendationRows
+        : 0;
+    const parserDropRate = rawRecommendationRows > 0
+        ? 1 - parseCoverage
+        : 0;
+    const status: RecommendationQualityGate['status'] = parseCoverage >= minimumParseCoverage ? 'ok' : 'degraded';
+    const confidenceMultiplier = status === 'ok'
+        ? 1
+        : clamp(0.45 + parseCoverage * 1.8, 0.45, 0.85);
+
+    return {
+        status,
+        parseCoverage: roundTo(clamp(parseCoverage, 0, 1)),
+        parserDropRate: roundTo(clamp(parserDropRate, 0, 1)),
+        minimumParseCoverage: roundTo(clamp(minimumParseCoverage, 0, 1)),
+        confidenceMultiplier: roundTo(confidenceMultiplier),
+    };
+}
+
 export function computeAudienceForecastFromModel(
     model: AudienceModel,
     currentUserId: string,
-    options: AudienceForecastOptions
+    options: AudienceForecastOptions,
+    qualityGate?: RecommendationQualityGate
 ): AudienceForecastResult {
     const targetVideoId = options.targetVideoId.trim();
     if (!targetVideoId) {
@@ -559,6 +666,8 @@ export function computeAudienceForecastFromModel(
     const seedVideoId = options.seedVideoId?.trim() || null;
     const maxDepth = clamp(options.maxDepth, 1, 6);
     const beamWidth = clamp(options.beamWidth, 5, 120);
+    const resolvedQualityGate = qualityGate ?? defaultQualityGate();
+    const confidenceMultiplier = clamp(resolvedQualityGate.confidenceMultiplier, 0.4, 1);
 
     const users = Array.from(model.userProfiles.values());
     if (users.length === 0) {
@@ -572,13 +681,19 @@ export function computeAudienceForecastFromModel(
     const globalNormalized = normalizeTransitions(model.globalTransitions);
     const globalTargetUsers = users.filter((user) => user.seenVideos.has(targetVideoId)).length;
     const globalExposureRate = globalTargetUsers / users.length;
-    const globalExposureInterval = wilsonInterval(globalTargetUsers, users.length);
+    const globalExposureInterval = widenInterval(
+        wilsonInterval(globalTargetUsers, users.length),
+        confidenceMultiplier
+    );
 
     const globalDirectProbability = seedVideoId
-        ? directProbability(globalNormalized, seedVideoId, targetVideoId)
+        ? scaleProbability(directProbability(globalNormalized, seedVideoId, targetVideoId), confidenceMultiplier)
         : null;
     const globalReachProbability = seedVideoId
-        ? computeReachProbability(globalNormalized, seedVideoId, targetVideoId, maxDepth, beamWidth)
+        ? scaleProbability(
+            computeReachProbability(globalNormalized, seedVideoId, targetVideoId, maxDepth, beamWidth),
+            confidenceMultiplier
+        )
         : null;
 
     const currentUser = model.userProfiles.get(currentUserId);
@@ -593,15 +708,21 @@ export function computeAudienceForecastFromModel(
 
         const targetUsers = cohortUsers.filter((user) => user.seenVideos.has(targetVideoId)).length;
         const exposureRate = targetUsers / cohortUsers.length;
-        const exposureInterval = wilsonInterval(targetUsers, cohortUsers.length);
+        const exposureInterval = widenInterval(
+            wilsonInterval(targetUsers, cohortUsers.length),
+            confidenceMultiplier
+        );
         const fitScore = deriveFitScore(currentUser, cohort);
 
         const normalizedTransitions = normalizeTransitions(cohort.transitionCounts);
         const directFromSeed = seedVideoId
-            ? directProbability(normalizedTransitions, seedVideoId, targetVideoId)
+            ? scaleProbability(directProbability(normalizedTransitions, seedVideoId, targetVideoId), confidenceMultiplier)
             : null;
         const reachFromSeed = seedVideoId
-            ? computeReachProbability(normalizedTransitions, seedVideoId, targetVideoId, maxDepth, beamWidth)
+            ? scaleProbability(
+                computeReachProbability(normalizedTransitions, seedVideoId, targetVideoId, maxDepth, beamWidth),
+                confidenceMultiplier
+            )
             : null;
 
         const relativeLift = globalExposureRate > 0
@@ -609,8 +730,8 @@ export function computeAudienceForecastFromModel(
             : null;
 
         const score = seedVideoId
-            ? roundTo((reachFromSeed ?? 0) * 0.58 + exposureRate * 0.27 + fitScore * 0.15)
-            : roundTo(exposureRate * 0.72 + fitScore * 0.28);
+            ? roundTo(((reachFromSeed ?? 0) * 0.58 + exposureRate * 0.27 + fitScore * 0.15) * confidenceMultiplier)
+            : roundTo((exposureRate * 0.72 + fitScore * 0.28) * confidenceMultiplier);
 
         cohorts.push({
             cohortId: cohort.cohortId,
@@ -650,7 +771,9 @@ export function computeAudienceForecastFromModel(
             comparedTransitions: model.totalTransitions,
             pairwiseComparisons: Math.max(0, Math.round((users.length * (users.length - 1)) / 2)),
             cohortCount: model.cohorts.size,
-            networkStrength: deriveNetworkStrength(users.length, model.totalTransitions),
+            networkStrength: roundTo(
+                deriveNetworkStrength(users.length, model.totalTransitions) * confidenceMultiplier
+            ),
         },
         global: {
             targetExposureRate: roundTo(globalExposureRate),
@@ -658,6 +781,7 @@ export function computeAudienceForecastFromModel(
             directProbabilityFromSeed: globalDirectProbability,
             reachProbabilityFromSeed: globalReachProbability,
         },
+        qualityGate: resolvedQualityGate,
         recommendedAudienceCohorts,
         cohorts,
     };
@@ -808,6 +932,7 @@ function stitchAndDedupeSnapshots(snapshots: AudienceSnapshot[]): RawAudienceFee
 }
 
 export async function loadAudienceFeedItems(platform: string): Promise<RawAudienceFeedItem[]> {
+    const prisma = await getPrismaClient();
     const snapshots = await prisma.feedSnapshot.findMany({
         where: { platform },
         select: {
@@ -857,7 +982,7 @@ export async function getCohortUserIds(platform: string, cohortId: string): Prom
         );
     }
 
-    const model = buildAudienceModel(items);
+    const model = buildAudienceModel(items, platform);
     const cohort = model.cohorts.get(normalizedCohortId);
     if (!cohort) {
         throw new AudienceForecastInputError(
@@ -883,6 +1008,7 @@ export async function generateAudienceForecast(
         );
     }
 
-    const model = buildAudienceModel(items);
-    return computeAudienceForecastFromModel(model, currentUserId, options);
+    const model = buildAudienceModel(items, options.platform);
+    const qualityGate = deriveRecommendationQualityGate(items, options.platform);
+    return computeAudienceForecastFromModel(model, currentUserId, options, qualityGate);
 }

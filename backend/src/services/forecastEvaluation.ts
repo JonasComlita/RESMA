@@ -1,10 +1,18 @@
-import { prisma } from '../lib/prisma.js';
 import {
     AudienceForecastInputError,
     buildAudienceModel,
     RawAudienceFeedItem,
 } from './audienceForecast.js';
 import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
+
+let prismaClientPromise: Promise<any> | null = null;
+
+async function getPrismaClient() {
+    if (!prismaClientPromise) {
+        prismaClientPromise = import('../lib/prisma.js').then((module) => module.prisma);
+    }
+    return prismaClientPromise;
+}
 
 interface RecommendationEdge {
     toVideoId: string;
@@ -62,9 +70,12 @@ function sanitizeString(value: unknown): string | null {
     return trimmed.length > 0 ? trimmed : null;
 }
 
-function extractRecommendations(metrics: Buffer | null): Array<{ videoId: string; position: number }> {
+function extractRecommendations(
+    metrics: Buffer | null,
+    platform: string
+): Array<{ videoId: string; position: number }> {
     return extractRecommendationsFromMetrics(metrics, {
-        platform: 'youtube',
+        platform,
         maxRecommendations: 40,
     });
 }
@@ -199,6 +210,7 @@ function snapshotsToEvaluationCases(
         }>;
     }>,
     userCohorts: Map<string, string>,
+    platform: string,
     topK: number
 ): EvaluationCase[] {
     const cases: EvaluationCase[] = [];
@@ -209,7 +221,7 @@ function snapshotsToEvaluationCases(
             const sourceVideoId = sanitizeString(feedItem.videoId);
             if (!sourceVideoId) continue;
 
-            const recommendations = extractRecommendations(feedItem.engagementMetrics)
+            const recommendations = extractRecommendations(feedItem.engagementMetrics, platform)
                 .slice(0, topK * 2)
                 .map((recommendation) => recommendation.videoId);
 
@@ -232,6 +244,7 @@ export async function generateForecastEvaluation(
     topK = 5
 ): Promise<ForecastEvaluationResult> {
     const boundedTopK = clamp(Math.round(topK), 1, 20);
+    const prisma = await getPrismaClient();
     const snapshots = await prisma.feedSnapshot.findMany({
         where: { platform },
         select: {
@@ -263,7 +276,7 @@ export async function generateForecastEvaluation(
     const testSnapshots = snapshots.slice(splitIndex);
 
     const trainItems = snapshotsToFeedItems(trainSnapshots);
-    const trainModel = buildAudienceModel(trainItems);
+    const trainModel = buildAudienceModel(trainItems, platform);
 
     if (trainModel.userProfiles.size === 0 || trainModel.globalTransitions.size === 0) {
         throw new AudienceForecastInputError(
@@ -287,6 +300,7 @@ export async function generateForecastEvaluation(
             })),
         })),
         userCohorts,
+        platform,
         boundedTopK
     );
 

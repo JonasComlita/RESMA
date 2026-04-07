@@ -42,8 +42,14 @@ export interface GoToMarketBriefResult {
         directProbabilityFromSeed: number | null;
         reachProbabilityFromSeed: number | null;
     };
+    qualityGate: {
+        status: 'ok' | 'degraded';
+        parseCoverage: number;
+        parserDropRate: number;
+        minimumParseCoverage: number;
+        confidenceMultiplier: number;
+    };
     topCohorts: GoToMarketCohortBrief[];
     keyTakeaways: string[];
     markdown: string;
 }
-

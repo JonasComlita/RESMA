@@ -5,6 +5,14 @@ import { buildGoToMarketCohortBriefFromModel } from '../src/services/goToMarketB
 const jsonMetrics = (recommendations: Array<{ videoId: string; position?: number }>) =>
     Buffer.from(JSON.stringify({ recommendations }), 'utf-8');
 
+const healthyQualityGate = {
+    status: 'ok' as const,
+    parseCoverage: 0.9,
+    parserDropRate: 0.1,
+    minimumParseCoverage: 0.2,
+    confidenceMultiplier: 1,
+};
+
 describe('Go-to-market cohort brief', () => {
     it('exports top cohorts with lift, confidence bands, and predicted reach paths', () => {
         const model = buildAudienceModel([
@@ -107,6 +115,7 @@ describe('Go-to-market cohort brief', () => {
                 maxDepth: 3,
                 beamWidth: 30,
             },
+            healthyQualityGate,
             {
                 topCohorts: 5,
                 maxPathsPerCohort: 3,
@@ -198,7 +207,7 @@ describe('Go-to-market cohort brief', () => {
             platform: 'youtube',
             maxDepth: 3,
             beamWidth: 30,
-        });
+        }, healthyQualityGate);
 
         expect(brief.seedVideoId).toBeNull();
         expect(brief.topCohorts.every((cohort) => cohort.predictedReachPaths.length === 0)).toBe(true);
@@ -206,4 +215,3 @@ describe('Go-to-market cohort brief', () => {
         expect(brief.keyTakeaways.some((line) => line.includes('Add a seed video ID'))).toBe(true);
     });
 });
-

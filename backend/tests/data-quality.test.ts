@@ -129,6 +129,84 @@ describe('Data quality diagnostics', () => {
         expect(() => summarizeDataQualityFromSnapshots('youtube', [], 24)).toThrow(DataQualityInputError);
     });
 
+    it('parses recommendation rows for Instagram and TikTok platform IDs', () => {
+        const instagramSnapshots = [
+            {
+                id: 'ig-1',
+                userId: 'ig-u1',
+                capturedAt: new Date('2026-04-07T04:00:00.000Z'),
+                sessionMetadata: null,
+                feedItems: [
+                    {
+                        videoId: 'Cseed0001',
+                        creatorHandle: 'ig-a',
+                        contentCategories: ['reels'],
+                        engagementMetrics: recMetrics([
+                            { videoId: 'https://www.instagram.com/reel/Ctarget0001/', position: 1, surface: 'reels-up-next' },
+                        ]),
+                        positionInFeed: 0,
+                    },
+                    {
+                        videoId: 'Cside0001',
+                        creatorHandle: 'ig-b',
+                        contentCategories: ['reels'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 1,
+                    },
+                    {
+                        videoId: 'Cside0002',
+                        creatorHandle: 'ig-c',
+                        contentCategories: ['reels'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 2,
+                    },
+                ],
+            },
+        ];
+
+        const instagramSummary = summarizeDataQualityFromSnapshots('instagram', instagramSnapshots, 24);
+        expect(instagramSummary.recommendations.strictRecommendationRows).toBeGreaterThan(0);
+        expect(instagramSummary.recommendations.parseCoverage).toBeGreaterThan(0);
+
+        const tiktokSnapshots = [
+            {
+                id: 'tt-1',
+                userId: 'tt-u1',
+                capturedAt: new Date('2026-04-07T04:10:00.000Z'),
+                sessionMetadata: null,
+                feedItems: [
+                    {
+                        videoId: '7429000000000000001',
+                        creatorHandle: 'tt-a',
+                        contentCategories: ['for-you'],
+                        engagementMetrics: recMetrics([
+                            { videoId: 'https://www.tiktok.com/@creator/video/7429000000000000002', position: 1, surface: 'for-you-next' },
+                        ]),
+                        positionInFeed: 0,
+                    },
+                    {
+                        videoId: '7429000000000000010',
+                        creatorHandle: 'tt-b',
+                        contentCategories: ['for-you'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 1,
+                    },
+                    {
+                        videoId: '7429000000000000011',
+                        creatorHandle: 'tt-c',
+                        contentCategories: ['for-you'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 2,
+                    },
+                ],
+            },
+        ];
+
+        const tiktokSummary = summarizeDataQualityFromSnapshots('tiktok', tiktokSnapshots, 24);
+        expect(tiktokSummary.recommendations.strictRecommendationRows).toBeGreaterThan(0);
+        expect(tiktokSummary.recommendations.bySurface.some((surface) => surface.surface === 'for-you-next')).toBe(true);
+    });
+
     it('keeps stitched sessions stable across large time gaps when metadata session keys match', () => {
         const snapshots = [
             {

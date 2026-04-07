@@ -93,4 +93,36 @@ describe('Recommendation parsing', () => {
         });
         expect(malformed).toEqual([]);
     });
+
+    it('normalizes Instagram and TikTok IDs from URLs and keeps platform-safe IDs', () => {
+        const instagram = extractRecommendationsFromMetrics(
+            jsonMetrics([
+                { videoId: 'https://www.instagram.com/reel/C9xAbCdEf12/?igsh=abc', position: 1, surface: 'reels rail' },
+                { videoId: 'https://www.instagram.com/p/C1ZxYwVuT98/', position: 2, surface: 'related' },
+                { videoId: 'bad id !!!', position: 3 },
+            ]),
+            {
+                platform: 'instagram',
+                maxRecommendations: 10,
+            }
+        );
+
+        expect(instagram.map((row) => row.videoId)).toEqual(['C9xAbCdEf12', 'C1ZxYwVuT98']);
+        expect(instagram[0].surface).toBe('reels-rail');
+
+        const tiktok = extractRecommendationsFromMetrics(
+            jsonMetrics([
+                { videoId: 'https://www.tiktok.com/@creator/video/7429012345678901234', position: 1, surface: 'for you next' },
+                { videoId: '7429012345678901235', position: 2 },
+                { videoId: 'https://www.tiktok.com/@creator/video/not-numeric', position: 3 },
+            ]),
+            {
+                platform: 'tiktok',
+                maxRecommendations: 10,
+            }
+        );
+
+        expect(tiktok.map((row) => row.videoId)).toEqual(['7429012345678901234', '7429012345678901235']);
+        expect(tiktok[0].surface).toBe('for-you-next');
+    });
 });

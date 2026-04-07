@@ -61,20 +61,35 @@ function decodeEngagementMetrics(metrics: Buffer | null): unknown {
     }
 }
 
-function extractFromUrl(value: string): string | null {
+function extractFromUrl(value: string, platform: string): string | null {
     try {
         const parsed = new URL(value);
-
-        const fromQuery = parsed.searchParams.get('v');
-        if (fromQuery) return fromQuery;
-
         const pathname = parsed.pathname;
-        const shortsMatch = pathname.match(/\/shorts\/([A-Za-z0-9_-]{6,20})/);
-        if (shortsMatch?.[1]) return shortsMatch[1];
 
-        if (parsed.hostname.includes('youtu.be')) {
-            const id = pathname.replace(/^\/+/, '').split('/')[0];
-            if (id) return id;
+        if (platform === 'youtube') {
+            const fromQuery = parsed.searchParams.get('v');
+            if (fromQuery) return fromQuery;
+
+            const shortsMatch = pathname.match(/\/shorts\/([A-Za-z0-9_-]{6,20})/);
+            if (shortsMatch?.[1]) return shortsMatch[1];
+
+            if (parsed.hostname.includes('youtu.be')) {
+                const id = pathname.replace(/^\/+/, '').split('/')[0];
+                if (id) return id;
+            }
+            return null;
+        }
+
+        if (platform === 'instagram') {
+            const reelMatch = pathname.match(/\/(?:reel|p|tv)\/([A-Za-z0-9_-]{5,64})/);
+            if (reelMatch?.[1]) return reelMatch[1];
+            return null;
+        }
+
+        if (platform === 'tiktok') {
+            const tiktokVideoMatch = pathname.match(/\/video\/([0-9]{5,32})/);
+            if (tiktokVideoMatch?.[1]) return tiktokVideoMatch[1];
+            return null;
         }
     } catch {
         return null;
@@ -90,9 +105,9 @@ function normalizeVideoId(raw: unknown, platform: string): string | null {
     let candidate = value;
 
     if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
-        candidate = extractFromUrl(candidate) ?? '';
-    } else if (candidate.includes('v=')) {
-        const fromQuery = candidate.split('v=')[1]?.split('&')[0];
+        candidate = extractFromUrl(candidate, platform) ?? '';
+    } else if (platform === 'youtube' && candidate.includes('v=')) {
+        const fromQuery = candidate.split('v=')[1]?.split('&')[0] ?? '';
         candidate = fromQuery || candidate;
     }
 
@@ -103,6 +118,20 @@ function normalizeVideoId(raw: unknown, platform: string): string | null {
 
     if (platform === 'youtube') {
         if (!/^[A-Za-z0-9_-]{3,20}$/.test(candidate)) {
+            return null;
+        }
+        return candidate;
+    }
+
+    if (platform === 'instagram') {
+        if (!/^[A-Za-z0-9_-]{3,64}$/.test(candidate)) {
+            return null;
+        }
+        return candidate;
+    }
+
+    if (platform === 'tiktok') {
+        if (!/^[0-9]{5,32}$/.test(candidate)) {
             return null;
         }
         return candidate;

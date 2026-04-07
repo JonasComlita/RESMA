@@ -27,28 +27,44 @@ const Popup: React.FC = () => {
                 setPlatform('tiktok');
                 if (tabs[0]?.id) {
                     chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (response) setCaptureStatus(response);
+                        if (!response) return;
+                        setCaptureStatus({
+                            isCapturing: Boolean(response.isCapturing),
+                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
+                        });
                     });
                 }
             } else if (url.includes('twitter.com')) {
                 setPlatform('twitter');
                 if (tabs[0]?.id) {
                     chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (response) setCaptureStatus(response);
+                        if (!response) return;
+                        setCaptureStatus({
+                            isCapturing: Boolean(response.isCapturing),
+                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
+                        });
                     });
                 }
             } else if (url.includes('youtube.com')) {
                 setPlatform('youtube');
                 if (tabs[0]?.id) {
                     chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (response) setCaptureStatus(response);
+                        if (!response) return;
+                        setCaptureStatus({
+                            isCapturing: Boolean(response.isCapturing),
+                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
+                        });
                     });
                 }
             } else if (url.includes('instagram.com')) {
                 setPlatform('instagram');
                 if (tabs[0]?.id) {
                     chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (response) setCaptureStatus(response);
+                        if (!response) return;
+                        setCaptureStatus({
+                            isCapturing: Boolean(response.isCapturing),
+                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
+                        });
                     });
                 }
             } else {
@@ -68,20 +84,62 @@ const Popup: React.FC = () => {
                 setCaptureStatus((prev) => ({
                     ...prev,
                     isCapturing: !prev.isCapturing,
+                    itemCount: typeof response?.data?.itemCount === 'number'
+                        ? response.data.itemCount
+                        : prev.itemCount,
                 }));
 
                 if (messageType === 'STOP_CAPTURE' && response.data) {
-                    // Upload session
-                    chrome.runtime.sendMessage({
-                        type: 'UPLOAD_SESSION',
-                        data: response.data,
-                        platform,
-                    });
+                    if (platform === 'tiktok' && Array.isArray(response.data.videos)) {
+                        const feed = response.data.videos.map((video: any, index: number) => ({
+                            videoId: video.videoId,
+                            creatorHandle: video.creatorHandle,
+                            creatorId: video.creatorId,
+                            caption: video.caption,
+                            musicTitle: video.musicTitle,
+                            positionInFeed: index,
+                            watchDuration: video.analytics?.watchedSeconds ?? 0,
+                            interacted: Boolean(video.analytics?.interaction?.liked || video.analytics?.interaction?.shared || video.analytics?.interaction?.commented),
+                            engagementMetrics: {
+                                ...video.engagement,
+                                analytics: video.analytics,
+                                isSponsored: Boolean(video.isSponsored),
+                                recommendations: Array.isArray(video.recommendations) ? video.recommendations : [],
+                            },
+                            recommendations: Array.isArray(video.recommendations) ? video.recommendations : [],
+                            contentCategories: ['for-you'],
+                            contentTags: video.isSponsored ? ['sponsored'] : [],
+                        }));
+
+                        chrome.runtime.sendMessage({
+                            type: 'UPLOAD_PLATFORM_FEED',
+                            payload: {
+                                platform: 'tiktok',
+                                feed,
+                                sessionMetadata: {
+                                    type: 'MANUAL_CAPTURE_SESSION',
+                                    captureSurface: 'for-you-feed',
+                                    clientSessionId: response.data.sessionId ?? null,
+                                    observerVersion: 'tiktok-observer-v2',
+                                    ingestVersion: 'cross-platform-v1',
+                                    scrollEvents: response.data.scrollEvents ?? 0,
+                                    capturedAt: new Date().toISOString(),
+                                },
+                            },
+                        });
+                    }
+
+                    const capturedCount = Number(
+                        response.data.itemCount
+                        ?? response.data.videos?.length
+                        ?? response.data.posts?.length
+                        ?? 0
+                    );
                     let msg = '';
-                    if (platform === 'tiktok') msg = `Captured ${response.data.videos?.length || 0} videos!`;
-                    else if (platform === 'twitter') msg = `Captured ${response.data.tweets?.length || 0} tweets!`;
-                    else if (platform === 'youtube') msg = `Captured ${response.data.videos?.length || 0} YouTube videos!`;
-                    else if (platform === 'instagram') msg = `Captured ${response.data.posts?.length || 0} Instagram posts!`;
+                    if (platform === 'tiktok') msg = `Captured ${capturedCount} videos!`;
+                    else if (platform === 'twitter') msg = `Captured ${capturedCount} tweets!`;
+                    else if (platform === 'youtube') msg = `Captured ${capturedCount} YouTube items!`;
+                    else if (platform === 'instagram') msg = `Captured ${capturedCount} Instagram items!`;
                     setMessage(msg);
                     setTimeout(() => setMessage(''), 3000);
                 }
