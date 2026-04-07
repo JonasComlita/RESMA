@@ -2,18 +2,20 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
+import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
 const router = Router();
 
 // POST /youtube/feed - receive YouTube feed data
 router.post('/feed', authenticate, async (req: AuthRequest, res) => {
-  const { feed } = req.body;
+  const { feed, sessionMetadata } = req.body;
 
   if (!Array.isArray(feed) || feed.length === 0) {
     return res.status(400).json({ error: 'Invalid feed data' });
   }
 
   try {
+    const capturedAt = new Date();
     // Determine snapshot type based on first item
     const isHomePage = !feed[0].watchTime; // Heuristic: homepage items don't have watchTime initially
 
@@ -44,15 +46,28 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
       };
     });
 
+    const enrichedSessionMetadata = buildSessionQualityMetadata({
+      userId: req.userId!,
+      platform: 'youtube',
+      capturedAt,
+      feedItems: itemsToCreate.map((item) => ({
+        videoId: item.videoId,
+        positionInFeed: item.positionInFeed,
+      })),
+      existingMetadata: {
+        type: isHomePage ? 'HOMEPAGE_SNAPSHOT' : 'VIDEO_WATCH',
+        timestamp: Date.now(),
+        ...(sessionMetadata && typeof sessionMetadata === 'object' ? sessionMetadata : {}),
+      },
+    });
+
     const snapshot = await prisma.feedSnapshot.create({
       data: {
         userId: req.userId!,
         platform: 'youtube',
+        capturedAt,
         itemCount: feed.length,
-        sessionMetadata: packAndCompress({
-          type: isHomePage ? 'HOMEPAGE_SNAPSHOT' : 'VIDEO_WATCH',
-          timestamp: Date.now()
-        }).data,
+        sessionMetadata: packAndCompress(enrichedSessionMetadata).data,
         feedItems: {
           create: itemsToCreate
         }

@@ -2,18 +2,20 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
+import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
 const router = Router();
 
 // POST /twitter/feed - receive Twitter/X feed data batch
 router.post('/feed', authenticate, async (req: AuthRequest, res) => {
-    const { feed } = req.body;
+    const { feed, sessionMetadata } = req.body;
 
     if (!Array.isArray(feed) || feed.length === 0) {
         return res.status(400).json({ error: 'Invalid feed data' });
     }
 
     try {
+        const capturedAt = new Date();
         const itemsToCreate = feed.map((item: any, index: number) => {
             // Pack metrics
             const engagementMetrics = packAndCompress({
@@ -37,15 +39,28 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
             };
         });
 
+        const enrichedSessionMetadata = buildSessionQualityMetadata({
+            userId: req.userId!,
+            platform: 'twitter',
+            capturedAt,
+            feedItems: itemsToCreate.map((item) => ({
+                videoId: item.videoId,
+                positionInFeed: item.positionInFeed,
+            })),
+            existingMetadata: {
+                type: 'TIMELINE_BATCH',
+                timestamp: Date.now(),
+                ...(sessionMetadata && typeof sessionMetadata === 'object' ? sessionMetadata : {}),
+            },
+        });
+
         const snapshot = await prisma.feedSnapshot.create({
             data: {
                 userId: req.userId!,
                 platform: 'twitter',
+                capturedAt,
                 itemCount: feed.length,
-                sessionMetadata: packAndCompress({
-                    type: 'TIMELINE_BATCH',
-                    timestamp: Date.now()
-                }).data,
+                sessionMetadata: packAndCompress(enrichedSessionMetadata).data,
                 feedItems: {
                     create: itemsToCreate
                 }

@@ -3,8 +3,29 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { findSimilarFeeds } from '../services/similarity.js';
 import { generateFeedInsights, generateVideoInsights } from '../services/insights.js';
+import {
+    generateRecommendationMap,
+    generateRecommendationMapForUsers,
+    TraversalInputError,
+} from '../services/recommendationTraversal.js';
+import {
+    AudienceForecastInputError,
+    generateAudienceForecast,
+    getCohortUserIds,
+} from '../services/audienceForecast.js';
+import { generateForecastEvaluation } from '../services/forecastEvaluation.js';
+import {
+    DataQualityInputError,
+    generateDataQualityDiagnostics,
+    generateDataQualityTrends,
+} from '../services/dataQuality.js';
+import { generateGoToMarketCohortBrief } from '../services/goToMarketBrief.js';
 
 export const analysisRouter = Router();
+
+function clampNumber(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+}
 
 // Get similar feeds/users with enhanced matching
 analysisRouter.get('/similar', authenticate, async (req: AuthRequest, res, next) => {
@@ -19,6 +40,238 @@ analysisRouter.get('/similar', authenticate, async (req: AuthRequest, res, next)
             data: { similarFeeds },
         });
     } catch (error) {
+        next(error);
+    }
+});
+
+// Build recommendation map by running BFS + DFS in parallel (internally)
+analysisRouter.get('/recommendation-map', authenticate, async (req: AuthRequest, res, next) => {
+    try {
+        const seedVideoId = String(req.query.seedVideoId || '').trim();
+        if (!seedVideoId) {
+            return res.status(400).json({
+                success: false,
+                error: 'seedVideoId is required',
+            });
+        }
+
+        const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
+        const maxNodesRaw = Number.parseInt(String(req.query.maxNodes || '40'), 10);
+        const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 8);
+        const maxNodes = clampNumber(Number.isFinite(maxNodesRaw) ? maxNodesRaw : 40, 1, 300);
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const cohortId = String(req.query.cohortId || '').trim() || undefined;
+
+        const map = cohortId
+            ? await (async () => {
+                const cohortUsers = await getCohortUserIds(platform, cohortId);
+                return generateRecommendationMapForUsers(
+                    cohortUsers,
+                    {
+                        seedVideoId,
+                        maxDepth,
+                        maxNodes,
+                        platform,
+                    },
+                    { cohortId }
+                );
+            })()
+            : await generateRecommendationMap(req.userId!, {
+                seedVideoId,
+                maxDepth,
+                maxNodes,
+                platform,
+            });
+
+        res.json({
+            success: true,
+            data: { map },
+        });
+    } catch (error) {
+        if (error instanceof TraversalInputError || error instanceof AudienceForecastInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
+        next(error);
+    }
+});
+
+// Cohort-aware audience forecast (improves with more cross-user comparisons)
+analysisRouter.get('/audience-forecast', authenticate, async (req: AuthRequest, res, next) => {
+    try {
+        const targetVideoId = String(req.query.targetVideoId || '').trim();
+        if (!targetVideoId) {
+            return res.status(400).json({
+                success: false,
+                error: 'targetVideoId is required',
+            });
+        }
+
+        const seedVideoId = String(req.query.seedVideoId || '').trim() || undefined;
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
+        const beamWidthRaw = Number.parseInt(String(req.query.beamWidth || '30'), 10);
+        const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 6);
+        const beamWidth = clampNumber(Number.isFinite(beamWidthRaw) ? beamWidthRaw : 30, 5, 120);
+
+        const forecast = await generateAudienceForecast(req.userId!, {
+            targetVideoId,
+            seedVideoId,
+            platform,
+            maxDepth,
+            beamWidth,
+        });
+
+        res.json({
+            success: true,
+            data: { forecast },
+        });
+    } catch (error) {
+        if (error instanceof AudienceForecastInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
+        next(error);
+    }
+});
+
+// Creator-facing Go-to-Market cohort brief export
+analysisRouter.get('/go-to-market-brief', authenticate, async (req: AuthRequest, res, next) => {
+    try {
+        const targetVideoId = String(req.query.targetVideoId || '').trim();
+        if (!targetVideoId) {
+            return res.status(400).json({
+                success: false,
+                error: 'targetVideoId is required',
+            });
+        }
+
+        const seedVideoId = String(req.query.seedVideoId || '').trim() || undefined;
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
+        const beamWidthRaw = Number.parseInt(String(req.query.beamWidth || '30'), 10);
+        const topCohortsRaw = Number.parseInt(String(req.query.topCohorts || '5'), 10);
+        const maxPathsRaw = Number.parseInt(String(req.query.maxPathsPerCohort || '3'), 10);
+        const pathBranchLimitRaw = Number.parseInt(String(req.query.pathBranchLimit || '6'), 10);
+
+        const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 6);
+        const beamWidth = clampNumber(Number.isFinite(beamWidthRaw) ? beamWidthRaw : 30, 5, 120);
+        const topCohorts = clampNumber(Number.isFinite(topCohortsRaw) ? topCohortsRaw : 5, 1, 12);
+        const maxPathsPerCohort = clampNumber(Number.isFinite(maxPathsRaw) ? maxPathsRaw : 3, 1, 10);
+        const pathBranchLimit = clampNumber(Number.isFinite(pathBranchLimitRaw) ? pathBranchLimitRaw : 6, 1, 25);
+
+        const brief = await generateGoToMarketCohortBrief(req.userId!, {
+            targetVideoId,
+            seedVideoId,
+            platform,
+            maxDepth,
+            beamWidth,
+            topCohorts,
+            maxPathsPerCohort,
+            pathBranchLimit,
+        });
+
+        res.json({
+            success: true,
+            data: { brief },
+        });
+    } catch (error) {
+        if (error instanceof AudienceForecastInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
+        next(error);
+    }
+});
+
+// Holdout evaluation for forecast reliability
+analysisRouter.get('/forecast-evaluation', authenticate, async (req: AuthRequest, res, next) => {
+    try {
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const topKRaw = Number.parseInt(String(req.query.topK || '5'), 10);
+        const topK = clampNumber(Number.isFinite(topKRaw) ? topKRaw : 5, 1, 20);
+
+        const evaluation = await generateForecastEvaluation(platform, topK);
+
+        res.json({
+            success: true,
+            data: { evaluation },
+        });
+    } catch (error) {
+        if (error instanceof AudienceForecastInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
+        next(error);
+    }
+});
+
+// Data quality diagnostics for cross-user comparison reliability
+analysisRouter.get('/data-quality', authenticate, async (req: AuthRequest, res, next) => {
+    try {
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const windowHoursRaw = Number.parseInt(String(req.query.windowHours || String(24 * 14)), 10);
+        const windowHours = clampNumber(Number.isFinite(windowHoursRaw) ? windowHoursRaw : (24 * 14), 1, 24 * 180);
+
+        const diagnostics = await generateDataQualityDiagnostics(platform, windowHours);
+
+        res.json({
+            success: true,
+            data: { diagnostics },
+        });
+    } catch (error) {
+        if (error instanceof DataQualityInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
+        next(error);
+    }
+});
+
+// Data quality trend points for drift monitoring
+analysisRouter.get('/data-quality-trends', authenticate, async (req: AuthRequest, res, next) => {
+    try {
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const windowHoursRaw = Number.parseInt(String(req.query.windowHours || String(24 * 14)), 10);
+        const windowHours = clampNumber(Number.isFinite(windowHoursRaw) ? windowHoursRaw : (24 * 14), 1, 24 * 180);
+        const bucketHoursRaw = Number.parseInt(String(req.query.bucketHours || '24'), 10);
+        const bucketHours = clampNumber(Number.isFinite(bucketHoursRaw) ? bucketHoursRaw : 24, 1, windowHours);
+
+        const trends = await generateDataQualityTrends(platform, windowHours, bucketHours);
+
+        res.json({
+            success: true,
+            data: { trends },
+        });
+    } catch (error) {
+        if (error instanceof DataQualityInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
         next(error);
     }
 });

@@ -9,6 +9,7 @@ import {
     decompressAndUnpack,
     isCompressedMsgpack
 } from '../services/serialization.js';
+import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
 export const feedsRouter = Router();
 
@@ -63,18 +64,31 @@ feedsRouter.post(
             }
 
             const { items, sessionMetadata } = req.body;
+            const capturedAt = new Date();
 
             // Anonymize the data
             const anonymizedItems = items.map(anonymizeSnapshot);
 
+            const enrichedSessionMetadata = buildSessionQualityMetadata({
+                userId: req.userId!,
+                platform: 'tiktok',
+                capturedAt,
+                feedItems: anonymizedItems.map((item: any, index: number) => ({
+                    videoId: item.videoId,
+                    positionInFeed: item.positionInFeed ?? index,
+                })),
+                existingMetadata: sessionMetadata,
+            });
+
             // Serialize sessionMetadata to compressed MessagePack
-            const compressedSessionMetadata = serializeMetadata(sessionMetadata);
+            const compressedSessionMetadata = serializeMetadata(enrichedSessionMetadata);
 
             // Create snapshot with items
             const snapshot = await prisma.feedSnapshot.create({
                 data: {
                     userId: req.userId!,
                     platform: 'tiktok',
+                    capturedAt,
                     itemCount: items.length,
                     sessionMetadata: compressedSessionMetadata,
                     feedItems: {
