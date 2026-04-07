@@ -44,6 +44,36 @@ describe('Forecast evaluation metrics', () => {
         expect(metrics.reliabilityScore).toBeGreaterThan(0);
     });
 
+    it('derives adjacent-window reliability deltas', () => {
+        const cases = [
+            {
+                userId: 'u1',
+                sourceVideoId: 'A',
+                actualTargets: new Set(['B']),
+                cohortId: 'gaming|medium|low',
+                windowBucket: 'earlier' as const,
+            },
+            {
+                userId: 'u2',
+                sourceVideoId: 'A',
+                actualTargets: new Set(['B']),
+                cohortId: 'gaming|medium|low',
+                windowBucket: 'later' as const,
+            },
+        ];
+
+        const transitions = new Map([
+            ['A', [
+                { toVideoId: 'B', probability: 0.8 },
+                { toVideoId: 'C', probability: 0.2 },
+            ]],
+        ]);
+
+        const metrics = evaluateTransitionPredictor(cases, transitions, 2);
+        expect(metrics.sampleSize).toBe(2);
+        expect(metrics.reliabilityScore).toBeGreaterThan(0);
+    });
+
     it('returns zeroed metrics when no prediction cases are available', () => {
         const metrics = evaluateTransitionPredictor([], new Map(), 5);
         expect(metrics.sampleSize).toBe(0);
@@ -53,4 +83,3 @@ describe('Forecast evaluation metrics', () => {
         expect(metrics.calibrationScore).toBe(0);
     });
 });
-

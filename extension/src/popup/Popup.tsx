@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 
 interface CaptureStatus {
     isCapturing: boolean;
@@ -120,8 +121,8 @@ const Popup: React.FC = () => {
                                     type: 'MANUAL_CAPTURE_SESSION',
                                     captureSurface: 'for-you-feed',
                                     clientSessionId: response.data.sessionId ?? null,
-                                    observerVersion: 'tiktok-observer-v2',
-                                    ingestVersion: 'cross-platform-v1',
+                                    observerVersion: CURRENT_OBSERVER_VERSIONS.tiktok,
+                                    ingestVersion: CURRENT_INGEST_VERSION,
                                     scrollEvents: response.data.scrollEvents ?? 0,
                                     capturedAt: new Date().toISOString(),
                                 },

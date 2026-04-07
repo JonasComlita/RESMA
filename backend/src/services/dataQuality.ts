@@ -1,5 +1,15 @@
-import { buildAudienceModel, RawAudienceFeedItem } from './audienceForecast.js';
-import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
+import {
+    buildAudienceModel,
+    deriveRecommendationQualityGate,
+    getRecommendationQualityThresholds,
+    RawAudienceFeedItem,
+    RecommendationQualityGate,
+} from './audienceForecast.js';
+import {
+    extractRecommendationsWithDiagnostics,
+    normalizeRecommendationSurface,
+    RecommendationDropReasons,
+} from './recommendationParsing.js';
 import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
 import { buildSnapshotFingerprint } from './snapshotQuality.js';
 
@@ -49,9 +59,13 @@ interface RecommendationSummary {
     itemsWithRecommendationArray: number;
     rawRecommendationRows: number;
     strictRecommendationRows: number;
+    duplicateRecommendationRows: number;
     parserDropRate: number;
+    dedupeImpactRate: number;
+    dropReasons: RecommendationDropReasons;
     itemsWithParsedRecommendations: number;
     parseCoverage: number;
+    strictRowCoverage: number;
     avgRecommendationsPerItem: number;
     surfaceTransitionStability: number;
     bySurface: RecommendationSurfaceDiagnostics[];
@@ -103,6 +117,7 @@ export interface DataQualityDiagnosticsResult {
     };
     recommendations: RecommendationSummary;
     cohorts: CohortStabilitySummary;
+    qualityGate: RecommendationQualityGate;
 }
 
 export interface DataQualityTrendPoint {
@@ -111,11 +126,15 @@ export interface DataQualityTrendPoint {
     users: number;
     snapshots: number;
     stitchedSessions: number;
+    dedupedSnapshots: number;
     dedupeRate: number;
     parseCoverage: number;
+    strictRecommendationRows: number;
     parserDropRate: number;
     cohortStabilityScore: number;
     networkStrength: number;
+    qualityGateStatus: RecommendationQualityGate['status'];
+    qualityGateReasons: string[];
     surfaceMetrics: RecommendationSurfaceTrendPoint[];
 }
 
@@ -125,6 +144,15 @@ export interface DataQualityTrendResult {
     bucketHours: number;
     generatedAt: string;
     points: DataQualityTrendPoint[];
+    drift: {
+        status: 'stable' | 'warning' | 'critical';
+        parseCoverageDelta: number;
+        parserDropRateDelta: number;
+        strictRowsDelta: number;
+        dedupeRateDelta: number;
+        cohortStabilityDelta: number;
+        reasons: string[];
+    };
 }
 
 export class DataQualityInputError extends Error {
@@ -198,6 +226,29 @@ function decodeMetrics(metrics: Buffer | null): unknown {
     } catch {
         return null;
     }
+}
+
+function createDropReasonTotals(): RecommendationDropReasons {
+    return {
+        malformedRow: 0,
+        missingVideoId: 0,
+        invalidVideoId: 0,
+        selfReference: 0,
+        duplicateVideoId: 0,
+        overRecommendationCap: 0,
+    };
+}
+
+function mergeDropReasons(
+    destination: RecommendationDropReasons,
+    source: RecommendationDropReasons
+) {
+    destination.malformedRow += source.malformedRow;
+    destination.missingVideoId += source.missingVideoId;
+    destination.invalidVideoId += source.invalidVideoId;
+    destination.selfReference += source.selfReference;
+    destination.duplicateVideoId += source.duplicateVideoId;
+    destination.overRecommendationCap += source.overRecommendationCap;
 }
 
 function overlapRatio(left: Set<string>, right: Set<string>) {
@@ -372,7 +423,9 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
     let itemsWithRecommendationArray = 0;
     let rawRecommendationRows = 0;
     let strictRecommendationRows = 0;
+    let duplicateRecommendationRows = 0;
     let itemsWithParsedRecommendations = 0;
+    const dropReasons = createDropReasonTotals();
     const rawRowsBySurface = new Map<string, number>();
     const strictRowsBySurface = new Map<string, number>();
     const transitionCountsBySurface = new Map<string, Map<string, number>>();
@@ -391,21 +444,27 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
                 for (const recommendation of recommendations) {
                     if (!recommendation || typeof recommendation !== 'object') continue;
                     const rec = recommendation as Record<string, unknown>;
-                    const surface = normalizeSurfaceLabel(rec.surface ?? rec.source ?? rec.placement);
+                    const surface = normalizeRecommendationSurface(
+                        rec.surface ?? rec.source ?? rec.placement ?? rec.origin,
+                        platform
+                    ) ?? 'unknown';
                     rawRowsBySurface.set(surface, (rawRowsBySurface.get(surface) ?? 0) + 1);
                 }
             }
         }
 
-        const strictRecommendations = extractRecommendationsFromMetrics(item.engagementMetrics, {
+        const parseResult = extractRecommendationsWithDiagnostics(item.engagementMetrics, {
             platform,
             sourceVideoId: item.videoId,
-            maxRecommendations: 25,
+            maxRecommendations: 40,
         });
+        const strictRecommendations = parseResult.recommendations;
+        strictRecommendationRows += parseResult.diagnostics.strictRecommendationRows;
+        duplicateRecommendationRows += parseResult.diagnostics.duplicateRecommendationRows;
+        mergeDropReasons(dropReasons, parseResult.diagnostics.dropReasons);
 
         if (strictRecommendations.length > 0) {
             itemsWithParsedRecommendations += 1;
-            strictRecommendationRows += strictRecommendations.length;
             for (const recommendation of strictRecommendations) {
                 const primarySurface = normalizeSurfaceLabel(recommendation.surface ?? recommendation.surfaces[0]);
                 strictRowsBySurface.set(primarySurface, (strictRowsBySurface.get(primarySurface) ?? 0) + 1);
@@ -423,6 +482,12 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
 
     const parserDropRate = rawRecommendationRows > 0
         ? 1 - (strictRecommendationRows / rawRecommendationRows)
+        : 0;
+    const dedupeImpactRate = rawRecommendationRows > 0
+        ? duplicateRecommendationRows / rawRecommendationRows
+        : 0;
+    const strictRowCoverage = rawRecommendationRows > 0
+        ? strictRecommendationRows / rawRecommendationRows
         : 0;
     const parseCoverage = itemsWithRecommendationArray > 0
         ? itemsWithParsedRecommendations / itemsWithRecommendationArray
@@ -464,8 +529,8 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
                 surface,
                 rawRows,
                 strictRows,
-                parserDropRate: roundTo(parserDropRateForSurface),
-                parseCoverage: roundTo(parseCoverageForSurface),
+                parserDropRate: roundTo(clamp(parserDropRateForSurface, 0, 1)),
+                parseCoverage: roundTo(clamp(parseCoverageForSurface, 0, 1)),
                 uniqueTransitions: transitions.size,
                 transitionStabilityScore: roundTo(transitionStabilityScore),
             };
@@ -488,9 +553,13 @@ function summarizeRecommendations(items: RawAudienceFeedItem[], platform: string
         itemsWithRecommendationArray,
         rawRecommendationRows,
         strictRecommendationRows,
+        duplicateRecommendationRows,
         parserDropRate: roundTo(parserDropRate),
+        dedupeImpactRate: roundTo(dedupeImpactRate),
+        dropReasons,
         itemsWithParsedRecommendations,
         parseCoverage: roundTo(parseCoverage),
+        strictRowCoverage: roundTo(strictRowCoverage),
         avgRecommendationsPerItem: roundTo(avgRecommendationsPerItem, 2),
         surfaceTransitionStability: roundTo(surfaceTransitionStability),
         bySurface,
@@ -576,6 +645,12 @@ export function summarizeDataQualityFromSnapshots(
     const { stitchedItems, stitching } = stitchSnapshots(snapshots);
     const recommendationSummary = summarizeRecommendations(stitchedItems, platform);
     const cohortSummary = summarizeCohorts(stitchedItems, platform);
+    const thresholdConfig = getRecommendationQualityThresholds(platform);
+    const qualityGate = deriveRecommendationQualityGate(stitchedItems, platform, {
+        comparedUsers: cohortSummary.eligibleUsers,
+        cohortStabilityScore: cohortSummary.stabilityScore,
+        minimumCohortUsersForLift: thresholdConfig.minimumCohortUsersForLift,
+    });
 
     return {
         platform,
@@ -595,6 +670,7 @@ export function summarizeDataQualityFromSnapshots(
         },
         recommendations: recommendationSummary,
         cohorts: cohortSummary,
+        qualityGate,
     };
 }
 
@@ -684,11 +760,15 @@ export function summarizeDataQualityTrendFromSnapshots(
                 users: summary.totals.users,
                 snapshots: summary.totals.snapshots,
                 stitchedSessions: summary.stitching.stitchedSessions,
+                dedupedSnapshots: summary.stitching.dedupedSnapshots,
                 dedupeRate: summary.stitching.duplicateRate,
                 parseCoverage: summary.recommendations.parseCoverage,
+                strictRecommendationRows: summary.recommendations.strictRecommendationRows,
                 parserDropRate: summary.recommendations.parserDropRate,
                 cohortStabilityScore: summary.cohorts.stabilityScore,
                 networkStrength: summary.cohorts.networkStrength,
+                qualityGateStatus: summary.qualityGate.status,
+                qualityGateReasons: summary.qualityGate.degradationReasons,
                 surfaceMetrics: summary.recommendations.bySurface.map((surface) => ({
                     surface: surface.surface,
                     rawRows: surface.rawRows,
@@ -700,12 +780,75 @@ export function summarizeDataQualityTrendFromSnapshots(
             };
         });
 
+    const drift = (() => {
+        if (points.length < 2) {
+            return {
+                status: 'stable' as const,
+                parseCoverageDelta: 0,
+                parserDropRateDelta: 0,
+                strictRowsDelta: 0,
+                dedupeRateDelta: 0,
+                cohortStabilityDelta: 0,
+                reasons: [] as string[],
+            };
+        }
+
+        const latest = points[points.length - 1];
+        const previous = points[points.length - 2];
+        const parseCoverageDelta = roundTo(latest.parseCoverage - previous.parseCoverage);
+        const parserDropRateDelta = roundTo(latest.parserDropRate - previous.parserDropRate);
+        const strictRowsDelta = latest.strictRecommendationRows - previous.strictRecommendationRows;
+        const dedupeRateDelta = roundTo(latest.dedupeRate - previous.dedupeRate);
+        const cohortStabilityDelta = roundTo(latest.cohortStabilityScore - previous.cohortStabilityScore);
+
+        const reasons: string[] = [];
+        let status: 'stable' | 'warning' | 'critical' = 'stable';
+        const bumpStatus = (next: 'warning' | 'critical') => {
+            if (status === 'critical') return;
+            if (next === 'critical' || status === 'stable') {
+                status = next;
+            }
+        };
+
+        if (parseCoverageDelta <= -0.08) {
+            reasons.push(`Parse coverage dropped ${Math.round(Math.abs(parseCoverageDelta) * 100)} points between adjacent windows.`);
+            bumpStatus(parseCoverageDelta <= -0.15 ? 'critical' : 'warning');
+        }
+        if (parserDropRateDelta >= 0.08) {
+            reasons.push(`Parser drop increased ${Math.round(parserDropRateDelta * 100)} points between adjacent windows.`);
+            bumpStatus(parserDropRateDelta >= 0.15 ? 'critical' : 'warning');
+        }
+        if (previous.strictRecommendationRows >= 6 && strictRowsDelta <= -Math.round(previous.strictRecommendationRows * 0.35)) {
+            reasons.push(`Strict recommendation rows fell from ${previous.strictRecommendationRows} to ${latest.strictRecommendationRows}.`);
+            bumpStatus(strictRowsDelta <= -Math.round(previous.strictRecommendationRows * 0.6) ? 'critical' : 'warning');
+        }
+        if (dedupeRateDelta >= 0.12) {
+            reasons.push(`Dedupe rate increased ${Math.round(dedupeRateDelta * 100)} points, indicating rising duplicate-capture noise.`);
+            bumpStatus(dedupeRateDelta >= 0.2 ? 'critical' : 'warning');
+        }
+        if (cohortStabilityDelta <= -0.08) {
+            reasons.push(`Cohort stability fell ${Math.round(Math.abs(cohortStabilityDelta) * 100)} points in the latest window.`);
+            bumpStatus(cohortStabilityDelta <= -0.15 ? 'critical' : 'warning');
+        }
+
+        return {
+            status,
+            parseCoverageDelta,
+            parserDropRateDelta,
+            strictRowsDelta,
+            dedupeRateDelta,
+            cohortStabilityDelta,
+            reasons,
+        };
+    })();
+
     return {
         platform,
         windowHours: Math.round(windowHours),
         bucketHours: boundedBucketHours,
         generatedAt: new Date().toISOString(),
         points,
+        drift,
     };
 }
 

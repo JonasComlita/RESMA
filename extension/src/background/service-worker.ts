@@ -4,9 +4,9 @@
  */
 
 import { packData, getCompressionStats } from '../utils/serialization.js';
-import { PlatformFeedPayloadSchema } from '@resma/shared';
+import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 
-type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok';
+type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok' | 'twitter';
 
 interface StorageData {
     token?: string;
@@ -63,6 +63,58 @@ interface LegacySessionData {
 }
 
 const DEFAULT_API_URL = 'http://localhost:3001';
+const VALID_HTTP_PROTOCOLS = new Set(['http:', 'https:']);
+
+function normalizeApiUrl(rawUrl: unknown): string | null {
+    if (typeof rawUrl !== 'string') {
+        return null;
+    }
+
+    const trimmed = rawUrl.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    try {
+        const parsed = new URL(trimmed);
+        if (!VALID_HTTP_PROTOCOLS.has(parsed.protocol)) {
+            return null;
+        }
+        parsed.hash = '';
+        parsed.pathname = '';
+        parsed.search = '';
+        return parsed.toString().replace(/\/$/, '');
+    } catch {
+        return null;
+    }
+}
+
+const ENV_API_URL = normalizeApiUrl(import.meta.env?.VITE_API_URL);
+const FALLBACK_API_URL = ENV_API_URL ?? DEFAULT_API_URL;
+
+async function getApiBaseUrl(): Promise<string> {
+    const data = await chrome.storage.local.get('apiUrl') as StorageData;
+    const storageApiUrl = normalizeApiUrl(data.apiUrl);
+    if (data.apiUrl && !storageApiUrl) {
+        console.warn('[RESMA] Ignoring invalid apiUrl in storage; using fallback API URL');
+    }
+    return storageApiUrl ?? FALLBACK_API_URL;
+}
+
+function createUploadId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `upl-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function shouldAttemptJsonFallback(statusCode: number): boolean {
+    // Do not retry authentication/authorization failures with JSON.
+    if (statusCode === 401 || statusCode === 403) {
+        return false;
+    }
+    return true;
+}
 
 function sanitizeString(value: unknown): string | null {
     if (typeof value !== 'string') return null;
@@ -72,7 +124,7 @@ function sanitizeString(value: unknown): string | null {
 
 function normalizePlatform(value: unknown): SupportedPlatform | null {
     const normalized = sanitizeString(value)?.toLowerCase();
-    if (normalized === 'youtube' || normalized === 'instagram' || normalized === 'tiktok') {
+    if (normalized === 'youtube' || normalized === 'instagram' || normalized === 'tiktok' || normalized === 'twitter') {
         return normalized;
     }
     return null;
@@ -250,8 +302,8 @@ function convertLegacySessionToPayload(rawSession: LegacySessionData): PlatformF
             type: 'MANUAL_CAPTURE_SESSION',
             captureSurface: 'for-you-feed',
             clientSessionId: sanitizeString((rawSession as any).sessionId),
-            observerVersion: 'tiktok-observer-v2',
-            ingestVersion: 'cross-platform-v1',
+            observerVersion: CURRENT_OBSERVER_VERSIONS.tiktok,
+            ingestVersion: CURRENT_INGEST_VERSION,
             duration: typeof rawSession.startTime === 'number' ? Date.now() - rawSession.startTime : undefined,
             scrollEvents: typeof rawSession.scrollEvents === 'number' ? rawSession.scrollEvents : 0,
             capturedAt: new Date().toISOString(),
@@ -259,10 +311,11 @@ function convertLegacySessionToPayload(rawSession: LegacySessionData): PlatformF
     };
 }
 
-function uploadEndpointForPlatform(platform: SupportedPlatform): string {
-    if (platform === 'youtube') return `${DEFAULT_API_URL}/youtube/feed`;
-    if (platform === 'instagram') return `${DEFAULT_API_URL}/instagram/feed`;
-    return `${DEFAULT_API_URL}/feeds`;
+function uploadEndpointForPlatform(platform: SupportedPlatform, apiBaseUrl: string): string {
+    if (platform === 'youtube') return `${apiBaseUrl}/youtube/feed`;
+    if (platform === 'instagram') return `${apiBaseUrl}/instagram/feed`;
+    if (platform === 'twitter') return `${apiBaseUrl}/twitter/feed`;
+    return `${apiBaseUrl}/feeds`;
 }
 
 function payloadForPlatformUpload(payload: PlatformFeedPayload): Record<string, unknown> {
@@ -287,7 +340,8 @@ async function getAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any }
     }
 
     try {
-        const response = await fetch(`${DEFAULT_API_URL}/auth/me`, {
+        const apiBaseUrl = await getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/auth/me`, {
             headers: { Authorization: `Bearer ${data.token}` },
         });
 
@@ -305,15 +359,22 @@ async function getAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any }
 
 async function getAuthToken(): Promise<string | null> {
     const data = await chrome.storage.local.get('token') as StorageData;
-    return data.token ?? null;
+    const normalizedToken = sanitizeString(data.token);
+    return normalizedToken ?? null;
 }
 
-async function uploadPayload(endpoint: string, payload: Record<string, unknown>, token: string): Promise<boolean> {
+async function uploadPayload(
+    endpoint: string,
+    payload: Record<string, unknown>,
+    token: string,
+    uploadId: string,
+    platform: SupportedPlatform
+): Promise<boolean> {
     try {
         const packedBody = packData(payload);
         const stats = getCompressionStats(JSON.stringify(payload), packedBody);
         console.log(
-            `[RESMA] ${endpoint} compression: ${stats.jsonBytes}B -> ${stats.packedBytes}B (${stats.savingsPercent.toFixed(1)}% savings)`
+            `[RESMA] [${platform}] [${uploadId}] ${endpoint} compression: ${stats.jsonBytes}B -> ${stats.packedBytes}B (${stats.savingsPercent.toFixed(1)}% savings)`
         );
 
         const response = await fetch(endpoint, {
@@ -321,6 +382,8 @@ async function uploadPayload(endpoint: string, payload: Record<string, unknown>,
             headers: {
                 'Content-Type': 'application/x-msgpack',
                 Authorization: `Bearer ${token}`,
+                'X-Resma-Upload-Id': uploadId,
+                'X-Resma-Upload-Format': 'msgpack',
             },
             body: packedBody.buffer.slice(
                 packedBody.byteOffset,
@@ -329,12 +392,18 @@ async function uploadPayload(endpoint: string, payload: Record<string, unknown>,
         });
 
         if (response.ok) {
+            console.log(`[RESMA] [${platform}] [${uploadId}] MessagePack upload succeeded (${response.status})`);
             return true;
         }
 
-        console.warn(`[RESMA] Binary upload failed (${response.status}), falling back to JSON`);
+        if (!shouldAttemptJsonFallback(response.status)) {
+            console.error(`[RESMA] [${platform}] [${uploadId}] MessagePack upload failed with non-retryable status ${response.status}`);
+            return false;
+        }
+
+        console.warn(`[RESMA] [${platform}] [${uploadId}] MessagePack upload failed (${response.status}), falling back to JSON`);
     } catch (error) {
-        console.warn('[RESMA] Binary upload error, falling back to JSON:', error);
+        console.warn(`[RESMA] [${platform}] [${uploadId}] MessagePack upload error, falling back to JSON:`, error);
     }
 
     try {
@@ -343,43 +412,47 @@ async function uploadPayload(endpoint: string, payload: Record<string, unknown>,
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
+                'X-Resma-Upload-Id': uploadId,
+                'X-Resma-Upload-Format': 'json-fallback',
             },
             body: JSON.stringify(payload),
         });
+        if (!fallbackResponse.ok) {
+            console.error(`[RESMA] [${platform}] [${uploadId}] JSON fallback failed with status ${fallbackResponse.status}`);
+            return false;
+        }
+        console.log(`[RESMA] [${platform}] [${uploadId}] JSON fallback upload succeeded (${fallbackResponse.status})`);
         return fallbackResponse.ok;
     } catch (error) {
-        console.error('[RESMA] JSON fallback failed:', error);
+        console.error(`[RESMA] [${platform}] [${uploadId}] JSON fallback failed:`, error);
         return false;
     }
 }
 
-async function handlePlatformUpload(rawPayload: unknown) {
-    const normalizedPayload = normalizePlatformPayload(rawPayload);
-    if (!normalizedPayload) {
-        console.warn('[RESMA] Skipping upload: invalid platform payload');
-        return;
+async function handlePlatformUpload(rawPayload: unknown): Promise<boolean> {
+    const payload = coercePlatformFeedPayload(rawPayload);
+    if (!payload) {
+        console.warn('[RESMA] Skipping upload: payload failed shared contract coercion');
+        return false;
     }
-
-    const parsed = PlatformFeedPayloadSchema.safeParse(normalizedPayload);
-    if (!parsed.success) {
-        console.warn('[RESMA] Skipping upload: payload failed schema validation', parsed.error.issues);
-        return;
-    }
-    const payload = parsed.data;
 
     const token = await getAuthToken();
     if (!token) {
         console.error(`[RESMA] Not authenticated for ${payload.platform} upload`);
-        return;
+        return false;
     }
 
-    const endpoint = uploadEndpointForPlatform(payload.platform);
+    const apiBaseUrl = await getApiBaseUrl();
+    const endpoint = uploadEndpointForPlatform(payload.platform, apiBaseUrl);
     const requestPayload = payloadForPlatformUpload(payload);
-    const success = await uploadPayload(endpoint, requestPayload, token);
+    const uploadId = createUploadId();
+    const success = await uploadPayload(endpoint, requestPayload, token, uploadId, payload.platform);
 
     if (!success) {
-        console.error(`[RESMA] Upload failed for ${payload.platform}`);
+        console.error(`[RESMA] [${payload.platform}] [${uploadId}] Upload failed`);
     }
+
+    return success;
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -389,8 +462,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             break;
 
         case 'UPLOAD_PLATFORM_FEED':
-            handlePlatformUpload(message.payload);
-            break;
+            handlePlatformUpload(message.payload)
+                .then((success) => {
+                    sendResponse({ success });
+                })
+                .catch((error) => {
+                    console.error('[RESMA] Unhandled upload pipeline error:', error);
+                    sendResponse({ success: false, error: 'Unhandled upload pipeline error' });
+                });
+            return true;
 
         case 'UPLOAD_SESSION': {
             const payload = convertLegacySessionToPayload((message.data ?? {}) as LegacySessionData);
@@ -449,7 +529,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
 
         case 'SET_TOKEN':
-            chrome.storage.local.set({ token: message.token });
+            {
+                const token = sanitizeString(message.token);
+                if (!token) {
+                    sendResponse({ success: false, error: 'Invalid token' });
+                    break;
+                }
+
+                const updates: StorageData = { token };
+                const apiUrl = normalizeApiUrl(message.apiUrl);
+                if (apiUrl) {
+                    updates.apiUrl = apiUrl;
+                }
+
+                chrome.storage.local.set(updates);
+            }
             sendResponse({ success: true });
             break;
 

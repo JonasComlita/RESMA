@@ -2,6 +2,7 @@
  * RESMA - YouTube Feed & Video Observer
  * Captures homepage feed, video telemetry, ads, and recommendation surfaces.
  */
+import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 
 type RecommendationSurface =
     | 'watch-next-sidebar'
@@ -70,6 +71,7 @@ class YouTubeObserver {
     private isManualCaptureActive = false;
 
     private activeVideoId: string | null = null;
+    private activeVideoEntryIndex: number | null = null;
     private activeVideoElement: HTMLVideoElement | null = null;
     private maxTimeWatched = 0;
     private lastCurrentTime = 0;
@@ -117,6 +119,9 @@ class YouTubeObserver {
 
             if (message.type === 'START_CAPTURE') {
                 this.isManualCaptureActive = true;
+                if (this.isHomeRoute()) {
+                    this.snapshotHomeFeed();
+                }
                 sendResponse({
                     success: true,
                     data: {
@@ -127,6 +132,7 @@ class YouTubeObserver {
             }
 
             if (message.type === 'STOP_CAPTURE') {
+                this.finalizeActiveVideo({ forceUpload: true });
                 this.isManualCaptureActive = false;
                 sendResponse({
                     success: true,
@@ -214,6 +220,10 @@ class YouTubeObserver {
                 .filter((entry): entry is HomeFeedItem => Boolean(entry));
 
             this.session.homeFeedSnapshot = feed;
+            if (!this.isManualCaptureActive || feed.length === 0) {
+                return;
+            }
+
             chrome.runtime.sendMessage({
                 type: 'UPLOAD_PLATFORM_FEED',
                 payload: {
@@ -222,8 +232,8 @@ class YouTubeObserver {
                     sessionMetadata: {
                         type: 'HOMEPAGE_SNAPSHOT',
                         captureSurface: 'home-feed-grid',
-                        observerVersion: 'youtube-observer-v2',
-                        ingestVersion: 'cross-platform-v1',
+                        observerVersion: CURRENT_OBSERVER_VERSIONS.youtube,
+                        ingestVersion: CURRENT_INGEST_VERSION,
                         clientSessionId: this.session.sessionId,
                         capturedAt: new Date().toISOString(),
                     },
@@ -271,7 +281,7 @@ class YouTubeObserver {
             timestamp: Date.now(),
         };
 
-        this.session.videos.push(entry);
+        this.activeVideoEntryIndex = this.session.videos.push(entry) - 1;
 
         setTimeout(() => this.scrapeRecommendations(videoId), 2500);
         setTimeout(() => this.scrapeRecommendations(videoId), 8000);
@@ -509,7 +519,7 @@ class YouTubeObserver {
         return null;
     }
 
-    private finalizeActiveVideo() {
+    private finalizeActiveVideo(options: { forceUpload?: boolean } = {}) {
         if (!this.activeVideoId || !this.activeVideoElement) return;
 
         console.log(`[RESMA] Finalizing video: ${this.activeVideoId}, watched: ${this.maxTimeWatched.toFixed(1)}s`);
@@ -524,7 +534,7 @@ class YouTubeObserver {
         });
 
         const entry = this.getActiveEntry();
-        if (entry) {
+        if (entry && (this.isManualCaptureActive || options.forceUpload)) {
             chrome.runtime.sendMessage({
                 type: 'UPLOAD_PLATFORM_FEED',
                 payload: {
@@ -533,8 +543,8 @@ class YouTubeObserver {
                     sessionMetadata: {
                         type: 'VIDEO_WATCH',
                         captureSurface: entry.captureSurface,
-                        observerVersion: 'youtube-observer-v2',
-                        ingestVersion: 'cross-platform-v1',
+                        observerVersion: CURRENT_OBSERVER_VERSIONS.youtube,
+                        ingestVersion: CURRENT_INGEST_VERSION,
                         clientSessionId: this.session.sessionId,
                         sourceVideoId: entry.videoId,
                         capturedAt: new Date().toISOString(),
@@ -549,11 +559,31 @@ class YouTubeObserver {
         if (this.activeVideoId === finalizedVideoId) {
             this.activeVideoId = null;
         }
+        this.activeVideoEntryIndex = null;
         this.activeVideoElement = null;
     }
 
     private getActiveEntry() {
-        return this.session.videos.find((video) => video.videoId === this.activeVideoId);
+        if (this.activeVideoEntryIndex !== null) {
+            const byIndex = this.session.videos[this.activeVideoEntryIndex];
+            if (byIndex && byIndex.videoId === this.activeVideoId) {
+                return byIndex;
+            }
+        }
+
+        if (!this.activeVideoId) {
+            return undefined;
+        }
+
+        for (let index = this.session.videos.length - 1; index >= 0; index -= 1) {
+            const entry = this.session.videos[index];
+            if (entry.videoId === this.activeVideoId) {
+                this.activeVideoEntryIndex = index;
+                return entry;
+            }
+        }
+
+        return undefined;
     }
 
     private updateActiveEntry(updater: (entry: YouTubeVideo) => void) {

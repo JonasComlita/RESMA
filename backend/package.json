@@ -9,21 +9,22 @@
         "test": "vitest",
         "lint": "eslint src/",
         "db:migrate": "prisma migrate dev",
+        "db:validate-platform-migration": "tsx src/scripts/validate-platform-account-migration.ts",
         "db:generate": "prisma generate",
         "db:studio": "prisma studio"
     },
     "dependencies": {
-        "@resma/shared": "workspace:*",
         "@msgpack/msgpack": "^3.0.0-beta2",
         "@prisma/client": "^5.8.0",
+        "@resma/shared": "workspace:*",
         "bcryptjs": "^2.4.3",
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
         "express-validator": "^7.0.1",
         "fzstd": "^0.1.1",
-        "jsonwebtoken": "^9.0.2",
         "helmet": "^7.1.0",
+        "jsonwebtoken": "^9.0.2",
         "morgan": "^1.10.0"
     },
     "devDependencies": {
@@ -33,8 +34,10 @@
         "@types/jsonwebtoken": "^9.0.5",
         "@types/morgan": "^1.9.9",
         "@types/node": "^20.10.0",
+        "@types/supertest": "^7.2.0",
         "eslint": "^8.56.0",
         "prisma": "^5.8.0",
+        "supertest": "^7.2.2",
         "tsx": "^4.7.0",
         "typescript": "^5.3.0",
         "vitest": "^1.2.0"

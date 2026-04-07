@@ -3,14 +3,24 @@ import {
     AudienceForecastOptions,
     AudienceModel,
     buildAudienceModel,
+    CohortLiftStabilityEvidence,
+    deriveCohortStabilityScore,
     computeAudienceForecastFromModel,
+    deriveCohortLiftStabilityEvidence,
+    getRecommendationQualityThresholds,
     deriveRecommendationQualityGate,
     loadAudienceFeedItems,
+    RecommendationQualityGate,
 } from './audienceForecast.js';
+import {
+    ForecastEvaluationResult,
+    generateForecastEvaluation,
+} from './forecastEvaluation.js';
 
 interface TransitionProbability {
     toVideoId: string;
     probability: number;
+    count: number;
 }
 
 type TransitionProbabilityMap = Map<string, TransitionProbability[]>;
@@ -18,12 +28,23 @@ type TransitionProbabilityMap = Map<string, TransitionProbability[]>;
 interface PathState {
     pathVideoIds: string[];
     probability: number;
+    edgeEvidence: ReachPathEdgeEvidence[];
+}
+
+export interface ReachPathEdgeEvidence {
+    fromVideoId: string;
+    toVideoId: string;
+    probability: number;
+    support: number;
 }
 
 export interface PredictedReachPath {
     pathVideoIds: string[];
     probability: number;
     depth: number;
+    platform: string;
+    supportingTransitionWeight: number;
+    edgeEvidence: ReachPathEdgeEvidence[];
 }
 
 export interface GoToMarketCohortBrief {
@@ -40,7 +61,40 @@ export interface GoToMarketCohortBrief {
     reachProbabilityFromSeed: number | null;
     fitScore: number;
     score: number;
+    liftInterpretation: {
+        isLiftInterpretable: boolean;
+        gateReasons: string[];
+        cohortTransitionSamples: number;
+        exposureConfidenceIntervalWidth: number;
+        adjacentWindowLiftDelta: number | null;
+        adjacentWindowUsers: {
+            earlier: number;
+            later: number;
+        } | null;
+    };
     predictedReachPaths: PredictedReachPath[];
+}
+
+export interface BriefReliabilitySummary {
+    available: boolean;
+    topK: number;
+    globalReliabilityScore: number;
+    globalSampleSize: number;
+    globalHitRate: number;
+    globalPrecisionAtK: number;
+    globalCalibrationScore: number;
+    globalGateStatus: 'pass' | 'degraded';
+    globalGateReasons: string[];
+    keyCohortGateStatus: 'pass' | 'degraded';
+    keyCohortGateReasons: string[];
+    keyCohorts: Array<{
+        cohortId: string;
+        reliabilityScore: number;
+        sampleSize: number;
+        gateStatus: 'pass' | 'degraded';
+        gateReasons: string[];
+    }>;
+    adjacentWindowReliabilityDelta: number | null;
 }
 
 export interface GoToMarketBriefResult {
@@ -64,13 +118,8 @@ export interface GoToMarketBriefResult {
         directProbabilityFromSeed: number | null;
         reachProbabilityFromSeed: number | null;
     };
-    qualityGate: {
-        status: 'ok' | 'degraded';
-        parseCoverage: number;
-        parserDropRate: number;
-        minimumParseCoverage: number;
-        confidenceMultiplier: number;
-    };
+    qualityGate: RecommendationQualityGate;
+    forecastReliability: BriefReliabilitySummary;
     topCohorts: GoToMarketCohortBrief[];
     keyTakeaways: string[];
     markdown: string;
@@ -113,6 +162,7 @@ function normalizeTransitions(
             edges.push({
                 toVideoId: targetVideoId,
                 probability: count / total,
+                count,
             });
         }
 
@@ -127,6 +177,7 @@ function computeTopReachPaths(
     normalizedTransitions: TransitionProbabilityMap,
     seedVideoId: string,
     targetVideoId: string,
+    platform: string,
     maxDepth: number,
     branchLimit: number,
     maxPaths: number
@@ -141,6 +192,7 @@ function computeTopReachPaths(
     let frontier: PathState[] = [{
         pathVideoIds: [seedVideoId],
         probability: 1,
+        edgeEvidence: [],
     }];
 
     const completePaths: PredictedReachPath[] = [];
@@ -163,17 +215,34 @@ function computeTopReachPaths(
                 if (state.pathVideoIds.includes(edge.toVideoId)) continue;
                 const probability = state.probability * edge.probability;
                 const candidatePath = [...state.pathVideoIds, edge.toVideoId];
+                const candidateEdgeEvidence = [
+                    ...state.edgeEvidence,
+                    {
+                        fromVideoId: currentVideoId,
+                        toVideoId: edge.toVideoId,
+                        probability: roundTo(edge.probability, 4),
+                        support: roundTo(edge.count, 3),
+                    },
+                ];
+                const supportingTransitionWeight = roundTo(
+                    candidateEdgeEvidence.reduce((sum, evidence) => sum + evidence.support, 0),
+                    3
+                );
 
                 if (edge.toVideoId === targetVideoId) {
                     completePaths.push({
                         pathVideoIds: candidatePath,
                         probability,
                         depth,
+                        platform,
+                        supportingTransitionWeight,
+                        edgeEvidence: candidateEdgeEvidence,
                     });
                 } else {
                     nextFrontier.push({
                         pathVideoIds: candidatePath,
                         probability,
+                        edgeEvidence: candidateEdgeEvidence,
                     });
                 }
             }
@@ -192,6 +261,7 @@ function computeTopReachPaths(
             deduped.set(key, {
                 ...path,
                 probability: roundTo(path.probability, 4),
+                supportingTransitionWeight: roundTo(path.supportingTransitionWeight, 3),
             });
         }
     }
@@ -201,18 +271,125 @@ function computeTopReachPaths(
         .slice(0, boundedMaxPaths);
 }
 
+function buildUnavailableReliabilitySummary(reason: string): BriefReliabilitySummary {
+    return {
+        available: false,
+        topK: 0,
+        globalReliabilityScore: 0,
+        globalSampleSize: 0,
+        globalHitRate: 0,
+        globalPrecisionAtK: 0,
+        globalCalibrationScore: 0,
+        globalGateStatus: 'degraded',
+        globalGateReasons: [reason],
+        keyCohortGateStatus: 'degraded',
+        keyCohortGateReasons: [reason],
+        keyCohorts: [],
+        adjacentWindowReliabilityDelta: null,
+    };
+}
+
+function deriveBriefReliabilitySummary(
+    evaluation: ForecastEvaluationResult | null
+): BriefReliabilitySummary {
+    if (!evaluation) {
+        return buildUnavailableReliabilitySummary(
+            'Holdout reliability metrics are not available for this platform yet.'
+        );
+    }
+
+    const keyCohorts = evaluation.validation.keyCohorts.map((cohort) => ({
+        cohortId: cohort.cohortId,
+        reliabilityScore: cohort.reliabilityScore,
+        sampleSize: cohort.sampleSize,
+        gateStatus: cohort.gate.status,
+        gateReasons: cohort.gate.reasons,
+    }));
+
+    return {
+        available: true,
+        topK: evaluation.metrics.topK,
+        globalReliabilityScore: evaluation.metrics.reliabilityScore,
+        globalSampleSize: evaluation.metrics.sampleSize,
+        globalHitRate: evaluation.metrics.topKReachHitRate,
+        globalPrecisionAtK: evaluation.metrics.precisionAtK,
+        globalCalibrationScore: evaluation.metrics.calibrationScore,
+        globalGateStatus: evaluation.validation.globalGate.status,
+        globalGateReasons: evaluation.validation.globalGate.reasons,
+        keyCohortGateStatus: evaluation.validation.keyCohortGate.status,
+        keyCohortGateReasons: evaluation.validation.keyCohortGate.reasons,
+        keyCohorts,
+        adjacentWindowReliabilityDelta: evaluation.adjacentWindow.reliabilityDelta,
+    };
+}
+
+function applyReliabilityPenaltyToQualityGate(
+    qualityGate: RecommendationQualityGate,
+    reliability: BriefReliabilitySummary
+): RecommendationQualityGate {
+    const reasonCodes = [...qualityGate.reasonCodes];
+    const degradationReasons = [...qualityGate.degradationReasons];
+    let confidenceMultiplier = qualityGate.confidenceMultiplier;
+    let canInterpretLift = qualityGate.canInterpretLift;
+
+    if (!reliability.available) {
+        reasonCodes.push('forecast_reliability_unavailable');
+        degradationReasons.push(reliability.globalGateReasons[0] ?? 'Forecast reliability is unavailable.');
+        confidenceMultiplier = clamp(confidenceMultiplier * 0.84, 0.35, 1);
+        canInterpretLift = false;
+    } else {
+        const reliabilityNeedsDegrade = reliability.globalGateStatus === 'degraded'
+            || reliability.keyCohortGateStatus === 'degraded';
+        if (reliabilityNeedsDegrade) {
+            reasonCodes.push('forecast_reliability_low');
+            const reason = reliability.globalGateReasons[0]
+                ?? reliability.keyCohortGateReasons[0]
+                ?? 'Forecast reliability is below policy thresholds.';
+            degradationReasons.push(reason);
+            const reliabilityPenalty = clamp(
+                0.72 + clamp(reliability.globalReliabilityScore, 0, 1) * 0.24,
+                0.72,
+                0.96
+            );
+            confidenceMultiplier = clamp(confidenceMultiplier * reliabilityPenalty, 0.35, 1);
+            canInterpretLift = false;
+        }
+    }
+
+    const status: RecommendationQualityGate['status'] = degradationReasons.length > 0 ? 'degraded' : 'ok';
+    return {
+        ...qualityGate,
+        status,
+        reasonCodes,
+        degradationReasons,
+        canInterpretLift,
+        confidenceMultiplier: roundTo(confidenceMultiplier),
+    };
+}
+
 function buildTakeaways(brief: GoToMarketBriefResult): string[] {
     const takeaways: string[] = [];
 
     if (brief.qualityGate.status === 'degraded') {
         takeaways.push(
-            `Recommendation parse coverage is ${percent(brief.qualityGate.parseCoverage)} (minimum target ${percent(brief.qualityGate.minimumParseCoverage)}); confidence is currently degraded.`
+            brief.qualityGate.degradationReasons[0]
+                ?? `Recommendation parse coverage is ${percent(brief.qualityGate.parseCoverage)} (minimum target ${percent(brief.qualityGate.minimumParseCoverage)}); confidence is currently degraded.`
         );
     }
 
     if (brief.topCohorts.length === 0) {
         takeaways.push('No stable cohorts were available yet. Gather more cross-user comparisons to produce a reliable launch plan.');
         return takeaways;
+    }
+
+    if (brief.forecastReliability.available) {
+        takeaways.push(
+            `Holdout reliability is ${percent(brief.forecastReliability.globalReliabilityScore)} at top-${brief.forecastReliability.topK} (sample n=${brief.forecastReliability.globalSampleSize}); global gate is ${brief.forecastReliability.globalGateStatus}.`
+        );
+    } else {
+        takeaways.push(
+            'Holdout reliability metrics are not available yet for this platform; treat cohort lift as directional.'
+        );
     }
 
     const topLift = brief.topCohorts
@@ -223,6 +400,13 @@ function buildTakeaways(brief: GoToMarketBriefResult): string[] {
         takeaways.push(
             `${topLift.cohortLabel} is the strongest launch cohort at ${topLift.relativeLiftVsGlobalExposure.toFixed(2)}x lift versus global baseline.`
         );
+    } else {
+        const blockedLiftCohort = brief.topCohorts.find((cohort) => !cohort.liftInterpretation.isLiftInterpretable);
+        if (blockedLiftCohort) {
+            takeaways.push(
+                `${blockedLiftCohort.cohortLabel} lift is currently gated: ${blockedLiftCohort.liftInterpretation.gateReasons[0] ?? 'insufficient stability evidence.'}`
+            );
+        }
     }
 
     const tightestBand = brief.topCohorts
@@ -243,11 +427,11 @@ function buildTakeaways(brief: GoToMarketBriefResult): string[] {
         const withPaths = brief.topCohorts.filter((cohort) => cohort.predictedReachPaths.length > 0);
         if (withPaths.length > 0) {
             takeaways.push(
-                `${withPaths.length}/${brief.topCohorts.length} top cohorts show explicit reach paths from seed ${brief.seedVideoId} to target ${brief.targetVideoId}.`
+                `${withPaths.length}/${brief.topCohorts.length} top cohorts show explicit ${brief.platform} reach paths from seed ${brief.seedVideoId} to target ${brief.targetVideoId}.`
             );
         } else {
             takeaways.push(
-                `No concrete reach paths were found from seed ${brief.seedVideoId} within depth ${brief.settings.maxDepth}; consider a closer seed context.`
+                `No concrete ${brief.platform} reach paths were found from seed ${brief.seedVideoId} within depth ${brief.settings.maxDepth}; consider a closer seed context.`
             );
         }
     } else {
@@ -267,31 +451,51 @@ function buildMarkdownBrief(brief: GoToMarketBriefResult): string {
     lines.push(`- Seed Context: ${brief.seedVideoId ?? 'none'}`);
     lines.push(`- Quality Gate: ${brief.qualityGate.status} (coverage ${percent(brief.qualityGate.parseCoverage)}, parser drop ${percent(brief.qualityGate.parserDropRate)})`);
     lines.push('');
+    lines.push('## Forecast Reliability');
+    if (brief.forecastReliability.available) {
+        lines.push(`- Global Reliability: ${percent(brief.forecastReliability.globalReliabilityScore)} (gate ${brief.forecastReliability.globalGateStatus}, n=${brief.forecastReliability.globalSampleSize})`);
+        lines.push(`- Holdout metrics: top-${brief.forecastReliability.topK} hit ${percent(brief.forecastReliability.globalHitRate)}, precision ${percent(brief.forecastReliability.globalPrecisionAtK)}, calibration ${percent(brief.forecastReliability.globalCalibrationScore)}`);
+        lines.push(`- Adjacent-window reliability delta: ${brief.forecastReliability.adjacentWindowReliabilityDelta === null ? '-' : brief.forecastReliability.adjacentWindowReliabilityDelta.toFixed(3)}`);
+        lines.push(`- Key cohort gate: ${brief.forecastReliability.keyCohortGateStatus}`);
+        if (brief.forecastReliability.globalGateReasons.length > 0) {
+            lines.push(`- Global gate notes: ${brief.forecastReliability.globalGateReasons.join(' ')}`);
+        }
+        if (brief.forecastReliability.keyCohortGateReasons.length > 0) {
+            lines.push(`- Key cohort notes: ${brief.forecastReliability.keyCohortGateReasons.join(' ')}`);
+        }
+    } else {
+        lines.push(`- ${brief.forecastReliability.globalGateReasons[0] ?? 'Holdout reliability metrics are unavailable.'}`);
+    }
+    lines.push('');
     lines.push('## Global Baseline');
     lines.push(`- Exposure: ${percent(brief.global.targetExposureRate)} (${percent(brief.global.targetExposureConfidenceInterval.low)}-${percent(brief.global.targetExposureConfidenceInterval.high)})`);
     lines.push(`- Direct from Seed: ${percent(brief.global.directProbabilityFromSeed)}`);
     lines.push(`- Reach from Seed: ${percent(brief.global.reachProbabilityFromSeed)}`);
     lines.push('');
     lines.push('## Top Cohorts');
-    lines.push('| Cohort | Users | Exposure (CI) | Lift vs Global | Reach from Seed | Score |');
-    lines.push('| --- | ---: | --- | ---: | ---: | ---: |');
+    lines.push('| Cohort | Users | Exposure (CI) | Lift vs Global | Lift Gate | Reach from Seed | Score |');
+    lines.push('| --- | ---: | --- | ---: | --- | ---: | ---: |');
     for (const cohort of brief.topCohorts) {
         lines.push(
-            `| ${cohort.cohortLabel} | ${cohort.users} | ${percent(cohort.targetExposureRate)} (${percent(cohort.exposureConfidenceInterval.low)}-${percent(cohort.exposureConfidenceInterval.high)}) | ${typeof cohort.relativeLiftVsGlobalExposure === 'number' ? `${cohort.relativeLiftVsGlobalExposure.toFixed(2)}x` : '-'} | ${percent(cohort.reachProbabilityFromSeed)} | ${cohort.score.toFixed(3)} |`
+            `| ${cohort.cohortLabel} | ${cohort.users} | ${percent(cohort.targetExposureRate)} (${percent(cohort.exposureConfidenceInterval.low)}-${percent(cohort.exposureConfidenceInterval.high)}) | ${typeof cohort.relativeLiftVsGlobalExposure === 'number' ? `${cohort.relativeLiftVsGlobalExposure.toFixed(2)}x` : '-'} | ${cohort.liftInterpretation.isLiftInterpretable ? 'pass' : 'gated'} | ${percent(cohort.reachProbabilityFromSeed)} | ${cohort.score.toFixed(3)} |`
         );
     }
     lines.push('');
-    lines.push('## Predicted Reach Paths');
+    lines.push(`## Predicted Reach Paths (${brief.platform} Evidence)`);
     for (const cohort of brief.topCohorts) {
         lines.push(`### ${cohort.cohortLabel}`);
+        if (!cohort.liftInterpretation.isLiftInterpretable) {
+            lines.push(`- Lift interpretation gated: ${cohort.liftInterpretation.gateReasons.join(' ')}`);
+        }
         if (cohort.predictedReachPaths.length === 0) {
             lines.push('- No high-confidence path found in the configured depth/branch window.');
             continue;
         }
         for (const [index, path] of cohort.predictedReachPaths.entries()) {
             lines.push(
-                `${index + 1}. ${path.pathVideoIds.join(' -> ')} (p=${(path.probability * 100).toFixed(2)}%, depth=${path.depth})`
+                `${index + 1}. ${path.pathVideoIds.join(' -> ')} (p=${(path.probability * 100).toFixed(2)}%, depth=${path.depth}, ${path.platform} support=${path.supportingTransitionWeight})`
             );
+            lines.push(`   Evidence: ${path.edgeEvidence.map((edge) => `${edge.fromVideoId}->${edge.toVideoId} (p=${edge.probability.toFixed(3)}, w=${edge.support.toFixed(2)})`).join('; ')}`);
         }
     }
     lines.push('');
@@ -308,23 +512,32 @@ export function buildGoToMarketCohortBriefFromModel(
     model: AudienceModel,
     currentUserId: string,
     options: AudienceForecastOptions,
-    qualityGate: {
-        status: 'ok' | 'degraded';
-        parseCoverage: number;
-        parserDropRate: number;
-        minimumParseCoverage: number;
-        confidenceMultiplier: number;
-    },
+    qualityGate: RecommendationQualityGate,
     settings?: {
         topCohorts?: number;
         maxPathsPerCohort?: number;
         pathBranchLimit?: number;
+        liftStabilityByCohort?: Map<string, CohortLiftStabilityEvidence>;
+        forecastReliability?: BriefReliabilitySummary;
     }
 ): GoToMarketBriefResult {
     const topCohortsLimit = clamp(settings?.topCohorts ?? 5, 1, 12);
     const maxPathsPerCohort = clamp(settings?.maxPathsPerCohort ?? 3, 1, 10);
     const pathBranchLimit = clamp(settings?.pathBranchLimit ?? 6, 1, 25);
-    const forecast = computeAudienceForecastFromModel(model, currentUserId, options, qualityGate);
+    const reliabilityForBrief = settings?.forecastReliability
+        ?? buildUnavailableReliabilitySummary(
+            'Holdout reliability metrics were not provided for this brief.'
+        );
+    const gatedQualityGate = settings?.forecastReliability
+        ? applyReliabilityPenaltyToQualityGate(qualityGate, settings.forecastReliability)
+        : qualityGate;
+    const forecast = computeAudienceForecastFromModel(
+        model,
+        currentUserId,
+        options,
+        gatedQualityGate,
+        settings?.liftStabilityByCohort
+    );
 
     const selectedCohorts = (forecast.recommendedAudienceCohorts.length > 0
         ? forecast.recommendedAudienceCohorts
@@ -342,6 +555,7 @@ export function buildGoToMarketCohortBriefFromModel(
                 normalizedTransitions,
                 forecast.seedVideoId,
                 forecast.targetVideoId,
+                forecast.platform,
                 forecast.settings.maxDepth,
                 pathBranchLimit,
                 maxPathsPerCohort
@@ -359,6 +573,7 @@ export function buildGoToMarketCohortBriefFromModel(
             reachProbabilityFromSeed: cohort.reachProbabilityFromSeed,
             fitScore: cohort.fitScore,
             score: cohort.score,
+            liftInterpretation: cohort.liftInterpretation,
             predictedReachPaths,
         };
     });
@@ -382,6 +597,7 @@ export function buildGoToMarketCohortBriefFromModel(
             reachProbabilityFromSeed: forecast.global.reachProbabilityFromSeed,
         },
         qualityGate: forecast.qualityGate,
+        forecastReliability: reliabilityForBrief,
         topCohorts,
     };
 
@@ -420,7 +636,35 @@ export async function generateGoToMarketCohortBrief(
     }
 
     const model = buildAudienceModel(items, options.platform);
-    const qualityGate = deriveRecommendationQualityGate(items, options.platform);
+    const thresholds = getRecommendationQualityThresholds(options.platform);
+    const cohortStabilityScore = deriveCohortStabilityScore(
+        model,
+        thresholds.minimumCohortUsersForLift
+    );
+    const qualityGate = deriveRecommendationQualityGate(items, options.platform, {
+        comparedUsers: model.userProfiles.size,
+        cohortStabilityScore,
+        minimumCohortUsersForLift: thresholds.minimumCohortUsersForLift,
+    });
+    const liftStabilityByCohort = deriveCohortLiftStabilityEvidence(
+        items,
+        model,
+        targetVideoId,
+        options.platform
+    );
+
+    let reliabilitySummary: BriefReliabilitySummary;
+    try {
+        const evaluation = await generateForecastEvaluation(options.platform);
+        reliabilitySummary = deriveBriefReliabilitySummary(evaluation);
+    } catch (error) {
+        if (error instanceof AudienceForecastInputError) {
+            reliabilitySummary = buildUnavailableReliabilitySummary(error.message);
+        } else {
+            throw error;
+        }
+    }
+
     return buildGoToMarketCohortBriefFromModel(
         model,
         currentUserId,
@@ -436,6 +680,8 @@ export async function generateGoToMarketCohortBrief(
             topCohorts: options.topCohorts,
             maxPathsPerCohort: options.maxPathsPerCohort,
             pathBranchLimit: options.pathBranchLimit,
+            liftStabilityByCohort,
+            forecastReliability: reliabilitySummary,
         }
     );
 }

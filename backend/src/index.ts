@@ -43,10 +43,16 @@ app.use('/twitter', twitterRouter);
 // Error handling
 app.use(errorHandler);
 
-// Start server
-app.listen(config.port, () => {
-    console.log(`🚀 RESMA API running on port ${config.port}`);
-    console.log(`   Environment: ${config.nodeEnv}`);
-});
+const isExecutedDirectly = typeof require !== 'undefined'
+    && typeof module !== 'undefined'
+    && require.main === module;
+
+// Start server only when executed directly (not during tests/imports)
+if (isExecutedDirectly) {
+    app.listen(config.port, () => {
+        console.log(`🚀 RESMA API running on port ${config.port}`);
+        console.log(`   Environment: ${config.nodeEnv}`);
+    });
+}
 
 export default app;

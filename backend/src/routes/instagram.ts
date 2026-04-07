@@ -3,6 +3,9 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
+import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION } from '@resma/shared';
+import { logIngestError, logIngestInfo, logIngestWarn } from '../services/ingestObservability.js';
+import { getReplayKey, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
 
 const router: Router = Router();
 const MAX_RECOMMENDATIONS_PER_ITEM = 40;
@@ -26,7 +29,7 @@ function parsePositiveInt(value: unknown): number | null {
     return null;
 }
 
-function parseNonNegativeNumber(value: unknown): number {
+function parseNonNegativeNumber(value: unknown): number | null {
     if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
         return value;
     }
@@ -36,7 +39,7 @@ function parseNonNegativeNumber(value: unknown): number {
             return parsed;
         }
     }
-    return 0;
+    return null;
 }
 
 function normalizeSurface(surface: unknown): string {
@@ -182,126 +185,167 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 router.post('/feed', authenticate, async (req: AuthRequest, res) => {
-    const { feed, sessionMetadata } = req.body;
-
-    if (!Array.isArray(feed) || feed.length === 0) {
-        return res.status(400).json({ error: 'Invalid feed data' });
-    }
-
     try {
-        const capturedAt = new Date();
-        const incomingMetadata = asRecord(sessionMetadata);
-
-        const itemsToCreate = feed
-            .map((item: any, index: number) => {
-                const videoId = normalizeInstagramMediaId(
-                    item.videoId ?? item.id ?? item.postId ?? item.mediaId
-                );
-                if (!videoId) {
-                    return null;
-                }
-
-                const recommendations = normalizeRecommendationRows(item.recommendations);
-                const recommendationSurfaces = recommendationSurfaceCounts(recommendations);
-                const watchTime = parseNonNegativeNumber(item.watchTime);
-                const impressionDuration = parseNonNegativeNumber(item.impressionDuration);
-                const watchDuration = Math.max(watchTime, impressionDuration);
-                const likesCount = parseNonNegativeNumber(item.likes);
-                const commentsCount = parseNonNegativeNumber(item.comments);
-                const sharesCount = parseNonNegativeNumber(item.shares);
-
-                const engagementMetrics = packAndCompress({
-                    watchTime,
-                    impressionDuration,
-                    loopCount: parsePositiveInt(item.loopCount) ?? 0,
-                    isSponsored: Boolean(item.isSponsored),
-                    recommendations,
-                    recommendationSurfaceCounts: recommendationSurfaces,
-                    recommendationCount: recommendations.length,
-                    likes: likesCount,
-                    comments: commentsCount,
-                    shares: sharesCount,
-                    views: parseNonNegativeNumber(item.views),
-                    type: sanitizeString(item.type),
-                }).data;
-
-                const primaryType = sanitizeString(item.type);
-                const categories = new Set<string>();
-                if (primaryType) categories.add(primaryType.toLowerCase());
-                if (Array.isArray(item.tags)) {
-                    for (const tag of item.tags) {
-                        const normalizedTag = sanitizeString(tag);
-                        if (normalizedTag) categories.add(normalizedTag.toLowerCase());
-                    }
-                }
-
-                return {
-                    videoId,
-                    creatorHandle: sanitizeString(item.author ?? item.username ?? item.creatorHandle),
-                    creatorId: sanitizeString(item.author ?? item.username ?? item.creatorId),
-                    positionInFeed: parsePositiveInt(item.position ?? item.positionInFeed) ?? index,
-                    caption: sanitizeString(item.caption ?? item.title)?.slice(0, 500) ?? null,
-                    likesCount,
-                    commentsCount,
-                    sharesCount,
-                    engagementMetrics,
-                    contentCategories: Array.from(categories.values()),
-                    watchDuration,
-                    interacted: Boolean(item.hasInteracted ?? item.interacted),
-                    interactionType: sanitizeString(item.interactionType),
-                };
-            })
-            .filter((item): item is NonNullable<typeof item> => Boolean(item));
-
-        if (itemsToCreate.length === 0) {
-            return res.status(400).json({ error: 'Invalid feed item structure' });
+        const validPayload = coercePlatformFeedPayload({
+            platform: 'instagram',
+            feed: req.body?.feed,
+            sessionMetadata: req.body?.sessionMetadata,
+        }, {
+            expectedPlatform: 'instagram',
+            requireFullFeedValidity: true,
+        });
+        if (!validPayload) {
+            logIngestWarn('Contract validation failed for /instagram/feed', req, {
+                reason: 'payload failed shared contract coercion',
+            });
+            return res.status(400).json({ error: 'Payload failed contract validation' });
         }
 
-        const explicitType = sanitizeString(incomingMetadata.type);
-        const hasWatchSignals = feed.some((item: any) => {
-            const watchTime = parseNonNegativeNumber(item.watchTime) > 0;
-            const recs = Array.isArray(item.recommendations) && item.recommendations.length > 0;
-            return watchTime || recs;
-        });
+        const replayKey = getReplayKey(req, req.userId);
+        const replayOutcome = await withIngestReplayGuard(replayKey, async () => {
+            const capturedAt = new Date();
+            const incomingMetadata = asRecord(validPayload.sessionMetadata);
 
-        const inferredType = explicitType || (hasWatchSignals ? 'REEL_WATCH' : 'INSTAGRAM_FEED_SNAPSHOT');
-        const captureSurface = normalizeSurface(incomingMetadata.captureSurface ?? 'instagram-feed');
+            const itemsToCreate = validPayload.feed
+                .map((item: any, index: number) => {
+                    const videoId = normalizeInstagramMediaId(
+                        item.videoId ?? item.id ?? item.postId ?? item.mediaId
+                    );
+                    if (!videoId) {
+                        return null;
+                    }
 
-        const enrichedSessionMetadata = buildSessionQualityMetadata({
-            userId: req.userId!,
-            platform: 'instagram',
-            capturedAt,
-            feedItems: itemsToCreate.map((item) => ({
-                videoId: item.videoId,
-                positionInFeed: item.positionInFeed,
-            })),
-            existingMetadata: {
-                ...incomingMetadata,
-                type: inferredType,
-                captureSurface,
-                timestamp: Date.now(),
-                ingestVersion: 'instagram-feed-v2',
-            },
-        });
+                    const metrics = asRecord(item.engagementMetrics);
+                    const recommendations = normalizeRecommendationRows(item.recommendations ?? metrics.recommendations);
+                    const recommendationSurfaces = recommendationSurfaceCounts(recommendations);
+                    const watchTime = parseNonNegativeNumber(metrics.watchTime ?? item.watchDuration ?? item.watchTime) ?? 0;
+                    const impressionDuration = parseNonNegativeNumber(metrics.impressionDuration ?? item.impressionDuration) ?? 0;
+                    const watchDuration = Math.max(watchTime, impressionDuration);
+                    const likesCount = parsePositiveInt(metrics.likes ?? item.likes);
+                    const commentsCount = parsePositiveInt(metrics.comments ?? item.comments);
+                    const sharesCount = parsePositiveInt(metrics.shares ?? item.shares);
 
-        const snapshot = await prisma.feedSnapshot.create({
-            data: {
+                    const engagementMetrics = packAndCompress({
+                        watchTime,
+                        impressionDuration,
+                        loopCount: parsePositiveInt(metrics.loopCount ?? item.loopCount) ?? 0,
+                        isSponsored: Boolean(metrics.isSponsored ?? item.isSponsored),
+                        recommendations,
+                        recommendationSurfaceCounts: recommendationSurfaces,
+                        recommendationCount: recommendations.length,
+                        likes: likesCount,
+                        comments: commentsCount,
+                        shares: sharesCount,
+                        views: parseNonNegativeNumber(metrics.views ?? item.views),
+                        type: sanitizeString(metrics.type ?? item.type),
+                    }).data;
+
+                    const primaryType = sanitizeString(metrics.type ?? item.type);
+                    const categories = new Set<string>();
+                    if (primaryType) categories.add(primaryType.toLowerCase());
+                    if (Array.isArray(item.contentCategories)) {
+                        for (const category of item.contentCategories) {
+                            const normalizedCategory = sanitizeString(category);
+                            if (normalizedCategory) categories.add(normalizedCategory.toLowerCase());
+                        }
+                    }
+                    if (Array.isArray(item.contentTags)) {
+                        for (const tag of item.contentTags) {
+                            const normalizedTag = sanitizeString(tag);
+                            if (normalizedTag) categories.add(normalizedTag.toLowerCase());
+                        }
+                    }
+
+                    return {
+                        videoId,
+                        creatorHandle: sanitizeString(item.creatorHandle ?? item.author ?? item.username),
+                        creatorId: sanitizeString(item.creatorId ?? item.author ?? item.username),
+                        positionInFeed: parsePositiveInt(item.position ?? item.positionInFeed) ?? index,
+                        caption: sanitizeString(item.caption)?.slice(0, 500) ?? null,
+                        likesCount,
+                        commentsCount,
+                        sharesCount,
+                        engagementMetrics,
+                        contentCategories: Array.from(categories.values()),
+                        watchDuration,
+                        interacted: Boolean(item.hasInteracted ?? item.interacted),
+                        interactionType: sanitizeString(item.interactionType),
+                    };
+                })
+                .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+            if (itemsToCreate.length === 0) {
+                return {
+                    statusCode: 400,
+                    body: { error: 'Invalid feed item structure' },
+                };
+            }
+
+            const explicitType = sanitizeString(incomingMetadata.type);
+            const hasWatchSignals = validPayload.feed.some((item: any) => {
+                const metrics = asRecord(item.engagementMetrics);
+                const watchTime = parseNonNegativeNumber(item.watchDuration ?? metrics.watchTime) ?? 0;
+                const recs = Array.isArray(item.recommendations) && item.recommendations.length > 0;
+                return watchTime || recs;
+            });
+
+            const inferredType = explicitType || (hasWatchSignals ? 'REEL_WATCH' : 'INSTAGRAM_FEED_SNAPSHOT');
+            const captureSurface = normalizeSurface(incomingMetadata.captureSurface ?? 'instagram-feed');
+
+            const enrichedSessionMetadata = buildSessionQualityMetadata({
                 userId: req.userId!,
                 platform: 'instagram',
                 capturedAt,
-                itemCount: itemsToCreate.length,
-                sessionMetadata: packAndCompress(enrichedSessionMetadata).data,
-                feedItems: {
-                    create: itemsToCreate,
+                feedItems: itemsToCreate.map((item) => ({
+                    videoId: item.videoId,
+                    positionInFeed: item.positionInFeed,
+                })),
+                existingMetadata: {
+                    ...incomingMetadata,
+                    type: inferredType,
+                    captureSurface,
+                    timestamp: Date.now(),
+                    ingestVersion: CURRENT_INGEST_VERSION,
                 },
-            },
-            include: {
-                _count: { select: { feedItems: true } },
-            },
+            });
+
+            const snapshot = await prisma.feedSnapshot.create({
+                data: {
+                    userId: req.userId!,
+                    platform: 'instagram',
+                    capturedAt,
+                    itemCount: itemsToCreate.length,
+                    sessionMetadata: packAndCompress(enrichedSessionMetadata).data,
+                    feedItems: {
+                        create: itemsToCreate,
+                    },
+                },
+                include: {
+                    _count: { select: { feedItems: true } },
+                },
+            });
+
+            logIngestInfo('Instagram feed snapshot persisted', req, {
+                platform: 'instagram',
+                snapshotId: snapshot.id,
+                itemCount: itemsToCreate.length,
+            });
+
+            return {
+                statusCode: 201,
+                body: { success: true, snapshotId: snapshot.id },
+            };
         });
 
-        res.status(201).json({ success: true, snapshotId: snapshot.id });
+        if (replayOutcome.replayed) {
+            logIngestInfo('Replayed prior /instagram/feed ingestion response', req, { platform: 'instagram' });
+        }
+
+        res.status(replayOutcome.response.statusCode).json(replayOutcome.response.body);
     } catch (err) {
+        logIngestError('Unhandled /instagram/feed ingestion error', req, {
+            error: err instanceof Error ? err.message : 'unknown-error',
+        });
         console.error('Failed to save Instagram feed data:', err);
         res.status(500).json({ error: 'Failed to save Instagram feed data' });
     }

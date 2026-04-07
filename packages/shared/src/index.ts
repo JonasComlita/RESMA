@@ -2,6 +2,12 @@ import { z } from 'zod';
 
 export const SupportedPlatformSchema = z.enum(['youtube', 'instagram', 'tiktok', 'twitter']);
 export type SupportedPlatform = z.infer<typeof SupportedPlatformSchema>;
+export const CURRENT_INGEST_VERSION = 'cross-platform-v1';
+export const CURRENT_OBSERVER_VERSIONS: Record<'youtube' | 'instagram' | 'tiktok', string> = {
+    youtube: 'youtube-observer-v2',
+    instagram: 'instagram-observer-v2',
+    tiktok: 'tiktok-observer-v2',
+};
 
 export const RecommendationRowSchema = z.object({
     videoId: z.string().min(1),
@@ -76,3 +82,468 @@ export const CreatorPlatformAccountSchema = z.object({
     verified: z.boolean().optional(),
 });
 export type CreatorPlatformAccount = z.infer<typeof CreatorPlatformAccountSchema>;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
+    }
+    return value as Record<string, unknown>;
+}
+
+function sanitizeString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function sanitizeNullableString(value: unknown): string | null | undefined {
+    if (value === null) return null;
+    return sanitizeString(value);
+}
+
+function parseMetricString(value: string): number | undefined {
+    const normalized = value.trim().replace(/,/g, '');
+    if (normalized.length === 0) {
+        return undefined;
+    }
+
+    const suffix = normalized.slice(-1).toLowerCase();
+    const multiplier = suffix === 'k' ? 1_000 : suffix === 'm' ? 1_000_000 : suffix === 'b' ? 1_000_000_000 : 1;
+    const numeric = multiplier === 1 ? normalized : normalized.slice(0, -1);
+    const parsed = Number.parseFloat(numeric);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return undefined;
+    }
+
+    return parsed * multiplier;
+}
+
+function toNonNegativeNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        return parseMetricString(value);
+    }
+
+    return undefined;
+}
+
+function toNonNegativeInt(value: unknown): number | undefined {
+    const parsed = toNonNegativeNumber(value);
+    if (parsed === undefined) {
+        return undefined;
+    }
+    return Math.max(0, Math.round(parsed));
+}
+
+function toBoolean(value: unknown): boolean | undefined {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1') {
+            return true;
+        }
+        if (normalized === 'false' || normalized === '0') {
+            return false;
+        }
+    }
+    return undefined;
+}
+
+function normalizeStringArray(value: unknown, maxItems: number): string[] | undefined {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+
+    const values = value
+        .map((entry) => sanitizeString(entry))
+        .filter((entry): entry is string => Boolean(entry));
+    if (values.length === 0) {
+        return undefined;
+    }
+
+    return Array.from(new Set(values)).slice(0, maxItems);
+}
+
+function normalizeRecommendationRows(rows: unknown): RecommendationRow[] | undefined {
+    if (!Array.isArray(rows)) {
+        return undefined;
+    }
+
+    const normalizedRows: RecommendationRow[] = [];
+
+    for (let index = 0; index < rows.length && normalizedRows.length < 40; index += 1) {
+        const row = asRecord(rows[index]);
+        if (!row) continue;
+
+        const videoId = sanitizeString(row.videoId ?? row.id ?? row.postId ?? row.mediaId ?? row.url);
+        if (!videoId) continue;
+
+        const normalized: RecommendationRow = { videoId };
+
+        const position = toNonNegativeInt(row.position);
+        if (position !== undefined) {
+            normalized.position = Math.max(1, position);
+        }
+
+        const title = sanitizeNullableString(row.title);
+        if (title !== undefined) {
+            normalized.title = title;
+        }
+
+        const channel = sanitizeNullableString(row.channel ?? row.author ?? row.username);
+        if (channel !== undefined) {
+            normalized.channel = channel;
+        }
+
+        const surface = sanitizeNullableString(row.surface ?? row.source ?? row.placement);
+        if (surface !== undefined) {
+            normalized.surface = surface;
+        }
+
+        const surfaces = normalizeStringArray(row.surfaces, 8);
+        if (surfaces && surfaces.length > 0) {
+            normalized.surfaces = surfaces;
+        }
+
+        const parsed = RecommendationRowSchema.safeParse(normalized);
+        if (parsed.success) {
+            normalizedRows.push(parsed.data);
+        }
+    }
+
+    return normalizedRows.length > 0 ? normalizedRows : undefined;
+}
+
+const METRIC_PASSTHROUGH_KEYS = [
+    'seekCount',
+    'adEvents',
+    'completed',
+    'uploadDate',
+    'loopCount',
+    'isSponsored',
+    'type',
+    'timestamp',
+    'analytics',
+    'recommendationSurfaceCounts',
+] as const;
+
+function normalizeEngagementMetrics(
+    engagement: unknown,
+    sourceItem: Record<string, unknown>,
+    recommendations: RecommendationRow[] | undefined
+): FeedEngagement | undefined {
+    const base = asRecord(engagement) ?? {};
+    const normalizedMetrics: Record<string, unknown> = {
+        ...base,
+    };
+
+    const likes = toNonNegativeNumber(base.likes ?? sourceItem.likes ?? sourceItem.likeCount);
+    if (likes !== undefined) normalizedMetrics.likes = likes;
+
+    const comments = toNonNegativeNumber(base.comments ?? sourceItem.comments ?? sourceItem.commentCount);
+    if (comments !== undefined) normalizedMetrics.comments = comments;
+
+    const shares = toNonNegativeNumber(base.shares ?? sourceItem.shares ?? sourceItem.shareCount);
+    if (shares !== undefined) normalizedMetrics.shares = shares;
+
+    const views = toNonNegativeNumber(base.views ?? sourceItem.views ?? sourceItem.viewCount);
+    if (views !== undefined) normalizedMetrics.views = views;
+
+    const watchTime = toNonNegativeNumber(base.watchTime ?? sourceItem.watchTime ?? sourceItem.watchedSeconds);
+    if (watchTime !== undefined) normalizedMetrics.watchTime = watchTime;
+
+    const impressionDuration = toNonNegativeNumber(base.impressionDuration ?? sourceItem.impressionDuration);
+    if (impressionDuration !== undefined) normalizedMetrics.impressionDuration = impressionDuration;
+
+    const normalizedRecommendations = recommendations ?? normalizeRecommendationRows(base.recommendations ?? sourceItem.recommendations);
+    if (normalizedRecommendations && normalizedRecommendations.length > 0) {
+        normalizedMetrics.recommendations = normalizedRecommendations;
+        normalizedMetrics.recommendationCount = toNonNegativeInt(base.recommendationCount) ?? normalizedRecommendations.length;
+    } else {
+        const recommendationCount = toNonNegativeInt(base.recommendationCount);
+        if (recommendationCount !== undefined) {
+            normalizedMetrics.recommendationCount = recommendationCount;
+        }
+    }
+
+    for (const key of METRIC_PASSTHROUGH_KEYS) {
+        if (normalizedMetrics[key] === undefined && sourceItem[key] !== undefined) {
+            normalizedMetrics[key] = sourceItem[key];
+        }
+    }
+
+    if (Object.keys(normalizedMetrics).length === 0) {
+        return undefined;
+    }
+
+    const parsed = FeedEngagementSchema.safeParse(normalizedMetrics);
+    return parsed.success ? parsed.data : undefined;
+}
+
+export function coerceCapturedFeedItem(rawItem: unknown, index = 0): CapturedFeedItem | null {
+    const item = asRecord(rawItem);
+    if (!item) {
+        return null;
+    }
+
+    const videoId = sanitizeString(item.videoId ?? item.id ?? item.postId ?? item.mediaId ?? item.tweetId);
+    if (!videoId) {
+        return null;
+    }
+
+    const recommendations = normalizeRecommendationRows(item.recommendations);
+    const engagementMetrics = normalizeEngagementMetrics(item.engagementMetrics, item, recommendations);
+    const normalized: Record<string, unknown> = { videoId };
+
+    const creatorHandle = sanitizeNullableString(
+        item.creatorHandle ?? item.authorHandle ?? item.channelHandle ?? item.author ?? item.channel ?? item.username
+    );
+    if (creatorHandle !== undefined) {
+        normalized.creatorHandle = creatorHandle;
+    }
+
+    const creatorId = sanitizeNullableString(
+        item.creatorId ?? item.authorId ?? item.channelId ?? item.platformAccountId ?? item.author ?? item.channelName ?? item.username
+    );
+    if (creatorId !== undefined) {
+        normalized.creatorId = creatorId;
+    }
+
+    const caption = sanitizeNullableString(item.caption ?? item.title ?? item.text);
+    if (caption !== undefined) {
+        normalized.caption = caption;
+    }
+
+    const positionInFeed = toNonNegativeInt(item.positionInFeed ?? item.position ?? index);
+    if (positionInFeed !== undefined) {
+        normalized.positionInFeed = positionInFeed;
+        normalized.position = positionInFeed;
+    }
+
+    const musicTitle = sanitizeNullableString(item.musicTitle);
+    if (musicTitle !== undefined) {
+        normalized.musicTitle = musicTitle;
+    }
+
+    const watchDuration = toNonNegativeNumber(
+        item.watchDuration
+        ?? item.watchTime
+        ?? item.impressionDuration
+        ?? engagementMetrics?.watchTime
+        ?? engagementMetrics?.impressionDuration
+    );
+    if (watchDuration !== undefined) {
+        normalized.watchDuration = watchDuration;
+    }
+
+    const interacted = toBoolean(item.interacted ?? item.hasInteracted);
+    if (interacted !== undefined) {
+        normalized.interacted = interacted;
+    }
+
+    const interactionType = sanitizeNullableString(item.interactionType);
+    if (interactionType !== undefined) {
+        normalized.interactionType = interactionType;
+    }
+
+    const contentTags = normalizeStringArray(item.contentTags ?? item.tags, 20);
+    if (contentTags !== undefined) {
+        normalized.contentTags = contentTags;
+    }
+
+    const contentCategories = normalizeStringArray(item.contentCategories, 20);
+    if (contentCategories !== undefined) {
+        normalized.contentCategories = contentCategories;
+    }
+
+    if (engagementMetrics) {
+        normalized.engagementMetrics = engagementMetrics;
+    }
+
+    if (recommendations && recommendations.length > 0) {
+        normalized.recommendations = recommendations;
+    }
+
+    const parsed = CapturedFeedItemSchema.safeParse(normalized);
+    return parsed.success ? parsed.data : null;
+}
+
+export interface CoerceSessionMetadataOptions {
+    defaultIngestVersion?: string;
+    defaultObserverVersion?: string;
+}
+
+const KNOWN_SESSION_METADATA_KEYS = new Set([
+    'type',
+    'captureSurface',
+    'clientSessionId',
+    'observerVersion',
+    'ingestVersion',
+    'uploadEvent',
+    'capturedAt',
+    'sessionId',
+    'sessionKey',
+]);
+
+export function coerceSessionMetadata(
+    input: unknown,
+    options: CoerceSessionMetadataOptions = {}
+): SessionMetadata {
+    const source = asRecord(input) ?? {};
+    const normalized: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(source)) {
+        if (!KNOWN_SESSION_METADATA_KEYS.has(key)) {
+            normalized[key] = value;
+        }
+    }
+
+    const type = sanitizeString(source.type);
+    if (type !== undefined) normalized.type = type;
+
+    const captureSurface = sanitizeString(source.captureSurface);
+    if (captureSurface !== undefined) normalized.captureSurface = captureSurface;
+
+    const clientSessionId = sanitizeNullableString(source.clientSessionId ?? source.sessionId ?? source.sessionKey);
+    if (clientSessionId !== undefined) normalized.clientSessionId = clientSessionId;
+
+    const observerVersion = sanitizeString(source.observerVersion) ?? sanitizeString(options.defaultObserverVersion);
+    if (observerVersion !== undefined) normalized.observerVersion = observerVersion;
+
+    const ingestVersion =
+        sanitizeString(source.ingestVersion)
+        ?? sanitizeString(options.defaultIngestVersion)
+        ?? CURRENT_INGEST_VERSION;
+    normalized.ingestVersion = ingestVersion;
+
+    const uploadEvent = sanitizeString(source.uploadEvent);
+    if (uploadEvent !== undefined) normalized.uploadEvent = uploadEvent;
+
+    const capturedAt = sanitizeString(source.capturedAt);
+    if (capturedAt !== undefined) normalized.capturedAt = capturedAt;
+
+    const parsed = SessionMetadataSchema.safeParse(normalized);
+    if (parsed.success) {
+        return parsed.data;
+    }
+
+    return { ingestVersion };
+}
+
+function parsePlatform(value: unknown): SupportedPlatform | null {
+    const raw = sanitizeString(value)?.toLowerCase();
+    if (!raw) return null;
+
+    const parsed = SupportedPlatformSchema.safeParse(raw);
+    return parsed.success ? parsed.data : null;
+}
+
+function defaultObserverVersionFor(platform: SupportedPlatform): string | undefined {
+    if (platform === 'youtube' || platform === 'instagram' || platform === 'tiktok') {
+        return CURRENT_OBSERVER_VERSIONS[platform];
+    }
+    return undefined;
+}
+
+export interface CoercePlatformFeedPayloadOptions {
+    expectedPlatform?: SupportedPlatform;
+    defaultPlatform?: SupportedPlatform;
+    defaultIngestVersion?: string;
+    defaultObserverVersion?: string;
+    requireFullFeedValidity?: boolean;
+}
+
+export function coercePlatformFeedPayload(
+    rawPayload: unknown,
+    options: CoercePlatformFeedPayloadOptions = {}
+): PlatformFeedPayload | null {
+    const payload = asRecord(rawPayload);
+    if (!payload) {
+        return null;
+    }
+
+    const platform = options.expectedPlatform
+        ?? parsePlatform(payload.platform)
+        ?? options.defaultPlatform
+        ?? null;
+    if (!platform) {
+        return null;
+    }
+
+    const rawFeed = Array.isArray(payload.feed) ? payload.feed : (Array.isArray(payload.items) ? payload.items : null);
+    if (!rawFeed || rawFeed.length === 0) {
+        return null;
+    }
+
+    const feed = rawFeed
+        .map((item, index) => coerceCapturedFeedItem(item, index))
+        .filter((item): item is CapturedFeedItem => Boolean(item));
+    if (feed.length === 0) {
+        return null;
+    }
+    if (options.requireFullFeedValidity && feed.length !== rawFeed.length) {
+        return null;
+    }
+
+    const sessionMetadata = coerceSessionMetadata(payload.sessionMetadata, {
+        defaultIngestVersion: options.defaultIngestVersion,
+        defaultObserverVersion: options.defaultObserverVersion ?? defaultObserverVersionFor(platform),
+    });
+
+    const parsed = PlatformFeedPayloadSchema.safeParse({
+        platform,
+        feed,
+        sessionMetadata,
+    });
+    return parsed.success ? parsed.data : null;
+}
+
+export interface CoerceFeedSnapshotEnvelopeOptions {
+    defaultIngestVersion?: string;
+    defaultObserverVersion?: string;
+    requireFullFeedValidity?: boolean;
+}
+
+export function coerceFeedSnapshotEnvelope(
+    rawEnvelope: unknown,
+    options: CoerceFeedSnapshotEnvelopeOptions = {}
+): FeedSnapshotEnvelope | null {
+    const envelope = asRecord(rawEnvelope);
+    if (!envelope) {
+        return null;
+    }
+
+    const rawFeed = Array.isArray(envelope.feed) ? envelope.feed : (Array.isArray(envelope.items) ? envelope.items : null);
+    if (!rawFeed || rawFeed.length === 0) {
+        return null;
+    }
+
+    const feed = rawFeed
+        .map((item, index) => coerceCapturedFeedItem(item, index))
+        .filter((item): item is CapturedFeedItem => Boolean(item));
+    if (feed.length === 0) {
+        return null;
+    }
+    if (options.requireFullFeedValidity && feed.length !== rawFeed.length) {
+        return null;
+    }
+
+    const sessionMetadata = coerceSessionMetadata(envelope.sessionMetadata, options);
+
+    const parsed = FeedSnapshotEnvelopeSchema.safeParse({
+        feed,
+        sessionMetadata,
+    });
+    return parsed.success ? parsed.data : null;
+}

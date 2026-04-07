@@ -26,6 +26,7 @@ interface EvaluationCase {
     sourceVideoId: string;
     actualTargets: Set<string>;
     cohortId: string | null;
+    windowBucket?: 'earlier' | 'later' | null;
 }
 
 export interface TransitionEvaluationMetrics {
@@ -40,6 +41,32 @@ export interface TransitionEvaluationMetrics {
 export interface CohortEvaluationMetrics extends TransitionEvaluationMetrics {
     cohortId: string;
     users: number;
+    adjacentWindow: AdjacentWindowMetrics;
+}
+
+export interface AdjacentWindowMetrics {
+    earlierSampleSize: number;
+    laterSampleSize: number;
+    earlierReliabilityScore: number;
+    laterReliabilityScore: number;
+    reliabilityDelta: number | null;
+}
+
+export interface ReliabilityGate {
+    status: 'pass' | 'degraded';
+    reasons: string[];
+    minimumSampleSize: number;
+    minimumReliabilityScore: number;
+    maximumAdjacentWindowReliabilityDelta: number;
+}
+
+export interface KeyCohortValidation {
+    cohortId: string;
+    users: number;
+    sampleSize: number;
+    reliabilityScore: number;
+    adjacentWindow: AdjacentWindowMetrics;
+    gate: ReliabilityGate;
 }
 
 export interface ForecastEvaluationResult {
@@ -51,7 +78,13 @@ export interface ForecastEvaluationResult {
         testCases: number;
     };
     metrics: TransitionEvaluationMetrics;
+    adjacentWindow: AdjacentWindowMetrics;
     cohortMetrics: CohortEvaluationMetrics[];
+    validation: {
+        globalGate: ReliabilityGate;
+        keyCohortGate: ReliabilityGate;
+        keyCohorts: KeyCohortValidation[];
+    };
     generatedAt: string;
 }
 
@@ -63,6 +96,15 @@ function roundTo(value: number, digits = 3): number {
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
+
+const FORECAST_RELIABILITY_THRESHOLDS = {
+    globalMinimumSampleSize: 30,
+    globalMinimumReliabilityScore: 0.22,
+    keyCohortMinimumSampleSize: 12,
+    keyCohortMinimumReliabilityScore: 0.18,
+    maximumAdjacentWindowReliabilityDelta: 0.35,
+    keyCohortCount: 5,
+};
 
 function sanitizeString(value: unknown): string | null {
     if (typeof value !== 'string') return null;
@@ -176,6 +218,7 @@ export function evaluateTransitionPredictor(
 function snapshotsToFeedItems(
     snapshots: Array<{
         userId: string;
+        capturedAt: Date;
         feedItems: Array<{
             videoId: string;
             creatorHandle: string | null;
@@ -194,6 +237,7 @@ function snapshotsToFeedItems(
                 creatorHandle: feedItem.creatorHandle,
                 contentCategories: feedItem.contentCategories,
                 engagementMetrics: feedItem.engagementMetrics,
+                capturedAt: snapshot.capturedAt,
             });
         }
     }
@@ -204,6 +248,7 @@ function snapshotsToFeedItems(
 function snapshotsToEvaluationCases(
     snapshots: Array<{
         userId: string;
+        capturedAt: Date;
         feedItems: Array<{
             videoId: string;
             engagementMetrics: Buffer | null;
@@ -211,12 +256,20 @@ function snapshotsToEvaluationCases(
     }>,
     userCohorts: Map<string, string>,
     platform: string,
-    topK: number
+    topK: number,
+    splitTimestampMs: number | null
 ): EvaluationCase[] {
     const cases: EvaluationCase[] = [];
 
     for (const snapshot of snapshots) {
         const cohortId = userCohorts.get(snapshot.userId) ?? null;
+        const capturedAtMs = snapshot.capturedAt?.getTime();
+        const windowBucket: EvaluationCase['windowBucket'] = (
+            splitTimestampMs !== null
+            && Number.isFinite(capturedAtMs)
+        )
+            ? (capturedAtMs <= splitTimestampMs ? 'earlier' : 'later')
+            : null;
         for (const feedItem of snapshot.feedItems) {
             const sourceVideoId = sanitizeString(feedItem.videoId);
             if (!sourceVideoId) continue;
@@ -232,11 +285,86 @@ function snapshotsToEvaluationCases(
                 sourceVideoId,
                 actualTargets: new Set(recommendations),
                 cohortId,
+                windowBucket,
             });
         }
     }
 
     return cases;
+}
+
+function deriveAdjacentWindowMetrics(
+    cases: EvaluationCase[],
+    transitions: TransitionProbabilityMap,
+    topK: number
+): AdjacentWindowMetrics {
+    const earlierCases = cases.filter((evaluationCase) => evaluationCase.windowBucket === 'earlier');
+    const laterCases = cases.filter((evaluationCase) => evaluationCase.windowBucket === 'later');
+    const earlierMetrics = evaluateTransitionPredictor(earlierCases, transitions, topK);
+    const laterMetrics = evaluateTransitionPredictor(laterCases, transitions, topK);
+
+    const reliabilityDelta = (
+        earlierMetrics.sampleSize > 0
+        && laterMetrics.sampleSize > 0
+    )
+        ? roundTo(Math.abs(earlierMetrics.reliabilityScore - laterMetrics.reliabilityScore))
+        : null;
+
+    return {
+        earlierSampleSize: earlierMetrics.sampleSize,
+        laterSampleSize: laterMetrics.sampleSize,
+        earlierReliabilityScore: earlierMetrics.reliabilityScore,
+        laterReliabilityScore: laterMetrics.reliabilityScore,
+        reliabilityDelta,
+    };
+}
+
+function buildReliabilityGate(
+    sampleSize: number,
+    reliabilityScore: number,
+    adjacentWindow: AdjacentWindowMetrics,
+    minimumSampleSize: number,
+    minimumReliabilityScore: number,
+    maximumAdjacentWindowReliabilityDelta: number
+): ReliabilityGate {
+    const reasons: string[] = [];
+
+    if (sampleSize < minimumSampleSize) {
+        reasons.push(`Sample size ${sampleSize} is below minimum ${minimumSampleSize}.`);
+    }
+
+    if (reliabilityScore < minimumReliabilityScore) {
+        reasons.push(
+            `Reliability score ${roundTo(reliabilityScore)} is below minimum ${minimumReliabilityScore}.`
+        );
+    }
+
+    if (
+        adjacentWindow.reliabilityDelta !== null
+        && adjacentWindow.reliabilityDelta > maximumAdjacentWindowReliabilityDelta
+    ) {
+        reasons.push(
+            `Adjacent window reliability delta ${adjacentWindow.reliabilityDelta} exceeds max ${maximumAdjacentWindowReliabilityDelta}.`
+        );
+    }
+
+    return {
+        status: reasons.length === 0 ? 'pass' : 'degraded',
+        reasons,
+        minimumSampleSize,
+        minimumReliabilityScore,
+        maximumAdjacentWindowReliabilityDelta,
+    };
+}
+
+function medianTimestamp(values: number[]): number | null {
+    if (values.length === 0) return null;
+    const sorted = values.slice().sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+    return sorted[middle];
 }
 
 export async function generateForecastEvaluation(
@@ -291,21 +419,46 @@ export async function generateForecastEvaluation(
         userCohorts.set(profile.userId, profile.cohortId);
     }
 
+    const testSplitTimestampMs = medianTimestamp(
+        testSnapshots.map((snapshot: { capturedAt: Date }) => snapshot.capturedAt.getTime())
+    );
     const testCases = snapshotsToEvaluationCases(
-        testSnapshots.map((snapshot: any) => ({
+        testSnapshots.map((snapshot: {
+            userId: string;
+            capturedAt: Date;
+            feedItems: Array<{
+                videoId: string;
+                engagementMetrics: Buffer | null;
+            }>;
+        }) => ({
             userId: snapshot.userId,
-            feedItems: snapshot.feedItems.map((item: any) => ({
+            capturedAt: snapshot.capturedAt,
+            feedItems: snapshot.feedItems.map((item) => ({
                 videoId: item.videoId,
                 engagementMetrics: item.engagementMetrics,
             })),
         })),
         userCohorts,
         platform,
-        boundedTopK
+        boundedTopK,
+        testSplitTimestampMs
     );
 
     const globalTransitions = normalizeTransitions(trainModel.globalTransitions);
     const globalMetrics = evaluateTransitionPredictor(testCases, globalTransitions, boundedTopK);
+    const globalAdjacentWindow = deriveAdjacentWindowMetrics(
+        testCases,
+        globalTransitions,
+        boundedTopK
+    );
+    const globalGate = buildReliabilityGate(
+        globalMetrics.sampleSize,
+        globalMetrics.reliabilityScore,
+        globalAdjacentWindow,
+        FORECAST_RELIABILITY_THRESHOLDS.globalMinimumSampleSize,
+        FORECAST_RELIABILITY_THRESHOLDS.globalMinimumReliabilityScore,
+        FORECAST_RELIABILITY_THRESHOLDS.maximumAdjacentWindowReliabilityDelta
+    );
 
     const cohortMetrics: CohortEvaluationMetrics[] = [];
     for (const cohort of trainModel.cohorts.values()) {
@@ -314,14 +467,57 @@ export async function generateForecastEvaluation(
 
         const cohortTransitions = normalizeTransitions(cohort.transitionCounts);
         const metrics = evaluateTransitionPredictor(cohortCases, cohortTransitions, boundedTopK);
+        const adjacentWindow = deriveAdjacentWindowMetrics(
+            cohortCases,
+            cohortTransitions,
+            boundedTopK
+        );
         cohortMetrics.push({
             cohortId: cohort.cohortId,
             users: cohort.users.length,
             ...metrics,
+            adjacentWindow,
         });
     }
 
     cohortMetrics.sort((a, b) => b.reliabilityScore - a.reliabilityScore || b.sampleSize - a.sampleSize);
+    const keyCohorts = cohortMetrics
+        .slice()
+        .sort((a, b) => b.users - a.users || b.sampleSize - a.sampleSize)
+        .slice(0, FORECAST_RELIABILITY_THRESHOLDS.keyCohortCount)
+        .map((cohort) => {
+            const gate = buildReliabilityGate(
+                cohort.sampleSize,
+                cohort.reliabilityScore,
+                cohort.adjacentWindow,
+                FORECAST_RELIABILITY_THRESHOLDS.keyCohortMinimumSampleSize,
+                FORECAST_RELIABILITY_THRESHOLDS.keyCohortMinimumReliabilityScore,
+                FORECAST_RELIABILITY_THRESHOLDS.maximumAdjacentWindowReliabilityDelta
+            );
+            return {
+                cohortId: cohort.cohortId,
+                users: cohort.users,
+                sampleSize: cohort.sampleSize,
+                reliabilityScore: cohort.reliabilityScore,
+                adjacentWindow: cohort.adjacentWindow,
+                gate,
+            };
+        });
+    const degradedKeyCohorts = keyCohorts.filter((cohort) => cohort.gate.status === 'degraded');
+    const missingKeyCohortEvidence = keyCohorts.length === 0;
+    const keyCohortGate: ReliabilityGate = {
+        status: (!missingKeyCohortEvidence && degradedKeyCohorts.length === 0) ? 'pass' : 'degraded',
+        reasons: missingKeyCohortEvidence
+            ? ['No key cohort holdout evidence was available in the test split.']
+            : degradedKeyCohorts.length === 0
+                ? []
+                : degradedKeyCohorts.map(
+                    (cohort) => `Cohort ${cohort.cohortId} failed reliability gate.`
+                ),
+        minimumSampleSize: FORECAST_RELIABILITY_THRESHOLDS.keyCohortMinimumSampleSize,
+        minimumReliabilityScore: FORECAST_RELIABILITY_THRESHOLDS.keyCohortMinimumReliabilityScore,
+        maximumAdjacentWindowReliabilityDelta: FORECAST_RELIABILITY_THRESHOLDS.maximumAdjacentWindowReliabilityDelta,
+    };
 
     return {
         platform,
@@ -332,7 +528,13 @@ export async function generateForecastEvaluation(
             testCases: testCases.length,
         },
         metrics: globalMetrics,
+        adjacentWindow: globalAdjacentWindow,
         cohortMetrics,
+        validation: {
+            globalGate,
+            keyCohortGate,
+            keyCohorts,
+        },
         generatedAt: new Date().toISOString(),
     };
 }

@@ -142,7 +142,15 @@ If you have production data, review the migration before applying:
 ```bash
 pnpm --filter backend prisma migrate status
 pnpm --filter backend prisma migrate deploy
+pnpm --filter backend db:validate-platform-migration
 ```
+
+### Agent Prompt Pack (Starter Stack)
+
+If you want to run RESMA as a multi-agent workflow, start here:
+
+- `docs/agents/STARTER_STACK_PROMPTS.md`
+- `docs/operations/STARTER_STACK_NEXT_STEPS.md`
 
 ## 🧭 Recent Updates (April 2026)
 
@@ -177,3 +185,11 @@ RESMA now includes a stronger creator-facing analytics workflow focused on cross
   - Reliability scoring
 
 These updates reinforce the core thesis of RESMA: cross-user feed comparisons improve predictive quality over time, making recommendation-path modeling more useful for creator strategy and B2B/marketing decision support.
+
+## 🔭 Future Goals
+
+### Web-Enabled Research Agents
+
+- Add optional web-enabled agents that can gather current external context (platform UI/policy changes, creator trend signals, and market benchmarks) faster than manual research.
+- Use this as an augmentation layer for forecasting and go-to-market briefs, while keeping RESMA's first-party cross-user feed data as the source of truth for core modeling.
+- Require source-linked outputs from web research agents to improve transparency and reduce noisy inputs.

@@ -3,6 +3,9 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
+import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION } from '@resma/shared';
+import { logIngestError, logIngestInfo, logIngestWarn } from '../services/ingestObservability.js';
+import { getReplayKey, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
 
 const router: Router = Router();
 const MAX_RECOMMENDATIONS_PER_ITEM = 40;
@@ -20,6 +23,19 @@ function parsePositiveInt(value: unknown): number | null {
     if (typeof value === 'string') {
         const parsed = Number.parseInt(value, 10);
         if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+    return null;
+}
+
+function parseNonNegativeNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed) && parsed >= 0) {
             return parsed;
         }
     }
@@ -178,116 +194,155 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 router.post('/feed', authenticate, async (req: AuthRequest, res) => {
-    const { feed, sessionMetadata } = req.body;
-
-    if (!Array.isArray(feed) || feed.length === 0) {
-        return res.status(400).json({ error: 'Invalid feed data' });
-    }
-
     try {
-        const capturedAt = new Date();
-        const incomingMetadata = asRecord(sessionMetadata);
-
-        const itemsToCreate = feed
-            .map((item: any, index: number) => {
-                const videoId = normalizeYouTubeVideoId(item.videoId);
-                if (!videoId) {
-                    return null;
-                }
-
-                const recommendations = normalizeRecommendationRows(item.recommendations);
-                const recommendationSurfaces = recommendationSurfaceCounts(recommendations);
-                const likesCount = parsePositiveInt(item.likes ?? item.likeCount);
-                const commentsCount = parsePositiveInt(item.comments ?? item.commentCount);
-                const sharesCount = parsePositiveInt(item.shares ?? item.shareCount);
-
-                const engagementMetrics = packAndCompress({
-                    watchTime: item.watchTime,
-                    seekCount: item.seekCount,
-                    adEvents: item.adEvents,
-                    completed: item.completed,
-                    recommendations,
-                    recommendationSurfaceCounts: recommendationSurfaces,
-                    recommendationCount: recommendations.length,
-                    likes: likesCount,
-                    comments: commentsCount,
-                    shares: sharesCount,
-                    views: item.views,
-                    uploadDate: item.uploadDate,
-                }).data;
-
-                return {
-                    videoId,
-                    creatorHandle: sanitizeString(item.channelHandle) || sanitizeString(item.channelName),
-                    creatorId: sanitizeString(item.channelName),
-                    positionInFeed: parsePositiveInt(item.position) ?? index,
-                    caption: sanitizeString(item.title),
-                    likesCount,
-                    commentsCount,
-                    sharesCount,
-                    engagementMetrics,
-                    contentCategories: Array.isArray(item.tags)
-                        ? item.tags
-                            .map((tag: unknown) => sanitizeString(tag))
-                            .filter((tag: string | null): tag is string => Boolean(tag))
-                        : [],
-                    watchDuration: typeof item.duration === 'number' && Number.isFinite(item.duration)
-                        ? item.duration
-                        : 0,
-                };
-            })
-            .filter((item): item is NonNullable<typeof item> => Boolean(item));
-
-        if (itemsToCreate.length === 0) {
-            return res.status(400).json({ error: 'Invalid feed item structure' });
+        const validPayload = coercePlatformFeedPayload({
+            platform: 'youtube',
+            feed: req.body?.feed,
+            sessionMetadata: req.body?.sessionMetadata,
+        }, {
+            expectedPlatform: 'youtube',
+            requireFullFeedValidity: true,
+        });
+        if (!validPayload) {
+            logIngestWarn('Contract validation failed for /youtube/feed', req, {
+                reason: 'payload failed shared contract coercion',
+            });
+            return res.status(400).json({ error: 'Payload failed contract validation' });
         }
 
-        const explicitType = sanitizeString(incomingMetadata.type);
-        const hasWatchSignals = feed.some((item: any) => {
-            const watchTime = typeof item.watchTime === 'number' && Number.isFinite(item.watchTime);
-            const adSignals = Array.isArray(item.adEvents) && item.adEvents.length > 0;
-            const recommendations = Array.isArray(item.recommendations) && item.recommendations.length > 0;
-            return watchTime || adSignals || recommendations;
-        });
+        const replayKey = getReplayKey(req, req.userId);
+        const replayOutcome = await withIngestReplayGuard(replayKey, async () => {
+            const capturedAt = new Date();
+            const incomingMetadata = asRecord(validPayload.sessionMetadata);
 
-        const inferredType = explicitType || (hasWatchSignals ? 'VIDEO_WATCH' : 'HOMEPAGE_SNAPSHOT');
-        const captureSurface = normalizeSurface(incomingMetadata.captureSurface);
+            const itemsToCreate = validPayload.feed
+                .map((item: any, index: number) => {
+                    const videoId = normalizeYouTubeVideoId(item.videoId);
+                    if (!videoId) {
+                        return null;
+                    }
 
-        const enrichedSessionMetadata = buildSessionQualityMetadata({
-            userId: req.userId!,
-            platform: 'youtube',
-            capturedAt,
-            feedItems: itemsToCreate.map((item) => ({
-                videoId: item.videoId,
-                positionInFeed: item.positionInFeed,
-            })),
-            existingMetadata: {
-                ...incomingMetadata,
-                type: inferredType,
-                captureSurface,
-                timestamp: Date.now(),
-                ingestVersion: 'youtube-feed-v2',
-            },
-        });
+                    const metrics = asRecord(item.engagementMetrics);
+                    const recommendations = normalizeRecommendationRows(item.recommendations ?? metrics.recommendations);
+                    const recommendationSurfaces = recommendationSurfaceCounts(recommendations);
+                    const likesCount = parsePositiveInt(metrics.likes ?? item.likes ?? item.likeCount);
+                    const commentsCount = parsePositiveInt(metrics.comments ?? item.comments ?? item.commentCount);
+                    const sharesCount = parsePositiveInt(metrics.shares ?? item.shares ?? item.shareCount);
+                    const watchTime = parseNonNegativeNumber(metrics.watchTime ?? item.watchDuration ?? item.watchTime);
+                    const watchDuration = parseNonNegativeNumber(item.watchDuration ?? watchTime) ?? 0;
+                    const rawCategories = Array.isArray(item.contentCategories)
+                        ? item.contentCategories
+                        : Array.isArray(item.contentTags)
+                            ? item.contentTags
+                            : (Array.isArray(item.tags) ? item.tags : []);
 
-        const snapshot = await prisma.feedSnapshot.create({
-            data: {
+                    const engagementMetrics = packAndCompress({
+                        watchTime,
+                        seekCount: parsePositiveInt(metrics.seekCount ?? item.seekCount),
+                        adEvents: metrics.adEvents ?? item.adEvents,
+                        completed: metrics.completed ?? item.completed,
+                        recommendations,
+                        recommendationSurfaceCounts: recommendationSurfaces,
+                        recommendationCount: recommendations.length,
+                        likes: likesCount,
+                        comments: commentsCount,
+                        shares: sharesCount,
+                        views: metrics.views ?? item.views,
+                        uploadDate: metrics.uploadDate ?? item.uploadDate,
+                    }).data;
+
+                    return {
+                        videoId,
+                        creatorHandle: sanitizeString(item.creatorHandle) || sanitizeString(item.channelHandle) || sanitizeString(item.channelName),
+                        creatorId: sanitizeString(item.creatorId) || sanitizeString(item.channelName),
+                        positionInFeed: parsePositiveInt(item.positionInFeed ?? item.position) ?? index,
+                        caption: sanitizeString(item.caption ?? item.title),
+                        likesCount,
+                        commentsCount,
+                        sharesCount,
+                        engagementMetrics,
+                        contentCategories: rawCategories
+                            .map((tag: unknown) => sanitizeString(tag))
+                            .filter((tag: string | null): tag is string => Boolean(tag))
+                            .slice(0, 20),
+                        watchDuration,
+                    };
+                })
+                .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+            if (itemsToCreate.length === 0) {
+                return {
+                    statusCode: 400,
+                    body: { error: 'Invalid feed item structure' },
+                };
+            }
+
+            const explicitType = sanitizeString(incomingMetadata.type);
+            const hasWatchSignals = validPayload.feed.some((item: any) => {
+                const metrics = asRecord(item.engagementMetrics);
+                const watchTime = parseNonNegativeNumber(item.watchDuration ?? metrics.watchTime);
+                const adSignals = Array.isArray(metrics.adEvents) && metrics.adEvents.length > 0;
+                const recommendations = Array.isArray(item.recommendations) && item.recommendations.length > 0;
+                return Boolean(watchTime && watchTime > 0) || adSignals || recommendations;
+            });
+
+            const inferredType = explicitType || (hasWatchSignals ? 'VIDEO_WATCH' : 'HOMEPAGE_SNAPSHOT');
+            const captureSurface = normalizeSurface(incomingMetadata.captureSurface);
+
+            const enrichedSessionMetadata = buildSessionQualityMetadata({
                 userId: req.userId!,
                 platform: 'youtube',
                 capturedAt,
-                itemCount: itemsToCreate.length,
-                sessionMetadata: packAndCompress(enrichedSessionMetadata).data,
-                feedItems: {
-                    create: itemsToCreate,
+                feedItems: itemsToCreate.map((item) => ({
+                    videoId: item.videoId,
+                    positionInFeed: item.positionInFeed,
+                })),
+                existingMetadata: {
+                    ...incomingMetadata,
+                    type: inferredType,
+                    captureSurface,
+                    timestamp: Date.now(),
+                    ingestVersion: CURRENT_INGEST_VERSION,
                 },
-            },
-            include: {
-                _count: { select: { feedItems: true } },
-            },
+            });
+
+            const snapshot = await prisma.feedSnapshot.create({
+                data: {
+                    userId: req.userId!,
+                    platform: 'youtube',
+                    capturedAt,
+                    itemCount: itemsToCreate.length,
+                    sessionMetadata: packAndCompress(enrichedSessionMetadata).data,
+                    feedItems: {
+                        create: itemsToCreate,
+                    },
+                },
+                include: {
+                    _count: { select: { feedItems: true } },
+                },
+            });
+
+            logIngestInfo('YouTube feed snapshot persisted', req, {
+                platform: 'youtube',
+                snapshotId: snapshot.id,
+                itemCount: itemsToCreate.length,
+            });
+
+            return {
+                statusCode: 201,
+                body: { success: true, snapshotId: snapshot.id },
+            };
         });
 
-        res.status(201).json({ success: true, snapshotId: snapshot.id });
+        if (replayOutcome.replayed) {
+            logIngestInfo('Replayed prior /youtube/feed ingestion response', req, { platform: 'youtube' });
+        }
+
+        res.status(replayOutcome.response.statusCode).json(replayOutcome.response.body);
     } catch (err) {
+        logIngestError('Unhandled /youtube/feed ingestion error', req, {
+            error: err instanceof Error ? err.message : 'unknown-error',
+        });
         console.error('Failed to save YouTube feed data:', err);
         res.status(500).json({ error: 'Failed to save YouTube feed data' });
     }

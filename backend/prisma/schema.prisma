@@ -54,13 +54,13 @@ model Creator {
 
 model PlatformAccount {
   id                String   @id @default(uuid())
-  creatorId         String
+  creatorId         String   @map("creator_id")
   platform          String
-  platformAccountId String?
-  platformHandle    String
+  platformAccountId String?  @map("platform_account_id")
+  platformHandle    String   @map("platform_handle")
   verified          Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   creator           Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 

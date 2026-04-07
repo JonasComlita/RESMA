@@ -6,7 +6,7 @@ import {
 } from '../src/services/dataQuality';
 
 const recMetrics = (
-    recommendations: Array<{ videoId: string; position?: number; surface?: string }>
+    recommendations: Array<Record<string, unknown>>
 ) =>
     Buffer.from(JSON.stringify({ recommendations }), 'utf-8');
 
@@ -27,6 +27,7 @@ describe('Data quality diagnostics', () => {
                             { videoId: 'targetvid001', position: 1, surface: 'watch-next-sidebar' },
                             { videoId: '@@@invalid@@@', position: 2, surface: 'end-screen-overlay' },
                             { videoId: 'seedvideo001', position: 3, surface: 'watch-next-sidebar' },
+                            { videoId: 'targetvid001', position: 4, surface: 'up next' },
                         ]),
                         positionInFeed: 0,
                     },
@@ -116,6 +117,10 @@ describe('Data quality diagnostics', () => {
         expect(summary.recommendations.rawRecommendationRows).toBeGreaterThan(0);
         expect(summary.recommendations.strictRecommendationRows).toBeGreaterThan(0);
         expect(summary.recommendations.parserDropRate).toBeGreaterThan(0);
+        expect(summary.recommendations.duplicateRecommendationRows).toBeGreaterThan(0);
+        expect(summary.recommendations.dedupeImpactRate).toBeGreaterThan(0);
+        expect(summary.recommendations.dropReasons.duplicateVideoId).toBeGreaterThan(0);
+        expect(summary.recommendations.dropReasons.selfReference).toBeGreaterThan(0);
         expect(summary.recommendations.bySurface.length).toBeGreaterThan(0);
         expect(summary.recommendations.bySurface.some((surface) => surface.surface === 'watch-next-sidebar')).toBe(true);
         expect(summary.recommendations.surfaceTransitionStability).toBeGreaterThanOrEqual(0);
@@ -123,6 +128,9 @@ describe('Data quality diagnostics', () => {
         expect(summary.cohorts.eligibleUsers).toBe(2);
         expect(summary.cohorts.stabilityScore).toBeGreaterThanOrEqual(0);
         expect(summary.cohorts.stabilityScore).toBeLessThanOrEqual(1);
+        expect(summary.qualityGate.minimumParseCoverage).toBeGreaterThan(0);
+        expect(summary.qualityGate.strictRecommendationRows).toBe(summary.recommendations.strictRecommendationRows);
+        expect(summary.qualityGate.degradationReasons.length).toBeGreaterThan(0);
     });
 
     it('throws a typed error when no snapshots are available', () => {
@@ -142,7 +150,9 @@ describe('Data quality diagnostics', () => {
                         creatorHandle: 'ig-a',
                         contentCategories: ['reels'],
                         engagementMetrics: recMetrics([
-                            { videoId: 'https://www.instagram.com/reel/Ctarget0001/', position: 1, surface: 'reels-up-next' },
+                            { postId: 'Ctarget0001', position: 1, surface: 'reels-up-next' },
+                            { shortcode: 'Ctarget0002', position: 2, surface: 'reels suggestions' },
+                            { permalink: 'https://www.instagram.com/reel/Ctarget0003/', position: 3, surface: 'reels_up_next' },
                         ]),
                         positionInFeed: 0,
                     },
@@ -167,6 +177,7 @@ describe('Data quality diagnostics', () => {
         const instagramSummary = summarizeDataQualityFromSnapshots('instagram', instagramSnapshots, 24);
         expect(instagramSummary.recommendations.strictRecommendationRows).toBeGreaterThan(0);
         expect(instagramSummary.recommendations.parseCoverage).toBeGreaterThan(0);
+        expect(instagramSummary.recommendations.bySurface.some((surface) => surface.surface === 'reels-up-next')).toBe(true);
 
         const tiktokSnapshots = [
             {
@@ -180,7 +191,9 @@ describe('Data quality diagnostics', () => {
                         creatorHandle: 'tt-a',
                         contentCategories: ['for-you'],
                         engagementMetrics: recMetrics([
-                            { videoId: 'https://www.tiktok.com/@creator/video/7429000000000000002', position: 1, surface: 'for-you-next' },
+                            { itemId: '7429000000000000002', position: 1, surface: 'for-you-next' },
+                            { aweme_id: '7429000000000000003', position: 2, surface: 'fyp-next' },
+                            { link: 'https://www.tiktok.com/@creator/video/7429000000000000004', position: 3, surface: 'up-next' },
                         ]),
                         positionInFeed: 0,
                     },
@@ -369,7 +382,10 @@ describe('Data quality diagnostics', () => {
         expect(trend.bucketHours).toBe(24);
         expect(trend.points[0].snapshots).toBe(2);
         expect(trend.points[1].snapshots).toBe(1);
+        expect(typeof trend.points[0].strictRecommendationRows).toBe('number');
+        expect(Array.isArray(trend.points[0].qualityGateReasons)).toBe(true);
         expect(trend.points[0].surfaceMetrics.length).toBeGreaterThan(0);
         expect(trend.points[0].surfaceMetrics.some((entry) => entry.surface === 'watch-next-sidebar')).toBe(true);
+        expect(['stable', 'warning', 'critical']).toContain(trend.drift.status);
     });
 });

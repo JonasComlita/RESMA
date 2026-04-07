@@ -2,6 +2,7 @@
  * RESMA - Instagram Feed/Reels Observer v2
  * Hybrid mode: lightweight automatic snapshots + manual deep-capture session controls.
  */
+import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 
 type InstagramCaptureSurface = 'instagram-feed' | 'instagram-reels' | 'unknown';
 
@@ -34,6 +35,7 @@ interface InstagramCapturedItem {
 class InstagramObserver {
     private capturedPosts = new Map<string, InstagramCapturedItem>();
     private manualCaptureBuffer = new Map<string, InstagramCapturedItem>();
+    private lightweightUploadedIds = new Set<string>();
     private intersectionObserver: IntersectionObserver;
     private isCapturing = false;
     private clientSessionId = `ig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -67,16 +69,34 @@ class InstagramObserver {
             if (message.type === 'START_CAPTURE') {
                 this.isCapturing = true;
                 this.manualCaptureBuffer.clear();
+                this.lightweightUploadedIds.clear();
                 this.clientSessionId = `ig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
                 sendResponse({ success: true, data: { itemCount: 0 } });
                 return true;
             }
 
             if (message.type === 'STOP_CAPTURE') {
-                this.finalizeReel();
-                const itemCount = this.flushManualCaptureSession();
-                this.isCapturing = false;
-                sendResponse({ success: true, data: { itemCount } });
+                (async () => {
+                    await this.finalizeReel();
+                    const flushResult = await this.flushManualCaptureSession();
+                    if (flushResult.success) {
+                        this.isCapturing = false;
+                        sendResponse({ success: true, data: { itemCount: flushResult.itemCount } });
+                        return;
+                    }
+
+                    sendResponse({
+                        success: false,
+                        error: 'Upload failed. Please retry stop capture when connected.',
+                        data: { itemCount: flushResult.itemCount },
+                    });
+                })().catch((error) => {
+                    console.warn('[RESMA] Failed to stop Instagram capture cleanly:', error);
+                    sendResponse({
+                        success: false,
+                        error: 'Failed to finalize capture session.',
+                    });
+                });
                 return true;
             }
 
@@ -90,14 +110,14 @@ class InstagramObserver {
         this.observeReels();
 
         window.addEventListener('beforeunload', () => {
-            this.finalizeReel();
-            this.sendLightweightBatch();
+            void this.finalizeReel();
+            void this.sendLightweightBatch();
         });
     }
 
     private startPeriodicFlush() {
         setInterval(() => {
-            this.sendLightweightBatch();
+            void this.sendLightweightBatch();
             this.checkActiveReel();
         }, 12000);
     }
@@ -255,7 +275,7 @@ class InstagramObserver {
         if (!reelId) return;
 
         if (this.activeReelId !== reelId) {
-            this.finalizeReel();
+            void this.finalizeReel();
             this.activeReelId = reelId;
             this.activeVideoElement = activeVideo;
             this.activeReelStartTime = Date.now();
@@ -309,10 +329,22 @@ class InstagramObserver {
         return Array.from(deduped.values());
     }
 
-    private finalizeReel() {
+    private async finalizeReel() {
         if (!this.activeReelId) return;
 
         const reelId = this.activeReelId;
+        const activeVideoElement = this.activeVideoElement;
+        const activeReelStartTime = this.activeReelStartTime;
+        const activeReelMaxTime = this.activeReelMaxTime;
+        this.activeVideoElement = null;
+        this.activeReelId = null;
+        this.activeReelStartTime = 0;
+        this.activeReelMaxTime = 0;
+
+        if (activeVideoElement) {
+            activeVideoElement.removeEventListener('timeupdate', this.onReelTimeUpdate);
+        }
+
         const item: InstagramCapturedItem = {
             videoId: reelId,
             id: reelId,
@@ -321,7 +353,7 @@ class InstagramObserver {
             caption: null,
             timestamp: Date.now(),
             impressionDuration: 0,
-            watchTime: this.activeReelMaxTime || Math.max(0, (Date.now() - this.activeReelStartTime) / 1000),
+            watchTime: activeReelMaxTime || Math.max(0, (Date.now() - activeReelStartTime) / 1000),
             loopCount: 0,
             isSponsored: false,
             hasInteracted: false,
@@ -333,26 +365,26 @@ class InstagramObserver {
         this.capturedPosts.set(reelId, item);
         if (this.isCapturing) {
             this.manualCaptureBuffer.set(reelId, item);
+            if (!this.lightweightUploadedIds.has(reelId)) {
+                const uploadSucceeded = await this.uploadFeed([item], {
+                    type: 'REEL_WATCH',
+                    captureSurface: 'instagram-reels',
+                    uploadEvent: 'INSTAGRAM_REEL_COMPLETE',
+                });
+                if (uploadSucceeded) {
+                    this.lightweightUploadedIds.add(reelId);
+                }
+            }
         }
-
-        this.uploadFeed([item], {
-            type: 'REEL_WATCH',
-            captureSurface: 'instagram-reels',
-            uploadEvent: 'INSTAGRAM_REEL_COMPLETE',
-        });
-
-        if (this.activeVideoElement) {
-            this.activeVideoElement.removeEventListener('timeupdate', this.onReelTimeUpdate);
-        }
-        this.activeVideoElement = null;
-        this.activeReelId = null;
-        this.activeReelStartTime = 0;
-        this.activeReelMaxTime = 0;
     }
 
-    private sendLightweightBatch() {
+    private async sendLightweightBatch() {
+        if (!this.isCapturing) return;
+
         const batch = Array.from(this.capturedPosts.values())
-            .filter((item) => item.impressionDuration >= 1 || item.hasInteracted || item.type === 'reel')
+            .filter((item) => (
+                item.impressionDuration >= 1 || item.hasInteracted || item.type === 'reel'
+            ) && !this.lightweightUploadedIds.has(item.videoId))
             .map((item, index) => ({
                 ...item,
                 position: index,
@@ -360,48 +392,72 @@ class InstagramObserver {
 
         if (batch.length === 0) return;
 
-        this.uploadFeed(batch, {
+        for (const item of batch) {
+            this.manualCaptureBuffer.set(item.videoId, item);
+        }
+
+        const uploadSucceeded = await this.uploadFeed(batch, {
             type: 'INSTAGRAM_LIGHT_SNAPSHOT',
             captureSurface: this.getCaptureSurface(),
             uploadEvent: 'INSTAGRAM_FEED_SNAPSHOT',
         });
 
-        if (this.isCapturing) {
+        if (uploadSucceeded && this.isCapturing) {
             for (const item of batch) {
-                this.manualCaptureBuffer.set(item.videoId, item);
+                this.lightweightUploadedIds.add(item.videoId);
             }
         }
     }
 
-    private flushManualCaptureSession() {
-        const feed = Array.from(this.manualCaptureBuffer.values());
+    private async flushManualCaptureSession(): Promise<{ itemCount: number; success: boolean }> {
+        const totalCaptured = this.manualCaptureBuffer.size;
+        const feed = Array.from(this.manualCaptureBuffer.values()).filter(
+            (item) => !this.lightweightUploadedIds.has(item.videoId)
+        );
         if (feed.length === 0) {
-            return 0;
+            this.manualCaptureBuffer.clear();
+            this.lightweightUploadedIds.clear();
+            return { itemCount: totalCaptured, success: true };
         }
 
-        this.uploadFeed(feed, {
+        const uploadSucceeded = await this.uploadFeed(feed, {
             type: 'MANUAL_CAPTURE_SESSION',
             captureSurface: this.getCaptureSurface(),
             uploadEvent: 'INSTAGRAM_MANUAL_CAPTURE',
         });
-        this.manualCaptureBuffer.clear();
-        return feed.length;
+
+        if (uploadSucceeded) {
+            this.manualCaptureBuffer.clear();
+            this.lightweightUploadedIds.clear();
+        }
+
+        return { itemCount: totalCaptured, success: uploadSucceeded };
     }
 
-    private uploadFeed(feed: InstagramCapturedItem[], metadata: Record<string, unknown>) {
-        chrome.runtime.sendMessage({
-            type: 'UPLOAD_PLATFORM_FEED',
-            payload: {
-                platform: 'instagram',
-                feed,
-                sessionMetadata: {
-                    ...metadata,
-                    clientSessionId: this.clientSessionId,
-                    observerVersion: 'instagram-observer-v2',
-                    ingestVersion: 'cross-platform-v1',
-                    capturedAt: new Date().toISOString(),
+    private uploadFeed(feed: InstagramCapturedItem[], metadata: Record<string, unknown>): Promise<boolean> {
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+                type: 'UPLOAD_PLATFORM_FEED',
+                payload: {
+                    platform: 'instagram',
+                    feed,
+                    sessionMetadata: {
+                        ...metadata,
+                        clientSessionId: this.clientSessionId,
+                        observerVersion: CURRENT_OBSERVER_VERSIONS.instagram,
+                        ingestVersion: CURRENT_INGEST_VERSION,
+                        capturedAt: new Date().toISOString(),
+                    },
                 },
-            },
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[RESMA] Instagram upload callback failed:', chrome.runtime.lastError.message);
+                    resolve(false);
+                    return;
+                }
+
+                resolve(Boolean(response?.success));
+            });
         });
     }
 

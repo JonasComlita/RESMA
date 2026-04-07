@@ -10,6 +10,13 @@ export interface TransitionEvaluationMetrics {
 export interface CohortEvaluationMetrics extends TransitionEvaluationMetrics {
     cohortId: string;
     users: number;
+    adjacentWindow: {
+        earlierSampleSize: number;
+        laterSampleSize: number;
+        earlierReliabilityScore: number;
+        laterReliabilityScore: number;
+        reliabilityDelta: number | null;
+    };
 }
 
 export interface ForecastEvaluationResult {
@@ -21,7 +28,49 @@ export interface ForecastEvaluationResult {
         testCases: number;
     };
     metrics: TransitionEvaluationMetrics;
+    adjacentWindow: {
+        earlierSampleSize: number;
+        laterSampleSize: number;
+        earlierReliabilityScore: number;
+        laterReliabilityScore: number;
+        reliabilityDelta: number | null;
+    };
     cohortMetrics: CohortEvaluationMetrics[];
+    validation: {
+        globalGate: {
+            status: 'pass' | 'degraded';
+            reasons: string[];
+            minimumSampleSize: number;
+            minimumReliabilityScore: number;
+            maximumAdjacentWindowReliabilityDelta: number;
+        };
+        keyCohortGate: {
+            status: 'pass' | 'degraded';
+            reasons: string[];
+            minimumSampleSize: number;
+            minimumReliabilityScore: number;
+            maximumAdjacentWindowReliabilityDelta: number;
+        };
+        keyCohorts: Array<{
+            cohortId: string;
+            users: number;
+            sampleSize: number;
+            reliabilityScore: number;
+            adjacentWindow: {
+                earlierSampleSize: number;
+                laterSampleSize: number;
+                earlierReliabilityScore: number;
+                laterReliabilityScore: number;
+                reliabilityDelta: number | null;
+            };
+            gate: {
+                status: 'pass' | 'degraded';
+                reasons: string[];
+                minimumSampleSize: number;
+                minimumReliabilityScore: number;
+                maximumAdjacentWindowReliabilityDelta: number;
+            };
+        }>;
+    };
     generatedAt: string;
 }
-

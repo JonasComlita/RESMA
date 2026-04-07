@@ -3,12 +3,15 @@ import { prisma } from '../lib/prisma.js';
 import { createError } from '../middleware/errorHandler.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { anonymizeSnapshot } from '../services/anonymizer.js';
+import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION } from '@resma/shared';
 import {
     packAndCompress,
     decompressAndUnpack,
     isCompressedMsgpack
 } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
+import { logIngestError, logIngestInfo, logIngestWarn } from '../services/ingestObservability.js';
+import { getReplayKey, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
 
 export const feedsRouter: Router = Router();
 
@@ -65,126 +68,152 @@ feedsRouter.post(
     authenticate,
     async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
-            const { items, feed, sessionMetadata } = req.body;
-            const normalizedItems = Array.isArray(feed) ? feed : (Array.isArray(items) ? items : null);
-            if (!normalizedItems || normalizedItems.length === 0) {
-                return next(createError('Feed items required', 400));
-            }
-
-            const invalidFeedItem = normalizedItems.find((item: any) => {
-                if (!item || typeof item !== 'object') return true;
-                const videoId = typeof item.videoId === 'string' ? item.videoId.trim() : '';
-                return videoId.length === 0;
-            });
-            if (invalidFeedItem) {
-                return next(createError('Video ID required', 400));
-            }
-
-            const incomingPlatform = typeof req.body.platform === 'string'
+            const requestedPlatform = typeof req.body?.platform === 'string'
                 ? req.body.platform.trim().toLowerCase()
-                : 'tiktok';
-            const platform = incomingPlatform || 'tiktok';
-            const capturedAt = new Date();
-
-            // Anonymize the data
-            const anonymizedItems = normalizedItems.map((item: any, index: number) => {
-                const safePosition = Number.isFinite(item.positionInFeed)
-                    ? item.positionInFeed
-                    : Number.isFinite(item.position)
-                        ? item.position
-                        : index;
-
-                const normalizedEngagementMetrics = item.engagementMetrics && typeof item.engagementMetrics === 'object'
-                    ? item.engagementMetrics
-                    : {
-                        likes: item.likes,
-                        comments: item.comments,
-                        shares: item.shares,
-                        views: item.views,
-                        watchTime: item.watchTime,
-                        recommendations: Array.isArray(item.recommendations) ? item.recommendations : [],
-                    };
-
-                return anonymizeSnapshot({
-                    videoId: item.videoId,
-                    creatorId: item.creatorId,
-                    creatorHandle: item.creatorHandle,
-                    caption: item.caption,
-                    musicId: item.musicId,
-                    musicTitle: item.musicTitle,
-                    engagementMetrics: normalizedEngagementMetrics,
-                    contentTags: item.contentTags || [],
-                    watchDuration: item.watchDuration,
-                    interacted: item.interacted || false,
-                    interactionType: item.interactionType,
-                    positionInFeed: safePosition,
+                : null;
+            const validPayload = coercePlatformFeedPayload(req.body, {
+                defaultPlatform: 'tiktok',
+                requireFullFeedValidity: true,
+            });
+            const invalidRequestedPlatform = Boolean(
+                requestedPlatform
+                && validPayload
+                && requestedPlatform !== validPayload.platform
+            );
+            if (!validPayload || invalidRequestedPlatform) {
+                logIngestWarn('Contract validation failed for /feeds', req, {
+                    reason: invalidRequestedPlatform
+                        ? 'payload requested unsupported explicit platform'
+                        : 'payload failed shared contract coercion',
                 });
-            });
+                return next(createError('Payload failed contract validation', 400));
+            }
 
-            const enrichedSessionMetadata = buildSessionQualityMetadata({
-                userId: req.userId!,
-                platform,
-                capturedAt,
-                feedItems: anonymizedItems.map((item: any, index: number) => ({
-                    videoId: item.videoId,
-                    positionInFeed: item.positionInFeed ?? index,
-                })),
-                existingMetadata: sessionMetadata,
-            });
+            const platform = validPayload.platform;
+            const replayKey = getReplayKey(req, req.userId);
+            const replayOutcome = await withIngestReplayGuard(replayKey, async () => {
+                const capturedAt = new Date();
 
-            // Serialize sessionMetadata to compressed MessagePack
-            const compressedSessionMetadata = serializeMetadata(enrichedSessionMetadata);
+                // Anonymize the data
+                const anonymizedItems = validPayload.feed.map((item: any, index: number) => {
+                    const safePosition = Number.isFinite(item.positionInFeed)
+                        ? item.positionInFeed
+                        : Number.isFinite(item.position)
+                            ? item.position
+                            : index;
 
-            // Create snapshot with items
-            const snapshot = await prisma.feedSnapshot.create({
-                data: {
+                    const normalizedEngagementMetrics = item.engagementMetrics && typeof item.engagementMetrics === 'object'
+                        ? item.engagementMetrics
+                        : {
+                            likes: item.likes,
+                            comments: item.comments,
+                            shares: item.shares,
+                            views: item.views,
+                            watchTime: item.watchTime,
+                            recommendations: Array.isArray(item.recommendations) ? item.recommendations : [],
+                        };
+
+                    return anonymizeSnapshot({
+                        videoId: item.videoId,
+                        creatorId: item.creatorId,
+                        creatorHandle: item.creatorHandle,
+                        caption: item.caption,
+                        musicId: item.musicId,
+                        musicTitle: item.musicTitle,
+                        engagementMetrics: normalizedEngagementMetrics,
+                        contentTags: item.contentTags || [],
+                        watchDuration: item.watchDuration,
+                        interacted: item.interacted || false,
+                        interactionType: item.interactionType,
+                        positionInFeed: safePosition,
+                    });
+                });
+
+                const enrichedSessionMetadata = buildSessionQualityMetadata({
                     userId: req.userId!,
                     platform,
                     capturedAt,
-                    itemCount: normalizedItems.length,
-                    sessionMetadata: compressedSessionMetadata,
-                    feedItems: {
-                        create: anonymizedItems.map((item: any, index: number) => {
-                            const likesCount = asNumber(item.engagementMetrics?.likes);
-                            const commentsCount = asNumber(item.engagementMetrics?.comments);
-                            const sharesCount = asNumber(item.engagementMetrics?.shares);
-
-                            return {
-                                videoId: item.videoId,
-                                creatorId: item.creatorId,
-                                creatorHandle: item.creatorHandle,
-                                positionInFeed: item.positionInFeed ?? index,
-                                caption: item.caption?.substring(0, 500),
-                                musicId: item.musicId,
-                                musicTitle: item.musicTitle,
-                                likesCount,
-                                commentsCount,
-                                sharesCount,
-                                // Serialize engagementMetrics to compressed MessagePack
-                                engagementMetrics: serializeMetadata(item.engagementMetrics),
-                                contentTags: item.contentTags || [],
-                                contentCategories: item.contentCategories || [],
-                                watchDuration: item.watchDuration,
-                                interacted: item.interacted || false,
-                                interactionType: item.interactionType,
-                            };
-                        }),
+                    feedItems: anonymizedItems.map((item: any, index: number) => ({
+                        videoId: item.videoId,
+                        positionInFeed: item.positionInFeed ?? index,
+                    })),
+                    existingMetadata: {
+                        ...validPayload.sessionMetadata,
+                        ingestVersion: CURRENT_INGEST_VERSION,
                     },
-                },
-                include: {
-                    feedItems: true,
-                    _count: { select: { feedItems: true } },
-                },
+                });
+
+                // Serialize sessionMetadata to compressed MessagePack
+                const compressedSessionMetadata = serializeMetadata(enrichedSessionMetadata);
+
+                // Create snapshot with items
+                const snapshot = await prisma.feedSnapshot.create({
+                    data: {
+                        userId: req.userId!,
+                        platform,
+                        capturedAt,
+                        itemCount: validPayload.feed.length,
+                        sessionMetadata: compressedSessionMetadata,
+                        feedItems: {
+                            create: anonymizedItems.map((item: any, index: number) => {
+                                const likesCount = asNumber(item.engagementMetrics?.likes);
+                                const commentsCount = asNumber(item.engagementMetrics?.comments);
+                                const sharesCount = asNumber(item.engagementMetrics?.shares);
+
+                                return {
+                                    videoId: item.videoId,
+                                    creatorId: item.creatorId,
+                                    creatorHandle: item.creatorHandle,
+                                    positionInFeed: item.positionInFeed ?? index,
+                                    caption: item.caption?.substring(0, 500),
+                                    musicId: item.musicId,
+                                    musicTitle: item.musicTitle,
+                                    likesCount,
+                                    commentsCount,
+                                    sharesCount,
+                                    // Serialize engagementMetrics to compressed MessagePack
+                                    engagementMetrics: serializeMetadata(item.engagementMetrics),
+                                    contentTags: item.contentTags || [],
+                                    contentCategories: item.contentCategories || [],
+                                    watchDuration: item.watchDuration,
+                                    interacted: item.interacted || false,
+                                    interactionType: item.interactionType,
+                                };
+                            }),
+                        },
+                    },
+                    include: {
+                        feedItems: true,
+                        _count: { select: { feedItems: true } },
+                    },
+                });
+
+                // Transform response (decompress for client)
+                const responseSnapshot = transformSnapshotForResponse(snapshot);
+                logIngestInfo('Feed snapshot persisted', req, {
+                    platform,
+                    snapshotId: snapshot.id,
+                    itemCount: validPayload.feed.length,
+                });
+
+                return {
+                    statusCode: 201,
+                    body: {
+                        success: true,
+                        data: { snapshot: responseSnapshot },
+                    },
+                };
             });
 
-            // Transform response (decompress for client)
-            const responseSnapshot = transformSnapshotForResponse(snapshot);
+            if (replayOutcome.replayed) {
+                logIngestInfo('Replayed prior /feeds ingestion response', req, { platform });
+            }
 
-            res.status(201).json({
-                success: true,
-                data: { snapshot: responseSnapshot },
-            });
+            res.status(replayOutcome.response.statusCode).json(replayOutcome.response.body);
         } catch (error) {
+            logIngestError('Unhandled /feeds ingestion error', req, {
+                error: error instanceof Error ? error.message : 'unknown-error',
+            });
             next(error);
         }
     }

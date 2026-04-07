@@ -30,6 +30,7 @@ export interface DataQualityDiagnosticsResult {
         parserDropRate: number;
         itemsWithParsedRecommendations: number;
         parseCoverage: number;
+        strictRowCoverage: number;
         avgRecommendationsPerItem: number;
         surfaceTransitionStability: number;
         bySurface: Array<{
@@ -51,6 +52,24 @@ export interface DataQualityDiagnosticsResult {
         stabilityScore: number;
         networkStrength: number;
     };
+    qualityGate: {
+        status: 'ok' | 'degraded';
+        parseCoverage: number;
+        parserDropRate: number;
+        minimumParseCoverage: number;
+        maxParserDropRate: number;
+        strictRecommendationRows: number;
+        minimumStrictRecommendationRows: number;
+        comparedUsers: number;
+        minimumComparedUsers: number;
+        cohortStabilityScore: number;
+        minimumCohortStabilityScore: number;
+        minimumCohortUsersForLift: number;
+        canInterpretLift: boolean;
+        reasonCodes: string[];
+        degradationReasons: string[];
+        confidenceMultiplier: number;
+    };
 }
 
 export interface DataQualityTrendPoint {
@@ -59,11 +78,15 @@ export interface DataQualityTrendPoint {
     users: number;
     snapshots: number;
     stitchedSessions: number;
+    dedupedSnapshots: number;
     dedupeRate: number;
     parseCoverage: number;
+    strictRecommendationRows: number;
     parserDropRate: number;
     cohortStabilityScore: number;
     networkStrength: number;
+    qualityGateStatus: 'ok' | 'degraded';
+    qualityGateReasons: string[];
     surfaceMetrics: Array<{
         surface: string;
         rawRows: number;
@@ -80,4 +103,13 @@ export interface DataQualityTrendResult {
     bucketHours: number;
     generatedAt: string;
     points: DataQualityTrendPoint[];
+    drift: {
+        status: 'stable' | 'warning' | 'critical';
+        parseCoverageDelta: number;
+        parserDropRateDelta: number;
+        strictRowsDelta: number;
+        dedupeRateDelta: number;
+        cohortStabilityDelta: number;
+        reasons: string[];
+    };
 }
