@@ -92,3 +92,37 @@ cd backend && npx tsx src/scripts/migrate-to-msgpack.ts
 ```
 
 This optimization enables RESMA to efficiently handle massive amounts of feed data while minimizing storage costs and bandwidth usage.
+
+## 🧭 Recent Updates (April 2026)
+
+RESMA now includes a stronger creator-facing analytics workflow focused on cross-user comparison quality and practical go-to-market output.
+
+### Creator-Facing Go-to-Market Brief Export
+
+- New API route: `GET /analysis/go-to-market-brief`
+- New dashboard action: **Export Go-to-market Brief** from the Cohort-Aware Audience Forecast section
+- Export output includes:
+  - Top audience cohorts
+  - Lift vs global baseline
+  - Predicted reach paths from an optional seed video
+  - Confidence bands for exposure estimates
+  - Key takeaways and markdown-formatted brief output for sharing
+
+### Cross-User Comparison Data Quality Improvements
+
+- Session stitching to better group sequential snapshots into stable viewing sessions
+- Snapshot deduplication to reduce repeated-capture noise
+- Stricter recommendation parsing and parser-drop diagnostics
+- Cohort stability and network-strength diagnostics for confidence tracking over time
+- Data quality trend charting with tunable thresholds and auto-tune support
+
+### Forecast Reliability Upgrades
+
+- Cohort-aware audience forecast now leverages improved stitched/deduped inputs
+- Holdout evaluation endpoint and dashboard metrics for:
+  - Top-k reach hit rate
+  - Precision@k
+  - Calibration
+  - Reliability scoring
+
+These updates reinforce the core thesis of RESMA: cross-user feed comparisons improve predictive quality over time, making recommendation-path modeling more useful for creator strategy and B2B/marketing decision support.
