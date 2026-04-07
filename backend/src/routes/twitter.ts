@@ -4,7 +4,20 @@ import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
-const router = Router();
+const router: Router = Router();
+
+function parseNonNegativeNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return Math.round(value);
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return Math.round(parsed);
+        }
+    }
+    return null;
+}
 
 // POST /twitter/feed - receive Twitter/X feed data batch
 router.post('/feed', authenticate, async (req: AuthRequest, res) => {
@@ -17,11 +30,18 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
     try {
         const capturedAt = new Date();
         const itemsToCreate = feed.map((item: any, index: number) => {
+            const likesCount = parseNonNegativeNumber(item.likes);
+            const commentsCount = parseNonNegativeNumber(item.comments);
+            const sharesCount = parseNonNegativeNumber(item.shares);
+
             // Pack metrics
             const engagementMetrics = packAndCompress({
                 impressionDuration: item.impressionDuration,
                 interactionType: item.interactionType,
                 isPromoted: item.isPromoted,
+                likes: likesCount,
+                comments: commentsCount,
+                shares: sharesCount,
                 timestamp: item.timestamp
             }).data;
 
@@ -31,6 +51,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                 creatorId: item.authorName, // Using name as ID proxy
                 positionInFeed: index, // Batch index, not absolute, but sufficient
                 caption: item.text ? item.text.substring(0, 500) : null,
+                likesCount,
+                commentsCount,
+                sharesCount,
                 engagementMetrics,
                 contentCategories: item.isPromoted ? ['promoted'] : [],
                 watchDuration: item.impressionDuration || 0,

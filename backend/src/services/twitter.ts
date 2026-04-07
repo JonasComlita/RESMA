@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { anonymizeSnapshot } from './anonymizer.js';
+import { packAndCompress } from './serialization.js';
 
 // Save Twitter feed data to the database
 export async function saveTwitterFeedData(feed: any[], userId?: string) {
@@ -16,10 +17,21 @@ export async function saveTwitterFeedData(feed: any[], userId?: string) {
                 retweets: item.retweets,
                 replies: item.replies,
             },
+            likesCount: typeof item.likes === 'number' ? Math.round(item.likes) : null,
+            commentsCount: typeof item.replies === 'number' ? Math.round(item.replies) : null,
+            sharesCount: typeof item.retweets === 'number' ? Math.round(item.retweets) : null,
             contentTags: Array.isArray(item.hashtags) ? item.hashtags : [],
             contentCategories: [],
         };
-        return anonymizeSnapshot(base);
+        const sanitized = anonymizeSnapshot(base);
+        return {
+            ...sanitized,
+            likesCount: typeof item.likes === 'number' ? Math.round(item.likes) : null,
+            commentsCount: typeof item.replies === 'number' ? Math.round(item.replies) : null,
+            sharesCount: typeof item.retweets === 'number' ? Math.round(item.retweets) : null,
+            positionInFeed: sanitized.positionInFeed ?? idx,
+            engagementMetrics: packAndCompress(sanitized.engagementMetrics || {}).data,
+        };
     });
     // Create FeedSnapshot
     const snapshot = await prisma.feedSnapshot.create({

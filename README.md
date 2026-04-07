@@ -16,8 +16,10 @@ Social media algorithms are black boxes that shape what billions of people see d
 
 ```
 resma/
-├── extension/     # Chrome browser extension (TikTok, YouTube, Twitter & Instagram)
-├── backend/       # Node.js + Express API
+├── extension/         # Chrome browser extension (TikTok, YouTube, Twitter & Instagram)
+├── backend/           # Node.js + Express API + Prisma
+├── frontend/          # React dashboard and analytics UI
+└── packages/shared/   # Shared Zod schemas and TS contracts
 ```
 
 ## 🚀 Quick Start
@@ -57,6 +59,8 @@ pnpm dev
 |---------|-------------|
 | `extension` | Chrome extension for TikTok, YouTube, Twitter & Instagram feed capture |
 | `backend` | Express API for data storage and analysis (TikTok, YouTube, Twitter, Instagram, and more) |
+| `frontend` | React dashboard for analytics, diagnostics, and creator tooling |
+| `@resma/shared` | Shared schemas/types for capture payloads and analytics contracts |
 
 
 ## 📄 License
@@ -73,7 +77,7 @@ RESMA now supports capturing, analyzing, and comparing Twitter feeds in addition
 
 ## ⚡ Performance & Storage Optimizations
 
-RESMA uses **MessagePack + Zstandard** binary serialization for efficient data storage and transmission:
+RESMA uses **MessagePack + Brotli** binary serialization for efficient data storage and transmission (with legacy Zstandard-compatible read fallback):
 
 ### Storage Efficiency
 - **~90% smaller** database storage compared to JSON
@@ -82,7 +86,7 @@ RESMA uses **MessagePack + Zstandard** binary serialization for efficient data s
 
 ### How It Works
 1. **Browser Extension** → Sends data using MessagePack binary format
-2. **Backend API** → Stores data compressed with MessagePack + Zstandard
+2. **Backend API** → Stores data compressed with MessagePack + Brotli
 3. **Database** → PostgreSQL `BYTEA` fields instead of `JSONB`
 
 ### Migration
@@ -92,6 +96,53 @@ cd backend && npx tsx src/scripts/migrate-to-msgpack.ts
 ```
 
 This optimization enables RESMA to efficiently handle massive amounts of feed data while minimizing storage costs and bandwidth usage.
+
+## 🧱 Architecture Enhancements (April 2026)
+
+This release adds platform-agnostic schema design and shared contracts across extension/frontend/backend.
+
+### Shared Workspace Package
+
+- Added `packages/shared` and wired `@resma/shared` into backend, frontend, and extension.
+- Shared package now exports typed capture payload contracts and Zod validation schemas for:
+  - cross-platform feed payloads
+  - session metadata
+  - recommendation rows
+  - creator platform account structures
+
+### Platform-Agnostic Creator Schema
+
+- Replaced hardcoded creator columns (`tiktokHandle`, `tiktokId`) with a new `PlatformAccount` model.
+- `Creator` now supports many platform accounts (`youtube`, `instagram`, `tiktok`, `twitter`, etc.).
+- Creator APIs now resolve account context by platform and remain backward-compatible for claim flow.
+
+### Analytics Queryability Improvements
+
+- Added extracted engagement columns on `FeedItem` and `CreatorReach`:
+  - `likesCount`
+  - `commentsCount`
+  - `sharesCount`
+- These remain alongside packed metrics blobs so high-volume cohort filtering can use indexed SQL fields.
+
+### Extension Build Security
+
+- Extension build now rewrites `manifest.json` at build time:
+  - development keeps localhost host permissions
+  - production strips localhost host permissions automatically
+- Uploads are consolidated in the service worker and validated against shared schemas.
+
+### Migration Safety Note
+
+If you have production data, review the migration before applying:
+
+- Migration path backfills creator TikTok handle/id into `PlatformAccount` rows, then drops legacy columns.
+- If your deployment has custom creator identity data, validate that mapping before `migrate deploy`.
+- Recommended commands:
+
+```bash
+pnpm --filter backend prisma migrate status
+pnpm --filter backend prisma migrate deploy
+```
 
 ## 🧭 Recent Updates (April 2026)
 

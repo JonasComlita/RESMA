@@ -14,7 +14,7 @@ import instagramRouter from './routes/instagram.js';
 import insightsRouter from './routes/insights.js';
 import twitterRouter from './routes/twitter.js';
 
-const app = express();
+const app: express.Express = express();
 
 // Middleware
 app.use(helmet());

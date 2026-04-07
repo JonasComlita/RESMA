@@ -10,7 +10,7 @@ import {
 } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
-export const feedsRouter = Router();
+export const feedsRouter: Router = Router();
 
 /**
  * Helper to serialize metadata to compressed MessagePack
@@ -44,6 +44,19 @@ function transformSnapshotForResponse(snapshot: any) {
             engagementMetrics: deserializeMetadata(item.engagementMetrics),
         })),
     };
+}
+
+function asNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.max(0, Math.round(value));
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed)) {
+            return Math.max(0, Math.round(parsed));
+        }
+    }
+    return null;
 }
 
 // Submit a new feed snapshot
@@ -131,22 +144,31 @@ feedsRouter.post(
                     itemCount: normalizedItems.length,
                     sessionMetadata: compressedSessionMetadata,
                     feedItems: {
-                        create: anonymizedItems.map((item: any, index: number) => ({
-                            videoId: item.videoId,
-                            creatorId: item.creatorId,
-                            creatorHandle: item.creatorHandle,
-                            positionInFeed: item.positionInFeed ?? index,
-                            caption: item.caption?.substring(0, 500),
-                            musicId: item.musicId,
-                            musicTitle: item.musicTitle,
-                            // Serialize engagementMetrics to compressed MessagePack
-                            engagementMetrics: serializeMetadata(item.engagementMetrics),
-                            contentTags: item.contentTags || [],
-                            contentCategories: item.contentCategories || [],
-                            watchDuration: item.watchDuration,
-                            interacted: item.interacted || false,
-                            interactionType: item.interactionType,
-                        })),
+                        create: anonymizedItems.map((item: any, index: number) => {
+                            const likesCount = asNumber(item.engagementMetrics?.likes);
+                            const commentsCount = asNumber(item.engagementMetrics?.comments);
+                            const sharesCount = asNumber(item.engagementMetrics?.shares);
+
+                            return {
+                                videoId: item.videoId,
+                                creatorId: item.creatorId,
+                                creatorHandle: item.creatorHandle,
+                                positionInFeed: item.positionInFeed ?? index,
+                                caption: item.caption?.substring(0, 500),
+                                musicId: item.musicId,
+                                musicTitle: item.musicTitle,
+                                likesCount,
+                                commentsCount,
+                                sharesCount,
+                                // Serialize engagementMetrics to compressed MessagePack
+                                engagementMetrics: serializeMetadata(item.engagementMetrics),
+                                contentTags: item.contentTags || [],
+                                contentCategories: item.contentCategories || [],
+                                watchDuration: item.watchDuration,
+                                interacted: item.interacted || false,
+                                interactionType: item.interactionType,
+                            };
+                        }),
                     },
                 },
                 include: {

@@ -21,7 +21,7 @@ import {
 } from '../services/dataQuality.js';
 import { generateGoToMarketCohortBrief } from '../services/goToMarketBrief.js';
 
-export const analysisRouter = Router();
+export const analysisRouter: Router = Router();
 
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));

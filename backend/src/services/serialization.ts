@@ -9,6 +9,7 @@
  */
 
 import { encode, decode } from '@msgpack/msgpack';
+import { brotliCompressSync, brotliDecompressSync, constants as zlibConstants } from 'node:zlib';
 import * as fzstd from 'fzstd';
 
 /**
@@ -41,8 +42,12 @@ export function packAndCompress<T>(data: T): SerializationResult {
     const msgpackData = encode(data);
     const originalSize = msgpackData.byteLength;
 
-    // Then compress with Zstandard
-    const compressed = fzstd.compress(new Uint8Array(msgpackData), ZSTD_COMPRESSION_LEVEL);
+    // fzstd is decompression-only in this runtime; use Brotli for backend storage compression.
+    const compressed = brotliCompressSync(Buffer.from(msgpackData), {
+        params: {
+            [zlibConstants.BROTLI_PARAM_QUALITY]: clampCompressionLevel(ZSTD_COMPRESSION_LEVEL),
+        },
+    });
 
     // Prepend magic bytes for format identification
     const result = Buffer.concat([
@@ -74,11 +79,18 @@ export function decompressAndUnpack<T>(buffer: Buffer): T {
     // Extract compressed data (skip magic bytes)
     const compressedData = buffer.subarray(4);
 
-    // Decompress with Zstandard
-    const decompressed = fzstd.decompress(new Uint8Array(compressedData));
-
-    // Decode MessagePack
-    return decode(decompressed) as T;
+    // Prefer Brotli (current writer), then fall back to Zstd (legacy), then raw msgpack.
+    try {
+        const decompressed = brotliDecompressSync(compressedData);
+        return decode(decompressed) as T;
+    } catch {
+        try {
+            const decompressedLegacy = fzstd.decompress(new Uint8Array(compressedData));
+            return decode(decompressedLegacy) as T;
+        } catch {
+            return decode(compressedData) as T;
+        }
+    }
 }
 
 /**
@@ -157,3 +169,11 @@ export function getCompressionStats(originalJson: string, compressedBuffer: Buff
 
 // Re-export types for convenience
 export type { SerializationResult as CompressionResult };
+
+function clampCompressionLevel(level: number): number {
+    const normalized = Math.round(level);
+    if (!Number.isFinite(normalized)) {
+        return 4;
+    }
+    return Math.max(0, Math.min(11, normalized));
+}

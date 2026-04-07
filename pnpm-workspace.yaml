@@ -2,3 +2,5 @@ packages:
   - 'extension'
   - 'backend'
   - 'frontend'
+  - 'packages/shared'
+  - 'packages/*'

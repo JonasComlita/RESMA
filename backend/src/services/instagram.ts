@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { packAndCompress } from './serialization.js';
 
 // Save Instagram feed data to the database
 export async function saveInstagramFeedData(feed: any[], userId?: string) {
@@ -15,11 +16,14 @@ export async function saveInstagramFeedData(feed: any[], userId?: string) {
           creatorHandle: item.username || null,
           positionInFeed: item.position || 0,
           caption: item.caption || null,
-          engagementMetrics: {
+          likesCount: typeof item.likes === 'number' ? Math.round(item.likes) : null,
+          commentsCount: typeof item.comments === 'number' ? Math.round(item.comments) : null,
+          sharesCount: typeof item.shares === 'number' ? Math.round(item.shares) : null,
+          engagementMetrics: packAndCompress({
             likes: item.likes,
             comments: item.comments,
             thumbnail: item.thumbnail,
-          },
+          }).data,
           contentTags: Array.isArray(item.tags) ? item.tags : [],
           contentCategories: [],
         })),

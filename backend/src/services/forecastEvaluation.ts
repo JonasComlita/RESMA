@@ -292,9 +292,9 @@ export async function generateForecastEvaluation(
     }
 
     const testCases = snapshotsToEvaluationCases(
-        testSnapshots.map((snapshot) => ({
+        testSnapshots.map((snapshot: any) => ({
             userId: snapshot.userId,
-            feedItems: snapshot.feedItems.map((item) => ({
+            feedItems: snapshot.feedItems.map((item: any) => ({
                 videoId: item.videoId,
                 engagementMetrics: item.engagementMetrics,
             })),

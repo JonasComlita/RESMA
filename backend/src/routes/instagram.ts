@@ -4,7 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
-const router = Router();
+const router: Router = Router();
 const MAX_RECOMMENDATIONS_PER_ITEM = 40;
 
 function sanitizeString(value: unknown): string | null {
@@ -206,6 +206,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                 const watchTime = parseNonNegativeNumber(item.watchTime);
                 const impressionDuration = parseNonNegativeNumber(item.impressionDuration);
                 const watchDuration = Math.max(watchTime, impressionDuration);
+                const likesCount = parseNonNegativeNumber(item.likes);
+                const commentsCount = parseNonNegativeNumber(item.comments);
+                const sharesCount = parseNonNegativeNumber(item.shares);
 
                 const engagementMetrics = packAndCompress({
                     watchTime,
@@ -215,9 +218,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                     recommendations,
                     recommendationSurfaceCounts: recommendationSurfaces,
                     recommendationCount: recommendations.length,
-                    likes: parseNonNegativeNumber(item.likes),
-                    comments: parseNonNegativeNumber(item.comments),
-                    shares: parseNonNegativeNumber(item.shares),
+                    likes: likesCount,
+                    comments: commentsCount,
+                    shares: sharesCount,
                     views: parseNonNegativeNumber(item.views),
                     type: sanitizeString(item.type),
                 }).data;
@@ -238,6 +241,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                     creatorId: sanitizeString(item.author ?? item.username ?? item.creatorId),
                     positionInFeed: parsePositiveInt(item.position ?? item.positionInFeed) ?? index,
                     caption: sanitizeString(item.caption ?? item.title)?.slice(0, 500) ?? null,
+                    likesCount,
+                    commentsCount,
+                    sharesCount,
                     engagementMetrics,
                     contentCategories: Array.from(categories.values()),
                     watchDuration,

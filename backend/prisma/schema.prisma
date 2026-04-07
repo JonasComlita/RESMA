@@ -37,34 +37,55 @@ model User {
 }
 
 model Creator {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  tiktokHandle    String    @unique
-  tiktokId        String?   @unique
-  displayName     String?
-  avatarUrl       String?
-  verified        Boolean   @default(false)
-  verifiedAt      DateTime?
-  claimedAt       DateTime  @default(now())
+  id               String            @id @default(uuid())
+  userId           String            @unique
+  displayName      String?
+  avatarUrl        String?
+  verified         Boolean           @default(false)
+  verifiedAt       DateTime?
+  claimedAt        DateTime          @default(now())
   
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reachStats      CreatorReach[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformAccounts PlatformAccount[]
+  reachStats       CreatorReach[]
 
   @@map("creators")
 }
 
-model CreatorReach {
-  id              String    @id @default(uuid())
-  creatorId       String
-  date            DateTime  @db.Date
-  uniqueViewers   Int       @default(0)
-  totalImpressions Int      @default(0)
-  audienceProfile Bytes?    // MessagePack + Zstandard compressed
-  
-  creator         Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+model PlatformAccount {
+  id                String   @id @default(uuid())
+  creatorId         String
+  platform          String
+  platformAccountId String?
+  platformHandle    String
+  verified          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  @@unique([creatorId, date])
+  creator           Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
   @@index([creatorId])
+  @@unique([platform, platformHandle])
+  @@unique([platform, platformAccountId])
+  @@map("platform_accounts")
+}
+
+model CreatorReach {
+  id               String    @id @default(uuid())
+  creatorId        String
+  platform         String    @default("tiktok")
+  date             DateTime  @db.Date
+  uniqueViewers    Int       @default(0)
+  totalImpressions Int       @default(0)
+  likesCount       Int?
+  commentsCount    Int?
+  sharesCount      Int?
+  audienceProfile  Bytes?    // MessagePack + Zstandard compressed
+  
+  creator          Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, platform, date])
+  @@index([creatorId, platform])
   @@map("creator_reach")
 }
 
@@ -96,6 +117,9 @@ model FeedItem {
   caption          String?
   musicId          String?
   musicTitle       String?
+  likesCount       Int?
+  commentsCount    Int?
+  sharesCount      Int?
   engagementMetrics Bytes?  // MessagePack + Zstandard compressed
   contentTags      String[]
   contentCategories String[]    // Detected categories for "why am I seeing this"
@@ -108,6 +132,9 @@ model FeedItem {
   @@index([snapshotId])
   @@index([videoId])
   @@index([creatorHandle])
+  @@index([likesCount])
+  @@index([commentsCount])
+  @@index([sharesCount])
   @@map("feed_items")
 }
 

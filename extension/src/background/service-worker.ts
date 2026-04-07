@@ -4,6 +4,7 @@
  */
 
 import { packData, getCompressionStats } from '../utils/serialization.js';
+import { PlatformFeedPayloadSchema } from '@resma/shared';
 
 type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok';
 
@@ -353,11 +354,18 @@ async function uploadPayload(endpoint: string, payload: Record<string, unknown>,
 }
 
 async function handlePlatformUpload(rawPayload: unknown) {
-    const payload = normalizePlatformPayload(rawPayload);
-    if (!payload) {
+    const normalizedPayload = normalizePlatformPayload(rawPayload);
+    if (!normalizedPayload) {
         console.warn('[RESMA] Skipping upload: invalid platform payload');
         return;
     }
+
+    const parsed = PlatformFeedPayloadSchema.safeParse(normalizedPayload);
+    if (!parsed.success) {
+        console.warn('[RESMA] Skipping upload: payload failed schema validation', parsed.error.issues);
+        return;
+    }
+    const payload = parsed.data;
 
     const token = await getAuthToken();
     if (!token) {

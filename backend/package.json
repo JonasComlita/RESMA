@@ -13,6 +13,7 @@
         "db:studio": "prisma studio"
     },
     "dependencies": {
+        "@resma/shared": "workspace:*",
         "@msgpack/msgpack": "^3.0.0-beta2",
         "@prisma/client": "^5.8.0",
         "bcryptjs": "^2.4.3",

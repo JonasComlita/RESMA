@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { createError } from '../middleware/errorHandler.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 
-export const authRouter = Router();
+export const authRouter: Router = Router();
 
 // Register new user
 authRouter.post(

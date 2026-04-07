@@ -4,7 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { packAndCompress } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 
-const router = Router();
+const router: Router = Router();
 const MAX_RECOMMENDATIONS_PER_ITEM = 40;
 
 function sanitizeString(value: unknown): string | null {
@@ -197,6 +197,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
 
                 const recommendations = normalizeRecommendationRows(item.recommendations);
                 const recommendationSurfaces = recommendationSurfaceCounts(recommendations);
+                const likesCount = parsePositiveInt(item.likes ?? item.likeCount);
+                const commentsCount = parsePositiveInt(item.comments ?? item.commentCount);
+                const sharesCount = parsePositiveInt(item.shares ?? item.shareCount);
 
                 const engagementMetrics = packAndCompress({
                     watchTime: item.watchTime,
@@ -206,6 +209,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                     recommendations,
                     recommendationSurfaceCounts: recommendationSurfaces,
                     recommendationCount: recommendations.length,
+                    likes: likesCount,
+                    comments: commentsCount,
+                    shares: sharesCount,
                     views: item.views,
                     uploadDate: item.uploadDate,
                 }).data;
@@ -216,6 +222,9 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                     creatorId: sanitizeString(item.channelName),
                     positionInFeed: parsePositiveInt(item.position) ?? index,
                     caption: sanitizeString(item.title),
+                    likesCount,
+                    commentsCount,
+                    sharesCount,
                     engagementMetrics,
                     contentCategories: Array.isArray(item.tags)
                         ? item.tags
