@@ -1,0 +1,168 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --accent: #fe2c55;
+  --accent-hover: #ff4469;
+  --success: #25f4ee;
+  --border: #2a2a2a;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  width: 320px;
+  min-height: 400px;
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.popup-header {
+  text-align: center;
+  padding: 24px 16px;
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+}
+
+.popup-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.popup-header p {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.popup-content {
+  flex: 1;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.auth-prompt,
+.tiktok-prompt {
+  text-align: center;
+}
+
+.auth-prompt p,
+.tiktok-prompt p {
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: #252525;
+}
+
+.btn-capture {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+  color: white;
+  position: relative;
+}
+
+.btn-capture.capturing {
+  background: linear-gradient(135deg, #25f4ee 0%, #00c4cc 100%);
+}
+
+.btn-capture:hover {
+  transform: scale(1.02);
+}
+
+.pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.capture-status {
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.capture-status strong {
+  color: var(--success);
+}
+
+.message {
+  text-align: center;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.popup-footer {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.popup-footer a {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.popup-footer a:hover {
+  color: var(--text-primary);
+}
