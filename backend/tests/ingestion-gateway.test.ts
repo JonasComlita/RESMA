@@ -2,7 +2,10 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../src/index';
 import { config } from '../src/config';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { prisma } from '../src/lib/prisma.js';
+import { resetIngestReplayGuardForTests } from '../src/services/ingestReplayGuard.js';
+import { FEED_ITEM_LIMIT_ERROR_MESSAGE, MAX_FEED_ITEMS } from '@resma/shared';
 
 vi.mock('../src/lib/prisma.js', () => ({
   prisma: {
@@ -35,6 +38,11 @@ function makeAuthToken() {
 }
 
 describe('Ingestion gateway auth and contract baselines', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetIngestReplayGuardForTests();
+  });
+
   it.each(['/feeds', '/instagram/feed', '/twitter/feed'])('requires auth on %s', async (path) => {
     const payload = path === '/feeds'
       ? { platform: 'tiktok', feed: [{ videoId: 'abc123' }], sessionMetadata: {} }
@@ -74,6 +82,37 @@ describe('Ingestion gateway auth and contract baselines', () => {
 
     expect(res.status).toBe(400);
     expect(String(res.body.error)).toMatch(/Payload failed contract validation/);
+  });
+
+  it('rejects twitter payloads sent to /feeds instead of coercing them through the tiktok gateway', async () => {
+    const res = await request(app)
+      .post('/feeds')
+      .set('Authorization', `Bearer ${makeAuthToken()}`)
+      .send({
+        platform: 'twitter',
+        feed: [{ videoId: '1900123456789012345', caption: 'tweet payload in wrong route' }],
+        sessionMetadata: {},
+      });
+
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toMatch(/Payload failed contract validation/);
+    expect(prisma.feedSnapshot.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized /feeds payloads with a clear item limit error', async () => {
+    const res = await request(app)
+      .post('/feeds')
+      .set('Authorization', `Bearer ${makeAuthToken()}`)
+      .send({
+        platform: 'tiktok',
+        feed: Array.from({ length: MAX_FEED_ITEMS + 1 }, (_, index) => ({
+          videoId: `742901234567890${index}`,
+        })),
+        sessionMetadata: {},
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(FEED_ITEM_LIMIT_ERROR_MESSAGE);
   });
 
   it('rejects /youtube/feed payloads that contain partially invalid feed rows', async () => {

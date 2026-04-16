@@ -2,6 +2,13 @@
 
 Shared payload contract for RESMA ingest routes and extension uploads.
 
+## Feed Limits
+
+- `feed` and `items` payloads must contain between `1` and `500` items after contract normalization.
+- Ingest routes return HTTP `400` when a request exceeds the 500-item limit.
+- Metric-like strings must use strict numeric formatting such as `12`, `12.5`, `1k`, `2.75M`, or `0.5b`.
+- Malformed metric strings such as `1abc` or `1mb` are rejected by the shared contract instead of being coerced.
+
 ## Contract Version Bumps
 
 Use this process when the payload shape changes:

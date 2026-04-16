@@ -3,17 +3,23 @@ import { prisma } from '../lib/prisma.js';
 import { createError } from '../middleware/errorHandler.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
 import { anonymizeSnapshot } from '../services/anonymizer.js';
-import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION } from '@resma/shared';
+import {
+    coercePlatformFeedPayload,
+    CURRENT_INGEST_VERSION,
+    getFeedItemLimitError,
+} from '@resma/shared';
 import {
     packAndCompress,
     decompressAndUnpack,
     isCompressedMsgpack
 } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
+import { withDurableIngestIdempotency } from '../services/ingestIdempotency.js';
 import { logIngestError, logIngestInfo, logIngestWarn } from '../services/ingestObservability.js';
-import { getReplayKey, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
+import { getReplayKey, getUploadId, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
 
 export const feedsRouter: Router = Router();
+const GENERIC_FEEDS_PLATFORM = 'tiktok';
 
 /**
  * Helper to serialize metadata to compressed MessagePack
@@ -26,13 +32,25 @@ function serializeMetadata(data: any): Buffer | null {
 /**
  * Helper to deserialize metadata from compressed MessagePack or legacy JSON
  */
-function deserializeMetadata<T>(data: Buffer | null): T | null {
+function deserializeMetadata<T>(
+    data: Buffer | null,
+    snapshotId: string,
+    field: 'sessionMetadata' | 'engagementMetrics'
+): T | null {
     if (!data) return null;
     if (isCompressedMsgpack(data)) {
         return decompressAndUnpack<T>(data);
     }
-    // Legacy: try parsing as JSON string (shouldn't happen with new schema)
-    return JSON.parse(data.toString('utf-8')) as T;
+    try {
+        return JSON.parse(data.toString('utf-8')) as T;
+    } catch (error) {
+        console.warn('Failed to parse legacy snapshot metadata', {
+            snapshotId,
+            field,
+            error: error instanceof Error ? error.message : 'unknown-error',
+        });
+        return null;
+    }
 }
 
 /**
@@ -41,11 +59,34 @@ function deserializeMetadata<T>(data: Buffer | null): T | null {
 function transformSnapshotForResponse(snapshot: any) {
     return {
         ...snapshot,
-        sessionMetadata: deserializeMetadata(snapshot.sessionMetadata),
+        sessionMetadata: deserializeMetadata(snapshot.sessionMetadata, snapshot.id, 'sessionMetadata'),
         feedItems: snapshot.feedItems?.map((item: any) => ({
             ...item,
-            engagementMetrics: deserializeMetadata(item.engagementMetrics),
+            engagementMetrics: deserializeMetadata(item.engagementMetrics, snapshot.id, 'engagementMetrics'),
         })),
+    };
+}
+
+async function findSnapshotResponse(snapshotId: string, userId: string) {
+    const snapshot = await prisma.feedSnapshot.findUnique({
+        where: { id: snapshotId },
+        include: {
+            feedItems: {
+                orderBy: { positionInFeed: 'asc' },
+            },
+            _count: { select: { feedItems: true } },
+        },
+    });
+
+    if (!snapshot || snapshot.userId !== userId) {
+        throw new Error(`Snapshot ${snapshotId} not found for duplicate upload replay`);
+    }
+
+    return {
+        success: true,
+        data: {
+            snapshot: transformSnapshotForResponse(snapshot),
+        },
     };
 }
 
@@ -71,138 +112,163 @@ feedsRouter.post(
             const requestedPlatform = typeof req.body?.platform === 'string'
                 ? req.body.platform.trim().toLowerCase()
                 : null;
-            const validPayload = coercePlatformFeedPayload(req.body, {
-                defaultPlatform: 'tiktok',
-                requireFullFeedValidity: true,
-            });
-            const invalidRequestedPlatform = Boolean(
-                requestedPlatform
-                && validPayload
-                && requestedPlatform !== validPayload.platform
-            );
-            if (!validPayload || invalidRequestedPlatform) {
+            if (requestedPlatform && requestedPlatform !== GENERIC_FEEDS_PLATFORM) {
                 logIngestWarn('Contract validation failed for /feeds', req, {
-                    reason: invalidRequestedPlatform
-                        ? 'payload requested unsupported explicit platform'
-                        : 'payload failed shared contract coercion',
+                    reason: 'payload requested explicit platform outside the /feeds tiktok gateway',
                 });
                 return next(createError('Payload failed contract validation', 400));
             }
 
-            const platform = validPayload.platform;
+            const feedLimitError = getFeedItemLimitError(req.body);
+            if (feedLimitError) {
+                logIngestWarn('Feed item limit exceeded for /feeds', req, {
+                    reason: feedLimitError,
+                });
+                return next(createError(feedLimitError, 400));
+            }
+
+            const validPayload = coercePlatformFeedPayload(req.body, {
+                expectedPlatform: GENERIC_FEEDS_PLATFORM,
+                requireFullFeedValidity: true,
+            });
+            if (!validPayload) {
+                logIngestWarn('Contract validation failed for /feeds', req, {
+                    reason: 'payload failed shared contract coercion',
+                });
+                return next(createError('Payload failed contract validation', 400));
+            }
+
+            const platform = GENERIC_FEEDS_PLATFORM;
             const replayKey = getReplayKey(req, req.userId);
+            const uploadId = getUploadId(req);
             const replayOutcome = await withIngestReplayGuard(replayKey, async () => {
-                const capturedAt = new Date();
-
-                // Anonymize the data
-                const anonymizedItems = validPayload.feed.map((item: any, index: number) => {
-                    const safePosition = Number.isFinite(item.positionInFeed)
-                        ? item.positionInFeed
-                        : Number.isFinite(item.position)
-                            ? item.position
-                            : index;
-
-                    const normalizedEngagementMetrics = item.engagementMetrics && typeof item.engagementMetrics === 'object'
-                        ? item.engagementMetrics
-                        : {
-                            likes: item.likes,
-                            comments: item.comments,
-                            shares: item.shares,
-                            views: item.views,
-                            watchTime: item.watchTime,
-                            recommendations: Array.isArray(item.recommendations) ? item.recommendations : [],
-                        };
-
-                    return anonymizeSnapshot({
-                        videoId: item.videoId,
-                        creatorId: item.creatorId,
-                        creatorHandle: item.creatorHandle,
-                        caption: item.caption,
-                        musicId: item.musicId,
-                        musicTitle: item.musicTitle,
-                        engagementMetrics: normalizedEngagementMetrics,
-                        contentTags: item.contentTags || [],
-                        watchDuration: item.watchDuration,
-                        interacted: item.interacted || false,
-                        interactionType: item.interactionType,
-                        positionInFeed: safePosition,
-                    });
-                });
-
-                const enrichedSessionMetadata = buildSessionQualityMetadata({
+                const durableOutcome = await withDurableIngestIdempotency({
                     userId: req.userId!,
-                    platform,
-                    capturedAt,
-                    feedItems: anonymizedItems.map((item: any, index: number) => ({
-                        videoId: item.videoId,
-                        positionInFeed: item.positionInFeed ?? index,
-                    })),
-                    existingMetadata: {
-                        ...validPayload.sessionMetadata,
-                        ingestVersion: CURRENT_INGEST_VERSION,
-                    },
-                });
+                    uploadId,
+                    createSnapshot: async (tx) => {
+                        const capturedAt = new Date();
 
-                // Serialize sessionMetadata to compressed MessagePack
-                const compressedSessionMetadata = serializeMetadata(enrichedSessionMetadata);
+                        const anonymizedItems = validPayload.feed.map((item: any, index: number) => {
+                            const safePosition = Number.isFinite(item.positionInFeed)
+                                ? item.positionInFeed
+                                : Number.isFinite(item.position)
+                                    ? item.position
+                                    : index;
 
-                // Create snapshot with items
-                const snapshot = await prisma.feedSnapshot.create({
-                    data: {
-                        userId: req.userId!,
-                        platform,
-                        capturedAt,
-                        itemCount: validPayload.feed.length,
-                        sessionMetadata: compressedSessionMetadata,
-                        feedItems: {
-                            create: anonymizedItems.map((item: any, index: number) => {
-                                const likesCount = asNumber(item.engagementMetrics?.likes);
-                                const commentsCount = asNumber(item.engagementMetrics?.comments);
-                                const sharesCount = asNumber(item.engagementMetrics?.shares);
-
-                                return {
-                                    videoId: item.videoId,
-                                    creatorId: item.creatorId,
-                                    creatorHandle: item.creatorHandle,
-                                    positionInFeed: item.positionInFeed ?? index,
-                                    caption: item.caption?.substring(0, 500),
-                                    musicId: item.musicId,
-                                    musicTitle: item.musicTitle,
-                                    likesCount,
-                                    commentsCount,
-                                    sharesCount,
-                                    // Serialize engagementMetrics to compressed MessagePack
-                                    engagementMetrics: serializeMetadata(item.engagementMetrics),
-                                    contentTags: item.contentTags || [],
-                                    contentCategories: item.contentCategories || [],
-                                    watchDuration: item.watchDuration,
-                                    interacted: item.interacted || false,
-                                    interactionType: item.interactionType,
+                            const normalizedEngagementMetrics = item.engagementMetrics && typeof item.engagementMetrics === 'object'
+                                ? item.engagementMetrics
+                                : {
+                                    likes: item.likes,
+                                    comments: item.comments,
+                                    shares: item.shares,
+                                    views: item.views,
+                                    watchTime: item.watchTime,
+                                    recommendations: Array.isArray(item.recommendations) ? item.recommendations : [],
                                 };
-                            }),
-                        },
+
+                            return anonymizeSnapshot({
+                                videoId: item.videoId,
+                                creatorId: item.creatorId,
+                                creatorHandle: item.creatorHandle,
+                                caption: item.caption,
+                                musicId: item.musicId,
+                                musicTitle: item.musicTitle,
+                                engagementMetrics: normalizedEngagementMetrics,
+                                contentTags: item.contentTags || [],
+                                watchDuration: item.watchDuration,
+                                interacted: item.interacted || false,
+                                interactionType: item.interactionType,
+                                positionInFeed: safePosition,
+                            });
+                        });
+
+                        const enrichedSessionMetadata = buildSessionQualityMetadata({
+                            userId: req.userId!,
+                            platform,
+                            capturedAt,
+                            feedItems: anonymizedItems.map((item: any, index: number) => ({
+                                videoId: item.videoId,
+                                positionInFeed: item.positionInFeed ?? index,
+                            })),
+                            existingMetadata: {
+                                ...validPayload.sessionMetadata,
+                                ingestVersion: CURRENT_INGEST_VERSION,
+                            },
+                        });
+
+                        const snapshot = await tx.feedSnapshot.create({
+                            data: {
+                                userId: req.userId!,
+                                platform,
+                                capturedAt,
+                                itemCount: validPayload.feed.length,
+                                sessionMetadata: serializeMetadata(enrichedSessionMetadata),
+                                feedItems: {
+                                    create: anonymizedItems.map((item: any, index: number) => {
+                                        const likesCount = asNumber(item.engagementMetrics?.likes);
+                                        const commentsCount = asNumber(item.engagementMetrics?.comments);
+                                        const sharesCount = asNumber(item.engagementMetrics?.shares);
+
+                                        return {
+                                            videoId: item.videoId,
+                                            creatorId: item.creatorId,
+                                            creatorHandle: item.creatorHandle,
+                                            positionInFeed: item.positionInFeed ?? index,
+                                            caption: item.caption?.substring(0, 500),
+                                            musicId: item.musicId,
+                                            musicTitle: item.musicTitle,
+                                            likesCount,
+                                            commentsCount,
+                                            sharesCount,
+                                            engagementMetrics: serializeMetadata(item.engagementMetrics),
+                                            contentTags: item.contentTags || [],
+                                            contentCategories: item.contentCategories || [],
+                                            watchDuration: item.watchDuration,
+                                            interacted: item.interacted || false,
+                                            interactionType: item.interactionType,
+                                        };
+                                    }),
+                                },
+                            },
+                            include: {
+                                feedItems: true,
+                                _count: { select: { feedItems: true } },
+                            },
+                        });
+
+                        logIngestInfo('Feed snapshot persisted', req, {
+                            platform,
+                            snapshotId: snapshot.id,
+                            itemCount: validPayload.feed.length,
+                        });
+
+                        return {
+                            snapshotId: snapshot.id,
+                            value: {
+                                statusCode: 201,
+                                body: {
+                                    success: true,
+                                    data: {
+                                        snapshot: transformSnapshotForResponse(snapshot),
+                                    },
+                                },
+                            },
+                        };
                     },
-                    include: {
-                        feedItems: true,
-                        _count: { select: { feedItems: true } },
-                    },
+                    onDuplicate: async (snapshotId) => ({
+                        statusCode: 201,
+                        body: await findSnapshotResponse(snapshotId, req.userId!),
+                    }),
                 });
 
-                // Transform response (decompress for client)
-                const responseSnapshot = transformSnapshotForResponse(snapshot);
-                logIngestInfo('Feed snapshot persisted', req, {
-                    platform,
-                    snapshotId: snapshot.id,
-                    itemCount: validPayload.feed.length,
-                });
+                if (durableOutcome.replayed) {
+                    logIngestInfo('Returned persisted /feeds snapshot for duplicate upload id', req, {
+                        platform,
+                        snapshotId: durableOutcome.snapshotId,
+                    });
+                }
 
-                return {
-                    statusCode: 201,
-                    body: {
-                        success: true,
-                        data: { snapshot: responseSnapshot },
-                    },
-                };
+                return durableOutcome.value;
             });
 
             if (replayOutcome.replayed) {
@@ -242,7 +308,7 @@ feedsRouter.get('/', authenticate, async (req: AuthRequest, res: Response, next:
         // Transform snapshots (decompress sessionMetadata)
         const transformedSnapshots = snapshots.map(s => ({
             ...s,
-            sessionMetadata: deserializeMetadata(s.sessionMetadata),
+            sessionMetadata: deserializeMetadata(s.sessionMetadata, s.id, 'sessionMetadata'),
         }));
 
         res.json({

@@ -23,21 +23,48 @@ class TwitterObserver {
     private observedTweets = new Set<Element>();
     private sessionTweets: Map<string, TwitterTweet> = new Map();
     private intersectionObserver: IntersectionObserver;
+    private mutationObserver: MutationObserver | null = null;
     private batchTimer: number | null = null;
     private clientSessionId = `tw-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    private isCapturing = false;
 
     constructor() {
         console.log('[RESMA] Twitter Observer initialized');
         this.intersectionObserver = new IntersectionObserver(this.handleIntersection.bind(this), {
             threshold: 0.6,
         });
-        this.init();
+        this.setupMessageListener();
+    }
+
+    private setupMessageListener() {
+        chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+            if (message.type === 'GET_STATUS') {
+                sendResponse({
+                    isCapturing: this.isCapturing,
+                    itemCount: this.sessionTweets.size,
+                });
+                return true;
+            }
+
+            if (message.type === 'START_CAPTURE') {
+                this.startCapture();
+                sendResponse({ success: true, data: { itemCount: this.sessionTweets.size } });
+                return true;
+            }
+
+            if (message.type === 'STOP_CAPTURE') {
+                sendResponse({ success: true, data: { itemCount: this.stopCapture() } });
+                return true;
+            }
+
+            return false;
+        });
     }
 
     private init() {
         const timeline = document.querySelector('div[data-testid="primaryColumn"]') || document.body;
 
-        const mutationObserver = new MutationObserver((mutations) => {
+        this.mutationObserver = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
                 mutation.addedNodes.forEach((node) => {
                     if (node instanceof Element) {
@@ -47,10 +74,43 @@ class TwitterObserver {
             }
         });
 
-        mutationObserver.observe(timeline, { childList: true, subtree: true });
+        this.mutationObserver.observe(timeline, { childList: true, subtree: true });
 
         this.scanForTweets();
         this.batchTimer = window.setInterval(() => this.sendBatch(), 10000);
+    }
+
+    private startCapture() {
+        if (this.isCapturing) {
+            return;
+        }
+
+        this.isCapturing = true;
+        this.clientSessionId = `tw-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        this.observedTweets.clear();
+        this.sessionTweets.clear();
+        this.intersectionObserver.disconnect();
+        this.init();
+    }
+
+    private stopCapture() {
+        if (!this.isCapturing) {
+            return this.sessionTweets.size;
+        }
+
+        this.sendBatch();
+        this.isCapturing = false;
+
+        if (this.batchTimer !== null) {
+            window.clearInterval(this.batchTimer);
+            this.batchTimer = null;
+        }
+
+        this.mutationObserver?.disconnect();
+        this.mutationObserver = null;
+        this.intersectionObserver.disconnect();
+
+        return this.sessionTweets.size;
     }
 
     private sanitizeString(value: string | null | undefined): string | null {
@@ -122,6 +182,10 @@ class TwitterObserver {
     }
 
     private handleIntersection(entries: IntersectionObserverEntry[]) {
+        if (!this.isCapturing) {
+            return;
+        }
+
         entries.forEach((entry) => {
             const element = entry.target;
             const tweetId = this.getTweetId(element);
@@ -150,6 +214,10 @@ class TwitterObserver {
     }
 
     private recordInteraction(element: Element, type: string) {
+        if (!this.isCapturing) {
+            return;
+        }
+
         const tweetId = this.getTweetId(element);
         if (tweetId && this.sessionTweets.has(tweetId)) {
             const tweet = this.sessionTweets.get(tweetId)!;
@@ -196,6 +264,10 @@ class TwitterObserver {
     }
 
     private sendBatch() {
+        if (!this.isCapturing) {
+            return;
+        }
+
         const pendingUploads: Array<{
             tweet: TwitterTweet;
             nextUploadedImpressionDuration: number;

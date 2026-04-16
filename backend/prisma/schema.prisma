@@ -31,6 +31,7 @@ model User {
   contributeToCreatorInsights Boolean @default(true)
   
   feedSnapshots   FeedSnapshot[]
+  ingestEvents    IngestEvent[]
   creatorProfile  Creator?
 
   @@map("users")
@@ -100,11 +101,28 @@ model FeedSnapshot {
   
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   feedItems     FeedItem[]
+  ingestEvent   IngestEvent?
   patternGroups PatternGroupMembership[]
 
   @@index([userId])
   @@index([capturedAt])
   @@map("feed_snapshots")
+}
+
+model IngestEvent {
+  id         String       @id @default(uuid())
+  userId     String
+  uploadId   String
+  snapshotId String?      @unique
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshot   FeedSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, uploadId])
+  @@index([userId])
+  @@map("ingest_events")
 }
 
 model FeedItem {

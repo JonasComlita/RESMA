@@ -157,7 +157,7 @@ const Popup: React.FC = () => {
 
             <main className="popup-content">
                 <div className="privacy-message">
-                    <strong>Privacy First:</strong> Feed capture is always optional and opt-in. No data is collected unless you explicitly start a session. You control what is shared, and all data is anonymized.
+                    <strong>Privacy First:</strong> RESMA does not upload feed data until you press Start Capture. Capture stays optional, you can stop it at any time, and uploaded data is anonymized before analysis.
                 </div>
                 {!isAuthenticated ? (
                     <div className="auth-prompt">

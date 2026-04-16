@@ -8,12 +8,18 @@ import { resetIngestReplayGuardForTests } from '../src/services/ingestReplayGuar
 
 vi.mock('../src/lib/prisma.js', () => ({
     prisma: {
+        $transaction: vi.fn(),
         feedSnapshot: {
             create: vi.fn(),
             findMany: vi.fn(),
             count: vi.fn(),
             findFirst: vi.fn(),
+            findUnique: vi.fn(),
             delete: vi.fn(),
+        },
+        ingestEvent: {
+            findUnique: vi.fn(),
+            update: vi.fn(),
         },
         feedItem: {
             findFirst: vi.fn(),
@@ -132,10 +138,23 @@ describe('Twitter Feed API', () => {
     });
 
     it('replays duplicate twitter uploads with same upload id', async () => {
-        vi.mocked(prisma.feedSnapshot.create).mockResolvedValue({
-            id: 'snapshot-twitter-replay',
-            _count: { feedItems: 1 },
-        } as any);
+        const transactionClient = {
+            $executeRaw: vi.fn()
+                .mockResolvedValueOnce(1)
+                .mockResolvedValueOnce(1)
+                .mockResolvedValueOnce(0),
+            $queryRaw: vi.fn().mockResolvedValue([
+                { snapshotId: 'snapshot-twitter-replay' },
+            ]),
+            feedSnapshot: {
+                create: vi.fn().mockResolvedValue({
+                    id: 'snapshot-twitter-replay',
+                    _count: { feedItems: 1 },
+                }),
+            },
+        };
+
+        vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => callback(transactionClient));
 
         const payload = {
             feed: [{ videoId: '1900123456789012345', caption: 'Replay test' }],
@@ -148,6 +167,8 @@ describe('Twitter Feed API', () => {
             .set('X-Resma-Upload-Id', 'twitter-upload-1')
             .send(payload);
 
+        resetIngestReplayGuardForTests();
+
         const second = await request(app)
             .post('/twitter/feed')
             .set('Authorization', `Bearer ${makeAuthToken()}`)
@@ -157,6 +178,7 @@ describe('Twitter Feed API', () => {
         expect(first.status).toBe(201);
         expect(second.status).toBe(201);
         expect(second.body).toEqual(first.body);
-        expect(prisma.feedSnapshot.create).toHaveBeenCalledTimes(1);
+        expect(transactionClient.feedSnapshot.create).toHaveBeenCalledTimes(1);
+        expect(transactionClient.$queryRaw).toHaveBeenCalledTimes(1);
     });
 });

@@ -4,6 +4,8 @@ export const SupportedPlatformSchema = z.enum(['youtube', 'instagram', 'tiktok',
 export type SupportedPlatform = z.infer<typeof SupportedPlatformSchema>;
 export type PlatformObserverVersions = Record<SupportedPlatform, string>;
 export const CURRENT_INGEST_VERSION = '1.0.0';
+export const MAX_FEED_ITEMS = 500;
+export const FEED_ITEM_LIMIT_ERROR_MESSAGE = `Feed payload exceeds the maximum of ${MAX_FEED_ITEMS} items`;
 export const CURRENT_OBSERVER_VERSIONS: PlatformObserverVersions = {
     youtube: 'youtube-observer-v2',
     instagram: 'instagram-observer-v2',
@@ -64,13 +66,13 @@ export type SessionMetadata = z.infer<typeof SessionMetadataSchema>;
 
 export const PlatformFeedPayloadSchema = z.object({
     platform: SupportedPlatformSchema,
-    feed: z.array(CapturedFeedItemSchema).min(1),
+    feed: z.array(CapturedFeedItemSchema).min(1).max(MAX_FEED_ITEMS),
     sessionMetadata: SessionMetadataSchema.default({}),
 });
 export type PlatformFeedPayload = z.infer<typeof PlatformFeedPayloadSchema>;
 
 export const FeedSnapshotEnvelopeSchema = z.object({
-    feed: z.array(CapturedFeedItemSchema).min(1),
+    feed: z.array(CapturedFeedItemSchema).min(1).max(MAX_FEED_ITEMS),
     sessionMetadata: SessionMetadataSchema.default({}),
 });
 export type FeedSnapshotEnvelope = z.infer<typeof FeedSnapshotEnvelopeSchema>;
@@ -250,6 +252,26 @@ const ITEM_VIDEO_ID_KEYS = [
     ['link', false],
 ] as const;
 
+const STRICT_METRIC_STRING_REGEX = /^(\d{1,15}(?:\.\d{1,6})?)([kmb])?$/i;
+const NUMERIC_STRING_FIELD_KEYS = new Set([
+    'position',
+    'positionInFeed',
+    'watchDuration',
+    'watchTime',
+    'impressionDuration',
+    'likes',
+    'likeCount',
+    'comments',
+    'commentCount',
+    'shares',
+    'shareCount',
+    'views',
+    'viewCount',
+    'recommendationCount',
+    'loopCount',
+    'seekCount',
+]);
+
 function pickVideoId(source: Record<string, unknown>): string | undefined {
     for (const [key, allowRawFallback] of ITEM_VIDEO_ID_KEYS) {
         const videoId = normalizeVideoId(source[key], allowRawFallback);
@@ -267,9 +289,14 @@ function parseMetricString(value: string): number | undefined {
         return undefined;
     }
 
-    const suffix = normalized.slice(-1).toLowerCase();
+    const match = normalized.match(STRICT_METRIC_STRING_REGEX);
+    if (!match) {
+        return undefined;
+    }
+
+    const suffix = (match[2] ?? '').toLowerCase();
     const multiplier = suffix === 'k' ? 1_000 : suffix === 'm' ? 1_000_000 : suffix === 'b' ? 1_000_000_000 : 1;
-    const numeric = multiplier === 1 ? normalized : normalized.slice(0, -1);
+    const numeric = match[1];
     const parsed = Number.parseFloat(numeric);
     if (!Number.isFinite(parsed) || parsed < 0) {
         return undefined;
@@ -330,6 +357,51 @@ function normalizeStringArray(value: unknown, maxItems: number): string[] | unde
     }
 
     return Array.from(new Set(values)).slice(0, maxItems);
+}
+
+function hasInvalidMetricStringField(source: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(source)) {
+        if (!NUMERIC_STRING_FIELD_KEYS.has(key) || typeof value !== 'string') {
+            continue;
+        }
+
+        const normalized = value.trim().replace(/,/g, '');
+        if (normalized.length === 0) {
+            continue;
+        }
+
+        if (!STRICT_METRIC_STRING_REGEX.test(normalized)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function hasInvalidMetricStrings(item: Record<string, unknown>): boolean {
+    if (hasInvalidMetricStringField(item)) {
+        return true;
+    }
+
+    const engagementMetrics = asRecord(item.engagementMetrics);
+    if (engagementMetrics && hasInvalidMetricStringField(engagementMetrics)) {
+        return true;
+    }
+
+    const recommendations = Array.isArray(item.recommendations)
+        ? item.recommendations
+        : Array.isArray(engagementMetrics?.recommendations)
+            ? engagementMetrics.recommendations
+            : [];
+
+    for (const recommendation of recommendations) {
+        const row = asRecord(recommendation);
+        if (row && hasInvalidMetricStringField(row)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function normalizeRecommendationRows(rows: unknown): RecommendationRow[] | undefined {
@@ -451,6 +523,9 @@ function normalizeEngagementMetrics(
 export function coerceCapturedFeedItem(rawItem: unknown, index = 0): CapturedFeedItem | null {
     const item = asRecord(rawItem);
     if (!item) {
+        return null;
+    }
+    if (hasInvalidMetricStrings(item)) {
         return null;
     }
 
@@ -628,6 +703,20 @@ function pickRawFeed(source: Record<string, unknown>): unknown[] | null {
     }
 
     return null;
+}
+
+export function getFeedItemLimitError(rawPayload: unknown): string | null {
+    const payload = asRecord(rawPayload);
+    if (!payload) {
+        return null;
+    }
+
+    const rawFeed = pickRawFeed(payload);
+    if (!rawFeed || rawFeed.length <= MAX_FEED_ITEMS) {
+        return null;
+    }
+
+    return FEED_ITEM_LIMIT_ERROR_MESSAGE;
 }
 
 export interface CoercePlatformFeedPayloadOptions {

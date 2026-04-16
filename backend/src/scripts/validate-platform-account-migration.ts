@@ -1,5 +1,8 @@
+import dotenv from 'dotenv';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+
+dotenv.config();
 
 interface CountRow {
     count: bigint | number;
@@ -22,6 +25,11 @@ async function queryCount(sql: Prisma.Sql): Promise<number> {
 
 async function main(): Promise<number> {
     console.log('Running platform-account migration validation...');
+
+    if (!process.env.DATABASE_URL) {
+        console.error('DATABASE_URL must be set before running platform-account migration validation.');
+        return 1;
+    }
 
     const totalCreators = await prisma.creator.count();
     const totalPlatformAccounts = await prisma.platformAccount.count();

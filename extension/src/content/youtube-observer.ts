@@ -134,7 +134,7 @@ class YouTubeObserver {
                 void (async () => {
                     try {
                         await this.waitForRecommendationsBeforeStop();
-                        this.finalizeActiveVideo({ forceUpload: true });
+                        this.finalizeActiveVideo();
                     } finally {
                         this.isManualCaptureActive = false;
                         sendResponse({
@@ -188,6 +188,10 @@ class YouTubeObserver {
         }
     }
 
+    private hasExplicitCaptureConsent() {
+        return this.isManualCaptureActive;
+    }
+
     private snapshotHomeFeed() {
         setTimeout(() => {
             const items = Array.from(document.querySelectorAll('ytd-rich-item-renderer'));
@@ -214,7 +218,7 @@ class YouTubeObserver {
                 .filter((entry): entry is HomeFeedItem => Boolean(entry));
 
             this.session.homeFeedSnapshot = feed;
-            if (!this.isManualCaptureActive || feed.length === 0) {
+            if (!this.hasExplicitCaptureConsent() || feed.length === 0) {
                 return;
             }
 
@@ -537,7 +541,7 @@ class YouTubeObserver {
         return null;
     }
 
-    private finalizeActiveVideo(options: { forceUpload?: boolean } = {}) {
+    private finalizeActiveVideo() {
         if (!this.activeVideoId || !this.activeVideoElement) return;
 
         console.log(`[RESMA] Finalizing video: ${this.activeVideoId}, watched: ${this.maxTimeWatched.toFixed(1)}s`);
@@ -553,7 +557,7 @@ class YouTubeObserver {
 
         this.scrapeRecommendations(finalizedVideoId);
         const entry = this.getActiveEntry();
-        if (entry && (this.isManualCaptureActive || options.forceUpload)) {
+        if (entry && this.hasExplicitCaptureConsent()) {
             chrome.runtime.sendMessage({
                 type: 'UPLOAD_PLATFORM_FEED',
                 payload: {

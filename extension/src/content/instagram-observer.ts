@@ -39,6 +39,7 @@ class InstagramObserver {
     private intersectionObserver: IntersectionObserver;
     private isCapturing = false;
     private clientSessionId = `ig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    private periodicFlushIntervalId: number | null = null;
 
     private activeReelId: string | null = null;
     private activeVideoElement: HTMLVideoElement | null = null;
@@ -52,7 +53,6 @@ class InstagramObserver {
 
         this.setupMessageListener();
         this.initObservers();
-        this.startPeriodicFlush();
         console.log('[RESMA] Instagram observer v2 initialized');
     }
 
@@ -71,6 +71,7 @@ class InstagramObserver {
                 this.manualCaptureBuffer.clear();
                 this.lightweightUploadedIds.clear();
                 this.clientSessionId = `ig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+                this.startPeriodicFlush();
                 sendResponse({ success: true, data: { itemCount: 0 } });
                 return true;
             }
@@ -81,6 +82,7 @@ class InstagramObserver {
                     const flushResult = await this.flushManualCaptureSession();
                     if (flushResult.success) {
                         this.isCapturing = false;
+                        this.stopPeriodicFlush();
                         sendResponse({ success: true, data: { itemCount: flushResult.itemCount } });
                         return;
                     }
@@ -116,10 +118,26 @@ class InstagramObserver {
     }
 
     private startPeriodicFlush() {
-        setInterval(() => {
+        if (!this.isCapturing || this.periodicFlushIntervalId !== null) {
+            return;
+        }
+
+        this.periodicFlushIntervalId = window.setInterval(() => {
+            if (!this.isCapturing) {
+                return;
+            }
             void this.sendLightweightBatch();
             this.checkActiveReel();
         }, 12000);
+    }
+
+    private stopPeriodicFlush() {
+        if (this.periodicFlushIntervalId === null) {
+            return;
+        }
+
+        window.clearInterval(this.periodicFlushIntervalId);
+        this.periodicFlushIntervalId = null;
     }
 
     private getCaptureSurface(): InstagramCaptureSurface {
@@ -435,6 +453,10 @@ class InstagramObserver {
     }
 
     private uploadFeed(feed: InstagramCapturedItem[], metadata: Record<string, unknown>): Promise<boolean> {
+        if (!this.isCapturing || feed.length === 0) {
+            return Promise.resolve(false);
+        }
+
         return new Promise((resolve) => {
             chrome.runtime.sendMessage({
                 type: 'UPLOAD_PLATFORM_FEED',

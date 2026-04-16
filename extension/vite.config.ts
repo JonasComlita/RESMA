@@ -38,6 +38,12 @@ function manifestRewritePlugin(): Plugin {
 
 export default defineConfig({
     plugins: [react(), manifestRewritePlugin()],
+    test: {
+        environment: 'node',
+        include: ['tests/**/*.test.ts'],
+        clearMocks: true,
+        restoreMocks: true,
+    },
     build: {
         outDir: 'dist',
         rollupOptions: {

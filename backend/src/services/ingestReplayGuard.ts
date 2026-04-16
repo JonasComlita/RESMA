@@ -23,6 +23,10 @@ function trimHeader(value: string | string[] | undefined): string | null {
     return trimmed.length > 0 ? trimmed : null;
 }
 
+export function getUploadId(req: Request): string | null {
+    return trimHeader(req.headers['x-resma-upload-id']);
+}
+
 function pruneExpiredResponses() {
     const now = Date.now();
     for (const [key, value] of completedResponses.entries()) {
@@ -70,7 +74,7 @@ export function getReplayKey(req: Request, userId: string | undefined): string |
         return null;
     }
 
-    const uploadId = trimHeader(req.headers['x-resma-upload-id']);
+    const uploadId = getUploadId(req);
     if (!uploadId) {
         return null;
     }

@@ -31,12 +31,13 @@ describe('YouTube route helpers', () => {
         });
     });
 
-    it('treats engagement-metric recommendations as watch signals', () => {
+    it('treats engagement-metric recommendations as watch signals when the top-level recommendations field is absent', () => {
         expect(
             hasYouTubeWatchSignals({
                 engagementMetrics: {
                     recommendations: [{ videoId: 'next-video' }],
                 },
+                recommendations: undefined,
             })
         ).toBe(true);
     });

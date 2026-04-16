@@ -4,6 +4,7 @@ import {
     coercePlatformFeedPayload,
     CURRENT_INGEST_VERSION,
     CURRENT_OBSERVER_VERSIONS,
+    MAX_FEED_ITEMS,
 } from '@resma/shared';
 
 describe('Shared payload contract coercion', () => {
@@ -74,7 +75,40 @@ describe('Shared payload contract coercion', () => {
         });
     });
 
-    it('rejects payloads when no valid feed item can be coerced', () => {
+    it('rejects payloads that exceed the shared feed item limit', () => {
+        const payload = coercePlatformFeedPayload(
+            {
+                platform: 'youtube',
+                feed: Array.from({ length: MAX_FEED_ITEMS + 1 }, (_, index) => ({
+                    videoId: `abc123xyz${index}`,
+                })),
+            },
+            { expectedPlatform: 'youtube' }
+        );
+
+        expect(payload).toBeNull();
+    });
+
+    it('rejects payloads with malformed metric strings instead of coercing them', () => {
+        const payload = coercePlatformFeedPayload(
+            {
+                platform: 'instagram',
+                feed: [
+                    {
+                        id: 'C9xAbCdEf12',
+                        engagementMetrics: {
+                            likes: '1mb',
+                        },
+                    },
+                ],
+            },
+            { expectedPlatform: 'instagram' }
+        );
+
+        expect(payload).toBeNull();
+    });
+
+    it('rejects payloads when every feed item is dropped during coercion', () => {
         const payload = coercePlatformFeedPayload(
             {
                 platform: 'instagram',
