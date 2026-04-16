@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 export const DEFAULT_JWT_SECRET = 'dev-secret-change-me';

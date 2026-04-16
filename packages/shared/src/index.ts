@@ -177,7 +177,13 @@ function extractVideoIdFromText(rawValue: string): string | undefined {
             return twitterId;
         }
 
-        if (hostname.includes('youtube.com') || hostname.includes('instagram.com') || hostname.includes('tiktok.com') || hostname.includes('twitter.com') || hostname.includes('x.com')) {
+        if (
+            hostname.includes('youtube.com')
+            || hostname.includes('instagram.com')
+            || hostname.includes('tiktok.com')
+            || hostname.includes('twitter.com')
+            || hostname.includes('x.com')
+        ) {
             const lastSegment = sanitizeString(pathname.split('/').filter(Boolean).pop());
             if (lastSegment) {
                 return lastSegment;

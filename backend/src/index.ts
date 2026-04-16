@@ -27,13 +27,14 @@ app.use(msgpackParser);
 app.use(express.json({ limit: '10mb' }));
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Routes
 app.use('/auth/login', createAuthRateLimiter());
 app.use('/auth/register', createAuthRateLimiter());
+app.use('/auth', authRouter);
 app.use('/feeds', createIngestRateLimiter(), feedsRouter);
 app.use('/analysis', analysisRouter);
 app.use('/creators', creatorsRouter);
@@ -55,7 +56,7 @@ const isExecutedDirectly = typeof require !== 'undefined'
 // Start server only when executed directly (not during tests/imports)
 if (isExecutedDirectly) {
     app.listen(config.port, () => {
-        console.log(`🚀 RESMA API running on port ${config.port}`);
+        console.log(`RESMA API running on port ${config.port}`);
         console.log(`   Environment: ${config.nodeEnv}`);
     });
 }

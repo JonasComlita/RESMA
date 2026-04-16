@@ -5,18 +5,14 @@
 import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 
 interface TwitterTweet {
-    id: string; // Internal ID or extracted ID (status URL part)
+    id: string;
     authorHandle: string | null;
     authorName: string | null;
     text: string | null;
     timestamp: number;
-
-    // Telemetry
     impressionStartTime: number;
     impressionDuration: number;
     isPromoted: boolean;
-
-    // Interaction
     hasInteracted: boolean;
     interactionType: string | null;
     lastUploadedImpressionDuration: number;
@@ -32,22 +28,18 @@ class TwitterObserver {
 
     constructor() {
         console.log('[RESMA] Twitter Observer initialized');
-
-        // Setup Intersection Observer for impressions
         this.intersectionObserver = new IntersectionObserver(this.handleIntersection.bind(this), {
-            threshold: 0.6 // Tweet considered "viewed" if 60% visible
+            threshold: 0.6,
         });
-
         this.init();
     }
 
     private init() {
-        // Watch for new tweets loaded into DOM
         const timeline = document.querySelector('div[data-testid="primaryColumn"]') || document.body;
 
         const mutationObserver = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
-                mutation.addedNodes.forEach(node => {
+                mutation.addedNodes.forEach((node) => {
                     if (node instanceof Element) {
                         this.processNode(node);
                     }
@@ -57,11 +49,8 @@ class TwitterObserver {
 
         mutationObserver.observe(timeline, { childList: true, subtree: true });
 
-        // Process initial Load
         this.scanForTweets();
-
-        // Setup periodic batch upload
-        setInterval(() => this.sendBatch(), 10000); // Every 10 seconds
+        this.batchTimer = window.setInterval(() => this.sendBatch(), 10000);
     }
 
     private sanitizeString(value: string | null | undefined): string | null {
@@ -105,18 +94,16 @@ class TwitterObserver {
     }
 
     private scanForTweets() {
-        // Look for tweets
         const elements = document.querySelectorAll('article[data-testid="tweet"]');
-        elements.forEach(el => this.observeTweet(el));
+        elements.forEach((el) => this.observeTweet(el));
     }
 
     private processNode(node: Element) {
-        // Check if node itself is tweet or contains tweets
         if (node.matches && node.matches('article[data-testid="tweet"]')) {
             this.observeTweet(node);
         } else {
             const tweets = node.querySelectorAll?.('article[data-testid="tweet"]');
-            tweets?.forEach(el => this.observeTweet(el));
+            tweets?.forEach((el) => this.observeTweet(el));
         }
     }
 
@@ -126,28 +113,23 @@ class TwitterObserver {
         this.observedTweets.add(element);
         this.intersectionObserver.observe(element);
 
-        // Attach click listeners for interaction
-        const likeBtn = element.querySelector('[data-testid="like"]');
-        likeBtn?.addEventListener('click', () => this.recordInteraction(element, 'like'));
-
-        const retweetBtn = element.querySelector('[data-testid="retweet"]');
-        retweetBtn?.addEventListener('click', () => this.recordInteraction(element, 'retweet'));
-
-        const replyBtn = element.querySelector('[data-testid="reply"]');
-        replyBtn?.addEventListener('click', () => this.recordInteraction(element, 'reply'));
+        element.querySelector('[data-testid="like"]')
+            ?.addEventListener('click', () => this.recordInteraction(element, 'like'));
+        element.querySelector('[data-testid="retweet"]')
+            ?.addEventListener('click', () => this.recordInteraction(element, 'retweet'));
+        element.querySelector('[data-testid="reply"]')
+            ?.addEventListener('click', () => this.recordInteraction(element, 'reply'));
     }
 
     private handleIntersection(entries: IntersectionObserverEntry[]) {
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
             const element = entry.target;
             const tweetId = this.getTweetId(element);
 
             if (!tweetId) return;
 
             if (entry.isIntersecting) {
-                // START IMPRESSION
                 if (!this.sessionTweets.has(tweetId)) {
-                    // Initialize tweet data
                     const data = this.scrapeTweetData(element, tweetId);
                     if (data) this.sessionTweets.set(tweetId, data);
                 }
@@ -156,14 +138,12 @@ class TwitterObserver {
                 if (tweet) {
                     tweet.impressionStartTime = Date.now();
                 }
-
             } else {
-                // END IMPRESSION
                 const tweet = this.sessionTweets.get(tweetId);
                 if (tweet && tweet.impressionStartTime > 0) {
                     const duration = (Date.now() - tweet.impressionStartTime) / 1000;
                     tweet.impressionDuration += duration;
-                    tweet.impressionStartTime = 0; // Reset active timer
+                    tweet.impressionStartTime = 0;
                 }
             }
         });
@@ -184,15 +164,8 @@ class TwitterObserver {
             const userLink = element.querySelector('div[data-testid="User-Name"] a');
             const authorHandle = userLink?.getAttribute('href')?.replace('/', '') || null;
             const authorName = userLink?.textContent?.split('@')[0] || null;
-
-            const textEl = element.querySelector('div[data-testid="tweetText"]');
-            const text = textEl?.textContent || null;
-
-            // Ad detection
-            // "Ad" marker is often a span with text "Ad" or specific SVG. 
-            // Better heuristic: look for "Promoted" or lack of timestamp link to status
-            const timeEl = element.querySelector('time');
-            const isPromoted = !timeEl && !!element.querySelector('svg'); // Rough heuristic, refine later
+            const text = element.querySelector('div[data-testid="tweetText"]')?.textContent || null;
+            const isPromoted = !element.querySelector('time') && !!element.querySelector('svg');
 
             return {
                 id: tweetId,
@@ -208,18 +181,17 @@ class TwitterObserver {
                 lastUploadedImpressionDuration: 0,
                 lastUploadedInteractionType: null,
             };
-        } catch (e) {
+        } catch {
             return null;
         }
     }
 
     private getTweetId(element: Element): string | null {
-        // Try to get status URL
         const link = element.querySelector('a[href*="/status/"]');
         if (link) {
             return link.getAttribute('href')?.split('/status/')[1]?.split('?')[0] || null;
         }
-        // Fallback for promoted/system tweets that do not expose a canonical status URL.
+
         return this.buildSyntheticTweetId(element);
     }
 
@@ -245,13 +217,11 @@ class TwitterObserver {
             };
         }> = [];
 
-        // Find tweets that have accrued view time or interactions
         for (const [, tweet] of this.sessionTweets.entries()) {
-            // Update active impression if still viewing
             if (tweet.impressionStartTime > 0) {
                 const currentDuration = (Date.now() - tweet.impressionStartTime) / 1000;
                 tweet.impressionDuration += currentDuration;
-                tweet.impressionStartTime = Date.now(); // Checkpoint
+                tweet.impressionStartTime = Date.now();
             }
 
             const unsentImpressionDuration = Math.max(0, tweet.impressionDuration - tweet.lastUploadedImpressionDuration);
@@ -285,40 +255,42 @@ class TwitterObserver {
             });
         }
 
-        if (pendingUploads.length > 0) {
-            console.log(`[RESMA] Sending batch of ${pendingUploads.length} tweets`);
-            chrome.runtime.sendMessage({
-                type: 'UPLOAD_PLATFORM_FEED',
-                payload: {
-                    platform: 'twitter',
-                    feed: pendingUploads.map((entry) => entry.payload),
-                    sessionMetadata: {
-                        type: 'TIMELINE_BATCH',
-                        captureSurface: this.getCaptureSurface(),
-                        clientSessionId: this.clientSessionId,
-                        observerVersion: CURRENT_OBSERVER_VERSIONS.twitter,
-                        ingestVersion: CURRENT_INGEST_VERSION,
-                        uploadEvent: 'TWITTER_FEED_SNAPSHOT',
-                        capturedAt: new Date().toISOString(),
-                    }
-                }
-            }, (response) => {
-                if (chrome.runtime.lastError) {
-                    console.warn('[RESMA] Twitter upload callback failed:', chrome.runtime.lastError.message);
-                    return;
-                }
-
-                if (!response?.success) {
-                    console.warn('[RESMA] Twitter upload rejected by background pipeline');
-                    return;
-                }
-
-                for (const entry of pendingUploads) {
-                    entry.tweet.lastUploadedImpressionDuration = entry.nextUploadedImpressionDuration;
-                    entry.tweet.lastUploadedInteractionType = entry.nextUploadedInteractionType;
-                }
-            });
+        if (pendingUploads.length === 0) {
+            return;
         }
+
+        console.log(`[RESMA] Sending batch of ${pendingUploads.length} tweets`);
+        chrome.runtime.sendMessage({
+            type: 'UPLOAD_PLATFORM_FEED',
+            payload: {
+                platform: 'twitter',
+                feed: pendingUploads.map((entry) => entry.payload),
+                sessionMetadata: {
+                    type: 'TIMELINE_BATCH',
+                    captureSurface: this.getCaptureSurface(),
+                    clientSessionId: this.clientSessionId,
+                    observerVersion: CURRENT_OBSERVER_VERSIONS.twitter,
+                    ingestVersion: CURRENT_INGEST_VERSION,
+                    uploadEvent: 'TWITTER_FEED_SNAPSHOT',
+                    capturedAt: new Date().toISOString(),
+                },
+            },
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.warn('[RESMA] Twitter upload callback failed:', chrome.runtime.lastError.message);
+                return;
+            }
+
+            if (!response?.success) {
+                console.warn('[RESMA] Twitter upload rejected by background pipeline');
+                return;
+            }
+
+            for (const entry of pendingUploads) {
+                entry.tweet.lastUploadedImpressionDuration = entry.nextUploadedImpressionDuration;
+                entry.tweet.lastUploadedInteractionType = entry.nextUploadedInteractionType;
+            }
+        });
     }
 
     private getCaptureSurface(): string {

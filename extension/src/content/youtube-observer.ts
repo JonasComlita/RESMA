@@ -38,12 +38,10 @@ interface YouTubeVideo {
     duration: number;
     views: string | null;
     uploadDate: string | null;
-
     watchTime: number;
     seekCount: number;
     pauseCount: number;
     completed: boolean;
-
     recommendations: YouTubeRecommendation[];
     adEvents: AdEvent[];
     captureSurface: CaptureSurface;
@@ -72,13 +70,11 @@ const STOP_CAPTURE_RECOMMENDATION_POLL_MS = 250;
 class YouTubeObserver {
     private session: YouTubeSession;
     private isManualCaptureActive = false;
-
     private activeVideoId: string | null = null;
     private activeVideoEntryIndex: number | null = null;
     private activeVideoElement: HTMLVideoElement | null = null;
     private maxTimeWatched = 0;
     private lastCurrentTime = 0;
-
     private isAdPlaying = false;
 
     constructor() {
@@ -161,29 +157,19 @@ class YouTubeObserver {
     }
 
     private getCurrentCaptureSurface(): CaptureSurface {
-        if (location.pathname.startsWith('/shorts/')) {
-            return 'shorts';
-        }
-        if (location.pathname === '/watch') {
-            return 'watch';
-        }
+        if (location.pathname.startsWith('/shorts/')) return 'shorts';
+        if (location.pathname === '/watch') return 'watch';
         return 'unknown';
     }
 
     private getCurrentVideoId(): string | null {
         if (location.pathname === '/watch') {
             const queryVideoId = new URLSearchParams(location.search).get('v');
-            if (queryVideoId) {
-                return queryVideoId.trim();
-            }
+            if (queryVideoId) return queryVideoId.trim();
         }
 
         const shortsMatch = location.pathname.match(/^\/shorts\/([A-Za-z0-9_-]{6,20})/);
-        if (shortsMatch?.[1]) {
-            return shortsMatch[1];
-        }
-
-        return null;
+        return shortsMatch?.[1] ?? null;
     }
 
     private handleNavigation() {
@@ -211,8 +197,7 @@ class YouTubeObserver {
                     const videoId = this.extractVideoIdFromHref(titleAnchor?.href ?? null);
                     if (!videoId) return null;
 
-                    const section = item
-                        .closest('ytd-rich-section-renderer')
+                    const section = item.closest('ytd-rich-section-renderer')
                         ?.querySelector('#title')
                         ?.textContent
                         ?.trim() ?? null;
@@ -223,7 +208,7 @@ class YouTubeObserver {
                         videoId,
                         channel: item.querySelector('ytd-channel-name')?.textContent?.trim() || null,
                         section,
-                        surface: 'home-feed-grid' as const,
+                        surface: 'home-feed-grid',
                     };
                 })
                 .filter((entry): entry is HomeFeedItem => Boolean(entry));
@@ -299,9 +284,7 @@ class YouTubeObserver {
     }
 
     private normalizeChannelHandle(rawHandle: string | null): string | null {
-        if (!rawHandle) {
-            return null;
-        }
+        if (!rawHandle) return null;
 
         try {
             const parsed = new URL(rawHandle, location.origin);
@@ -310,7 +293,7 @@ class YouTubeObserver {
                 return handleMatch[1];
             }
         } catch {
-            // Fall back to the raw handle string below.
+            // Fall back to raw string normalization below.
         }
 
         const normalized = rawHandle.trim().replace(/^\/+/, '').replace(/^@/, '');
@@ -363,11 +346,7 @@ class YouTubeObserver {
         const entry = this.getActiveEntry();
         if (!entry) return;
 
-        entry.adEvents.push({
-            type,
-            timestamp: Date.now(),
-        });
-
+        entry.adEvents.push({ type, timestamp: Date.now() });
         console.log(`[RESMA] Ad Event: ${type}`);
     }
 
@@ -401,7 +380,6 @@ class YouTubeObserver {
         ].filter((candidate) => candidate.videoId !== currentVideoId);
 
         const recommendations = this.mergeRecommendations(candidates, 30);
-
         this.updateActiveEntry((entry) => {
             if (entry.videoId === currentVideoId) {
                 entry.recommendations = recommendations;
@@ -441,11 +419,7 @@ class YouTubeObserver {
         }
     }
 
-    private collectFromRenderer(
-        selector: string,
-        surface: RecommendationSurface,
-        limit: number
-    ): YouTubeRecommendation[] {
+    private collectFromRenderer(selector: string, surface: RecommendationSurface, limit: number): YouTubeRecommendation[] {
         const elements = Array.from(document.querySelectorAll(selector)).slice(0, limit);
 
         return elements
@@ -467,22 +441,12 @@ class YouTubeObserver {
                     || element.querySelector('#channel-name')?.textContent?.trim()
                     || null;
 
-                return {
-                    position: index + 1,
-                    videoId,
-                    title,
-                    channel,
-                    surface,
-                };
+                return { position: index + 1, videoId, title, channel, surface };
             })
             .filter((entry): entry is YouTubeRecommendation => Boolean(entry));
     }
 
-    private collectFromAnchors(
-        selector: string,
-        surface: RecommendationSurface,
-        limit: number
-    ): YouTubeRecommendation[] {
+    private collectFromAnchors(selector: string, surface: RecommendationSurface, limit: number): YouTubeRecommendation[] {
         const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>(selector)).slice(0, limit);
 
         return anchors
@@ -490,12 +454,10 @@ class YouTubeObserver {
                 const videoId = this.extractVideoIdFromHref(anchor.href);
                 if (!videoId) return null;
 
-                const title = anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null;
-
                 return {
                     position: index + 1,
                     videoId,
-                    title,
+                    title: anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null,
                     channel: null,
                     surface,
                 };
@@ -532,12 +494,8 @@ class YouTubeObserver {
                 existing.position = recommendation.position;
                 existing.primarySurface = recommendation.surface;
             }
-            if (!existing.title && recommendation.title) {
-                existing.title = recommendation.title;
-            }
-            if (!existing.channel && recommendation.channel) {
-                existing.channel = recommendation.channel;
-            }
+            if (!existing.title && recommendation.title) existing.title = recommendation.title;
+            if (!existing.channel && recommendation.channel) existing.channel = recommendation.channel;
         }
 
         return Array.from(merged.values())
@@ -564,9 +522,7 @@ class YouTubeObserver {
             }
 
             const shortsMatch = parsed.pathname.match(/\/shorts\/([A-Za-z0-9_-]{6,20})/);
-            if (shortsMatch?.[1]) {
-                return shortsMatch[1];
-            }
+            if (shortsMatch?.[1]) return shortsMatch[1];
 
             if (parsed.hostname.includes('youtu.be')) {
                 const shortPathId = parsed.pathname.replace(/^\/+/, '').split('/')[0];
