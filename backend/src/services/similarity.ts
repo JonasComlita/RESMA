@@ -13,6 +13,11 @@ interface SimilarFeed {
     capturedAt: Date;
 }
 
+export interface SimilarFeedSearchResult {
+    similarFeeds: SimilarFeed[];
+    candidateCount: number;
+}
+
 /**
  * Find feeds similar to the user's feeds
  * Uses creator overlap as a basic similarity metric
@@ -21,7 +26,7 @@ export async function findSimilarFeeds(
     userId: string,
     snapshotId?: string,
     limit: number = 10
-): Promise<SimilarFeed[]> {
+): Promise<SimilarFeedSearchResult> {
     // Get the user's creators from their feeds
     const userCreators = await prisma.feedItem.findMany({
         where: {
@@ -38,7 +43,10 @@ export async function findSimilarFeeds(
     );
 
     if (userCreatorSet.size === 0) {
-        return [];
+        return {
+            similarFeeds: [],
+            candidateCount: 0,
+        };
     }
 
     // Find other users' snapshots that have overlapping creators
@@ -87,7 +95,10 @@ export async function findSimilarFeeds(
     }
 
     // Sort by similarity and limit
-    return similarFeeds
-        .sort((a, b) => b.similarityScore - a.similarityScore)
-        .slice(0, limit);
+    return {
+        similarFeeds: similarFeeds
+            .sort((a, b) => b.similarityScore - a.similarityScore)
+            .slice(0, limit),
+        candidateCount: otherSnapshots.length,
+    };
 }

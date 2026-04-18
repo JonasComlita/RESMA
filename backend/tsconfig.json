@@ -3,6 +3,12 @@
         "target": "ES2022",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
+        "baseUrl": ".",
+        "paths": {
+            "@resma/shared": [
+                "../packages/shared/dist/esm/index.d.ts"
+            ]
+        },
         "lib": [
             "ES2022"
         ],

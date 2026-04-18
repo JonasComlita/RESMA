@@ -3,7 +3,7 @@ import {
     extractRecommendationsWithDiagnostics,
     normalizeRecommendationVideoId,
 } from './recommendationParsing.js';
-import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
+import { decodeSessionMetadataResult } from './sessionMetadata.js';
 
 let prismaClientPromise: Promise<any> | null = null;
 
@@ -173,6 +173,11 @@ export interface RecommendationQualityGate {
     minimumComparedUsers: number;
     cohortStabilityScore: number;
     minimumCohortStabilityScore: number;
+    metadataIntegrityScore: number;
+    minimumMetadataIntegrityScore: number;
+    snapshotsWithMetadata: number;
+    decodedMetadataSnapshots: number;
+    invalidMetadataSnapshots: number;
     minimumCohortUsersForLift: number;
     canInterpretLift: boolean;
     reasonCodes: RecommendationQualityReasonCode[];
@@ -186,6 +191,7 @@ export type RecommendationQualityReasonCode =
     | 'strict_rows_below_minimum'
     | 'compared_users_below_minimum'
     | 'cohort_stability_below_minimum'
+    | 'metadata_integrity_below_minimum'
     | 'forecast_reliability_unavailable'
     | 'forecast_reliability_low';
 
@@ -195,6 +201,7 @@ export interface RecommendationQualityThresholds {
     minimumStrictRecommendationRows: number;
     minimumComparedUsers: number;
     minimumCohortStabilityScore: number;
+    minimumMetadataIntegrityScore: number;
     minimumCohortUsersForLift: number;
 }
 
@@ -204,9 +211,14 @@ export interface RecommendationQualityGateContext {
     minimumStrictRecommendationRows?: number;
     minimumComparedUsers?: number;
     minimumCohortStabilityScore?: number;
+    minimumMetadataIntegrityScore?: number;
     minimumCohortUsersForLift?: number;
     comparedUsers?: number;
     cohortStabilityScore?: number;
+    metadataIntegrityScore?: number;
+    snapshotsWithMetadata?: number;
+    decodedMetadataSnapshots?: number;
+    invalidMetadataSnapshots?: number;
 }
 
 const DEFAULT_RECOMMENDATION_QUALITY_THRESHOLDS: RecommendationQualityThresholds = {
@@ -215,6 +227,7 @@ const DEFAULT_RECOMMENDATION_QUALITY_THRESHOLDS: RecommendationQualityThresholds
     minimumStrictRecommendationRows: 6,
     minimumComparedUsers: 3,
     minimumCohortStabilityScore: 0.55,
+    minimumMetadataIntegrityScore: 0.8,
     minimumCohortUsersForLift: 3,
 };
 
@@ -225,6 +238,7 @@ const PLATFORM_RECOMMENDATION_QUALITY_THRESHOLDS: Record<string, Partial<Recomme
         minimumStrictRecommendationRows: 8,
         minimumComparedUsers: 4,
         minimumCohortStabilityScore: 0.62,
+        minimumMetadataIntegrityScore: 0.85,
         minimumCohortUsersForLift: 3,
     },
     instagram: {
@@ -233,6 +247,7 @@ const PLATFORM_RECOMMENDATION_QUALITY_THRESHOLDS: Record<string, Partial<Recomme
         minimumStrictRecommendationRows: 6,
         minimumComparedUsers: 3,
         minimumCohortStabilityScore: 0.58,
+        minimumMetadataIntegrityScore: 0.8,
         minimumCohortUsersForLift: 3,
     },
     tiktok: {
@@ -241,6 +256,7 @@ const PLATFORM_RECOMMENDATION_QUALITY_THRESHOLDS: Record<string, Partial<Recomme
         minimumStrictRecommendationRows: 6,
         minimumComparedUsers: 3,
         minimumCohortStabilityScore: 0.58,
+        minimumMetadataIntegrityScore: 0.8,
         minimumCohortUsersForLift: 3,
     },
 };
@@ -285,21 +301,6 @@ function asRecord(value: unknown): Record<string, unknown> {
         return {};
     }
     return value as Record<string, unknown>;
-}
-
-function decodeSessionMetadata(data: Buffer | null): Record<string, unknown> | null {
-    if (!data) return null;
-    try {
-        const decoded = isCompressedMsgpack(data)
-            ? decompressAndUnpack<unknown>(data)
-            : JSON.parse(data.toString('utf-8'));
-        if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
-            return null;
-        }
-        return decoded as Record<string, unknown>;
-    } catch {
-        return null;
-    }
 }
 
 function incrementCounter(counter: Map<string, number>, key: string, amount = 1) {
@@ -579,6 +580,24 @@ function evaluateLiftInterpretation(
 interface WindowExposureSummary {
     users: Set<string>;
     targetUsers: Set<string>;
+}
+
+export interface AudienceMetadataIntegritySummary {
+    totalSnapshots: number;
+    snapshotsWithMetadata: number;
+    decodedMetadataSnapshots: number;
+    invalidMetadataSnapshots: number;
+    metadataIntegrityScore: number;
+}
+
+interface LoadedAudienceFeedItems {
+    items: RawAudienceFeedItem[];
+    metadataIntegrity: AudienceMetadataIntegritySummary;
+    loadStats: {
+        snapshotCount: number;
+        stitchedItemCount: number;
+        durationMs: number;
+    };
 }
 
 function medianTimestamp(values: number[]): number | null {
@@ -942,6 +961,11 @@ function defaultQualityGate(): RecommendationQualityGate {
         minimumComparedUsers: thresholds.minimumComparedUsers,
         cohortStabilityScore: 1,
         minimumCohortStabilityScore: thresholds.minimumCohortStabilityScore,
+        metadataIntegrityScore: 1,
+        minimumMetadataIntegrityScore: thresholds.minimumMetadataIntegrityScore,
+        snapshotsWithMetadata: 0,
+        decodedMetadataSnapshots: 0,
+        invalidMetadataSnapshots: 0,
         minimumCohortUsersForLift: thresholds.minimumCohortUsersForLift,
         canInterpretLift: true,
         reasonCodes: [],
@@ -980,6 +1004,9 @@ function qualityReasonText(
         strictRecommendationRows: number;
         comparedUsers: number;
         cohortStabilityScore: number;
+        metadataIntegrityScore: number;
+        invalidMetadataSnapshots: number;
+        snapshotsWithMetadata: number;
     },
     thresholds: RecommendationQualityThresholds
 ) {
@@ -994,6 +1021,10 @@ function qualityReasonText(
         return `Compared users ${values.comparedUsers} are below minimum ${thresholds.minimumComparedUsers}.`;
     case 'cohort_stability_below_minimum':
         return `Cohort stability ${roundTo(values.cohortStabilityScore)} is below minimum ${roundTo(thresholds.minimumCohortStabilityScore)}.`;
+    case 'metadata_integrity_below_minimum':
+        return values.snapshotsWithMetadata > 0
+            ? `Metadata integrity ${roundTo(values.metadataIntegrityScore)} is below minimum ${roundTo(thresholds.minimumMetadataIntegrityScore)} because ${values.invalidMetadataSnapshots} snapshot(s) could not be decoded.`
+            : 'Session metadata coverage is too sparse to verify stitching integrity for this forecast window.';
     case 'forecast_reliability_low':
         return 'Forecast reliability is below the minimum confidence threshold.';
     case 'forecast_reliability_unavailable':
@@ -1033,6 +1064,11 @@ export function deriveRecommendationQualityGate(
         ),
         minimumCohortStabilityScore: clamp(
             context.minimumCohortStabilityScore ?? platformThresholds.minimumCohortStabilityScore,
+            0,
+            1
+        ),
+        minimumMetadataIntegrityScore: clamp(
+            context.minimumMetadataIntegrityScore ?? platformThresholds.minimumMetadataIntegrityScore,
             0,
             1
         ),
@@ -1083,6 +1119,25 @@ export function deriveRecommendationQualityGate(
         0,
         1
     );
+    const metadataIntegrityScore = clamp(
+        Number.isFinite(context.metadataIntegrityScore)
+            ? Number(context.metadataIntegrityScore)
+            : 1,
+        0,
+        1
+    );
+    const snapshotsWithMetadata = Math.max(
+        0,
+        Math.round(context.snapshotsWithMetadata ?? 0)
+    );
+    const decodedMetadataSnapshots = Math.max(
+        0,
+        Math.round(context.decodedMetadataSnapshots ?? snapshotsWithMetadata)
+    );
+    const invalidMetadataSnapshots = Math.max(
+        0,
+        Math.round(context.invalidMetadataSnapshots ?? Math.max(0, snapshotsWithMetadata - decodedMetadataSnapshots))
+    );
 
     const reasonCodes: RecommendationQualityReasonCode[] = [];
     if (parseCoverage < thresholds.minimumParseCoverage) {
@@ -1100,6 +1155,9 @@ export function deriveRecommendationQualityGate(
     if (cohortStabilityScore < thresholds.minimumCohortStabilityScore) {
         reasonCodes.push('cohort_stability_below_minimum');
     }
+    if (metadataIntegrityScore < thresholds.minimumMetadataIntegrityScore) {
+        reasonCodes.push('metadata_integrity_below_minimum');
+    }
 
     const parsePenalty = parseCoverage < thresholds.minimumParseCoverage
         ? (1 - (parseCoverage / Math.max(thresholds.minimumParseCoverage, 0.001))) * 0.34
@@ -1116,12 +1174,16 @@ export function deriveRecommendationQualityGate(
     const cohortStabilityPenalty = cohortStabilityScore < thresholds.minimumCohortStabilityScore
         ? (1 - (cohortStabilityScore / Math.max(thresholds.minimumCohortStabilityScore, 0.001))) * 0.1
         : 0;
+    const metadataIntegrityPenalty = metadataIntegrityScore < thresholds.minimumMetadataIntegrityScore
+        ? (1 - (metadataIntegrityScore / Math.max(thresholds.minimumMetadataIntegrityScore, 0.001))) * 0.12
+        : 0;
 
     const confidencePenalty = parsePenalty
         + parserDropPenalty
         + strictRowsPenalty
         + comparedUsersPenalty
-        + cohortStabilityPenalty;
+        + cohortStabilityPenalty
+        + metadataIntegrityPenalty;
     const confidenceMultiplier = clamp(1 - confidencePenalty, 0.35, 1);
     const status: RecommendationQualityGate['status'] = reasonCodes.length > 0 ? 'degraded' : 'ok';
     const canInterpretLift = status === 'ok'
@@ -1135,6 +1197,9 @@ export function deriveRecommendationQualityGate(
             strictRecommendationRows,
             comparedUsers,
             cohortStabilityScore,
+            metadataIntegrityScore,
+            invalidMetadataSnapshots,
+            snapshotsWithMetadata,
         },
         thresholds
     ));
@@ -1154,6 +1219,11 @@ export function deriveRecommendationQualityGate(
         minimumComparedUsers: thresholds.minimumComparedUsers,
         cohortStabilityScore: roundTo(cohortStabilityScore),
         minimumCohortStabilityScore: roundTo(thresholds.minimumCohortStabilityScore),
+        metadataIntegrityScore: roundTo(metadataIntegrityScore),
+        minimumMetadataIntegrityScore: roundTo(thresholds.minimumMetadataIntegrityScore),
+        snapshotsWithMetadata,
+        decodedMetadataSnapshots,
+        invalidMetadataSnapshots,
         minimumCohortUsersForLift: thresholds.minimumCohortUsersForLift,
         canInterpretLift,
         reasonCodes,
@@ -1403,8 +1473,8 @@ function stitchAndDedupeSnapshots(snapshots: AudienceSnapshot[]): RawAudienceFee
         } | null = null;
 
         for (const snapshot of userSnapshots) {
-            const metadata = decodeSessionMetadata(snapshot.sessionMetadata);
-            const quality = asRecord(metadata?.quality);
+            const metadataResult = decodeSessionMetadataResult(snapshot.sessionMetadata);
+            const quality = asRecord(metadataResult.metadata?.quality);
             const stitchedSessionKey = sanitizeString(quality.stitchedSessionKey);
             const fingerprintHash = sanitizeString(quality.fingerprintHash);
             const capturedAtMs = snapshot.capturedAt.getTime();
@@ -1470,7 +1540,40 @@ function stitchAndDedupeSnapshots(snapshots: AudienceSnapshot[]): RawAudienceFee
     return stitchedItems;
 }
 
-export async function loadAudienceFeedItems(platform: string): Promise<RawAudienceFeedItem[]> {
+function summarizeAudienceMetadataIntegrity(snapshots: AudienceSnapshot[]): AudienceMetadataIntegritySummary {
+    let snapshotsWithMetadata = 0;
+    let decodedMetadataSnapshots = 0;
+    let invalidMetadataSnapshots = 0;
+
+    for (const snapshot of snapshots) {
+        const decoded = decodeSessionMetadataResult(snapshot.sessionMetadata);
+        if (decoded.status === 'missing') {
+            continue;
+        }
+
+        snapshotsWithMetadata += 1;
+        if (decoded.status === 'decoded') {
+            decodedMetadataSnapshots += 1;
+        } else {
+            invalidMetadataSnapshots += 1;
+        }
+    }
+
+    const metadataIntegrityScore = snapshotsWithMetadata > 0
+        ? decodedMetadataSnapshots / snapshotsWithMetadata
+        : 1;
+
+    return {
+        totalSnapshots: snapshots.length,
+        snapshotsWithMetadata,
+        decodedMetadataSnapshots,
+        invalidMetadataSnapshots,
+        metadataIntegrityScore: roundTo(clamp(metadataIntegrityScore, 0, 1)),
+    };
+}
+
+async function loadAudienceFeedItemsDetailed(platform: string): Promise<LoadedAudienceFeedItems> {
+    const startedAt = Date.now();
     const prisma = await getPrismaClient();
     const snapshots = await prisma.feedSnapshot.findMany({
         where: { platform },
@@ -1500,10 +1603,33 @@ export async function loadAudienceFeedItems(platform: string): Promise<RawAudien
     });
 
     if (snapshots.length === 0) {
-        return [];
+        return {
+            items: [],
+            metadataIntegrity: summarizeAudienceMetadataIntegrity([]),
+            loadStats: {
+                snapshotCount: 0,
+                stitchedItemCount: 0,
+                durationMs: Date.now() - startedAt,
+            },
+        };
     }
 
-    return stitchAndDedupeSnapshots(snapshots);
+    const items = stitchAndDedupeSnapshots(snapshots);
+
+    return {
+        items,
+        metadataIntegrity: summarizeAudienceMetadataIntegrity(snapshots),
+        loadStats: {
+            snapshotCount: snapshots.length,
+            stitchedItemCount: items.length,
+            durationMs: Date.now() - startedAt,
+        },
+    };
+}
+
+export async function loadAudienceFeedItems(platform: string): Promise<RawAudienceFeedItem[]> {
+    const { items } = await loadAudienceFeedItemsDetailed(platform);
+    return items;
 }
 
 export async function getCohortUserIds(platform: string, cohortId: string): Promise<string[]> {
@@ -1512,7 +1638,7 @@ export async function getCohortUserIds(platform: string, cohortId: string): Prom
         throw new AudienceForecastInputError('cohortId is required');
     }
 
-    const items = await loadAudienceFeedItems(platform);
+    const { items } = await loadAudienceFeedItemsDetailed(platform);
     if (items.length === 0) {
         throw new AudienceForecastInputError(
             `No ${platform} comparison snapshots found yet.`,
@@ -1538,7 +1664,8 @@ export async function generateAudienceForecast(
     currentUserId: string,
     options: AudienceForecastOptions
 ): Promise<AudienceForecastResult> {
-    const items = await loadAudienceFeedItems(options.platform);
+    const loaded = await loadAudienceFeedItemsDetailed(options.platform);
+    const { items, metadataIntegrity, loadStats } = loaded;
     if (items.length === 0) {
         throw new AudienceForecastInputError(
             `No ${options.platform} comparison snapshots found yet.`,
@@ -1556,6 +1683,10 @@ export async function generateAudienceForecast(
     const qualityGate = deriveRecommendationQualityGate(items, options.platform, {
         comparedUsers: model.userProfiles.size,
         cohortStabilityScore,
+        metadataIntegrityScore: metadataIntegrity.metadataIntegrityScore,
+        snapshotsWithMetadata: metadataIntegrity.snapshotsWithMetadata,
+        decodedMetadataSnapshots: metadataIntegrity.decodedMetadataSnapshots,
+        invalidMetadataSnapshots: metadataIntegrity.invalidMetadataSnapshots,
         minimumCohortUsersForLift: thresholds.minimumCohortUsersForLift,
     });
     const liftStabilityByCohort = deriveCohortLiftStabilityEvidence(
@@ -1564,6 +1695,14 @@ export async function generateAudienceForecast(
         options.targetVideoId,
         options.platform
     );
+    console.info('analysis.audience-forecast.load', {
+        platform: options.platform,
+        snapshotCount: loadStats.snapshotCount,
+        stitchedItemCount: loadStats.stitchedItemCount,
+        metadataIntegrityScore: metadataIntegrity.metadataIntegrityScore,
+        invalidMetadataSnapshots: metadataIntegrity.invalidMetadataSnapshots,
+        durationMs: loadStats.durationMs,
+    });
     return computeAudienceForecastFromModel(
         model,
         currentUserId,

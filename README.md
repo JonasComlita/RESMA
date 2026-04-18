@@ -1,16 +1,30 @@
-# RESMA - Reverse Engineering Social Media Algorithms
+# RESMA - Privacy-Preserving Recommendation Observatory
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> Open-source platform for collectively understanding how TikTok, YouTube, Twitter, Instagram, and other algorithms shape feeds through crowdsourced data collection.
+> Open-source platform for pseudonymous recommendation capture, collective algorithm transparency, and aggregate-only insight generation across TikTok, YouTube, Twitter, Instagram, and other feeds.
 
 ## 🎯 Vision
 
-Social media algorithms are black boxes that shape what billions of people see daily. RESMA empowers users to:
+Social media algorithms are black boxes that shape what billions of people see daily. RESMA is built around two connected goals:
 
-- **Capture** their TikTok, YouTube, Twitter, and Instagram feed data through a browser extension
-- **Compare** their feeds with others to discover patterns
-- **Contribute** to open research on recommendation systems
+- **Pseudonymous contribution** so people can donate recommendation/feed data without creating a named account
+- **Personal transparency** so contributors can understand why they see what they see
+- **Aggregate insights** so researchers, creators, and analysts can learn from cohort-level trends without exposing raw contributor feeds
+
+Privacy, retention, and delete-all-data behavior are documented in [docs/operations/PRIVACY_AND_RETENTION.md](docs/operations/PRIVACY_AND_RETENTION.md).
+
+## Contributor Trust & Control
+
+RESMA is designed so contributors can participate in recommendation research without giving up named identity or raw-feed privacy.
+
+- **Pseudonymous accounts** with recovery-code support instead of mandatory real-name or email identity
+- **Delete-all-my-data controls** so contributors can permanently remove their account, snapshots, feed items, and ingest history
+- **Aggregate-only creator outputs** so creator-facing forecasts and briefs never expose raw contributor feeds
+- **Visible confidence gates** so degraded forecast quality is surfaced instead of silently presented as trustworthy
+- **Cross-user quality diagnostics** for stitching, dedupe, parser coverage, metadata integrity, and cohort stability
+
+This keeps the project aligned with its original observatory goal: privacy-preserving contribution first, aggregate research and creator insights second.
 
 ## 🏗️ Project Structure
 
@@ -53,13 +67,22 @@ pnpm --filter backend db:migrate
 pnpm dev
 ```
 
+### Contributor Workflow
+
+1. Create a pseudonymous contributor account.
+2. Save the recovery code returned at registration.
+3. Capture feed snapshots with the browser extension.
+4. Explore your contributor dashboard and cross-user observatory views.
+5. Export aggregate-only insight briefs if you want cohort-level creator analysis.
+6. Delete your account from the dashboard at any time if you want your observatory data removed.
+
 ## 📦 Packages
 
 | Package | Description |
 |---------|-------------|
 | `extension` | Chrome extension for TikTok, YouTube, Twitter & Instagram feed capture |
 | `backend` | Express API for data storage and analysis (TikTok, YouTube, Twitter, Instagram, and more) |
-| `frontend` | React dashboard for analytics, diagnostics, and creator tooling |
+| `frontend` | React observatory dashboard for contributors plus aggregate insight tooling |
 | `@resma/shared` | Shared schemas/types for capture payloads and analytics contracts |
 
 
@@ -154,18 +177,20 @@ If you want to run RESMA as a multi-agent workflow, start here:
 
 ## 🧭 Recent Updates (April 2026)
 
-RESMA now includes a stronger creator-facing analytics workflow focused on cross-user comparison quality and practical go-to-market output.
+RESMA now includes a stronger aggregate insight workflow built on observatory-wide, cross-user comparison quality.
 
-### Creator-Facing Go-to-Market Brief Export
+### Aggregate Insight Brief Export
 
 - New API route: `GET /analysis/go-to-market-brief`
-- New dashboard action: **Export Go-to-market Brief** from the Cohort-Aware Audience Forecast section
+- New dashboard action: **Export Aggregate Brief** from the aggregate forecast section
 - Export output includes:
   - Top audience cohorts
   - Lift vs global baseline
   - Predicted reach paths from an optional seed video
   - Confidence bands for exposure estimates
   - Key takeaways and markdown-formatted brief output for sharing
+
+All creator-facing outputs are intended to remain aggregate-only. They are derived from cohort-level observatory patterns rather than raw contributor feed access.
 
 ### Cross-User Comparison Data Quality Improvements
 
@@ -184,7 +209,7 @@ RESMA now includes a stronger creator-facing analytics workflow focused on cross
   - Calibration
   - Reliability scoring
 
-These updates reinforce the core thesis of RESMA: cross-user feed comparisons improve predictive quality over time, making recommendation-path modeling more useful for creator strategy and B2B/marketing decision support.
+These updates reinforce the core thesis of RESMA: pseudonymous cross-user feed comparisons improve observatory quality over time, making recommendation-path modeling more useful for research, accountability work, and aggregate creator strategy.
 
 ## 🔭 Future Goals
 

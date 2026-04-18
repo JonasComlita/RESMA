@@ -10,22 +10,21 @@ export function LandingPage() {
             {/* Hero Section */}
             <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-8">
-                    See what the <br />
+                    Build a privacy-preserving <br />
                     <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        algorithm sees.
+                        recommendation observatory.
                     </span>
                 </h1>
                 <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-12 leading-relaxed">
-                    Reverse engineer your social media feeds. Understand why you see what you see,
-                    and take back control of your digital diet.
+                    Contribute recommendation data pseudonymously, understand your own feed, and help power aggregate insights for researchers and creators without exposing raw contributor feeds.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                    <a href="#" className="w-full sm:w-auto px-8 py-4 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all flex items-center justify-center">
-                        Install Extension
+                    <a href="/login" className="w-full sm:w-auto px-8 py-4 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all flex items-center justify-center">
+                        Join Pseudonymously
                         <ArrowRight className="ml-2 w-5 h-5" />
                     </a>
-                    <a href="#demo" className="w-full sm:w-auto px-8 py-4 bg-gray-100 text-gray-900 rounded-full font-bold text-lg hover:bg-gray-200 transition-all">
-                        View Live Demo
+                    <a href="#features" className="w-full sm:w-auto px-8 py-4 bg-gray-100 text-gray-900 rounded-full font-bold text-lg hover:bg-gray-200 transition-all">
+                        See Aggregate Insights
                     </a>
                 </div>
             </section>
@@ -40,18 +39,18 @@ export function LandingPage() {
 
                     <StepCard
                         number="1"
-                        title="Install Extension"
-                        description="Add our open-source extension to your browser. It runs locally and securely."
+                        title="Create A Contributor Account"
+                        description="Join without a named identity. Save your contributor ID and recovery code, then connect the extension."
                     />
                     <StepCard
                         number="2"
-                        title="Browse Normally"
-                        description="Use social media as you always do. The extension quietly collects public feed data."
+                        title="Capture Recommendations"
+                        description="Browse normally and opt into capture when you choose. Uploads are pseudonymous, rate limited, and deduped."
                     />
                     <StepCard
                         number="3"
-                        title="Get Insights"
-                        description="Visit your dashboard to see visualized data about your algorithm bubble."
+                        title="See Personal And Aggregate Insights"
+                        description="Visit your dashboard to understand your own feed and contribute to aggregate recommendation views built from the observatory."
                     />
                 </div>
             </section>
@@ -62,18 +61,18 @@ export function LandingPage() {
                     <div className="grid md:grid-cols-3 gap-12">
                         <FeatureCard
                             icon={<Eye className="w-8 h-8 text-blue-600" />}
-                            title="Transparency"
-                            description="Visualize your personal algorithm preferences. See which categories and creators are dominating your feed."
+                            title="Personal Transparency"
+                            description="Visualize your own recommendation patterns and see which categories and creators dominate your feed."
                         />
                         <FeatureCard
                             icon={<Database className="w-8 h-8 text-indigo-600" />}
-                            title="Data Ownership"
-                            description="Your data stays yours. Export your feed history and analyze it with our open-source tools."
+                            title="Collective Research"
+                            description="Contribute to a shared recommendation observatory that helps explain platform behavior across many contributors."
                         />
                         <FeatureCard
                             icon={<Shield className="w-8 h-8 text-emerald-600" />}
-                            title="Privacy First"
-                            description="We only analyze what you publicly view. No password sharing or account access required."
+                            title="Aggregate-Only Insights"
+                            description="Creators and analysts can use cohort-level trends and forecasts without seeing raw contributor feeds or per-user drilldowns."
                         />
                     </div>
                 </div>

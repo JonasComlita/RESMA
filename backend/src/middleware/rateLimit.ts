@@ -33,3 +33,10 @@ export function createIngestRateLimiter() {
         parsePositiveInt(process.env.INGEST_RATE_LIMIT_MAX, 20)
     );
 }
+
+export function createAnalysisRateLimiter() {
+    return buildLimiter(
+        parsePositiveInt(process.env.ANALYSIS_RATE_LIMIT_WINDOW_MS, 5 * 60 * 1000),
+        parsePositiveInt(process.env.ANALYSIS_RATE_LIMIT_MAX, 15)
+    );
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Navbar } from '../components/Navbar';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { RecommendationGraphCanvas } from '../components/RecommendationGraphCanvas';
 import { BarChart2, Users, Database, Video, Network, Loader2, Target, Sigma, ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
@@ -74,7 +75,7 @@ const DEFAULT_QUALITY_THRESHOLDS: QualityThresholds = {
 };
 
 export function Dashboard() {
-    const { user, isLoading, logout } = useAuth();
+    const { user, isLoading, deleteAccount, logout } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState<GlobalStats | null>(null);
     const [seedVideoId, setSeedVideoId] = useState('');
@@ -104,6 +105,9 @@ export function Dashboard() {
     const [briefExportMessage, setBriefExportMessage] = useState<string | null>(null);
     const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
     const [selectedCohortLabel, setSelectedCohortLabel] = useState<string | null>(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
+    const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
     useEffect(() => {
         if (!isLoading && !user) {
@@ -375,14 +379,37 @@ export function Dashboard() {
             .then((data) => {
                 const brief = data.brief;
                 const dateStamp = brief.generatedAt.slice(0, 10);
-                const filename = `go-to-market-brief-${brief.platform}-${brief.targetVideoId}-${dateStamp}.md`;
+                const filename = `aggregate-insight-brief-${brief.platform}-${brief.targetVideoId}-${dateStamp}.md`;
                 downloadTextFile(filename, brief.markdown);
                 setBriefExportMessage(`Brief exported: ${filename}`);
             })
             .catch((error: Error) => {
-                setBriefExportMessage(error.message || 'Unable to export the Go-to-market brief.');
+                setBriefExportMessage(error.message || 'Unable to export the aggregate insight brief.');
             })
             .finally(() => setIsBriefExporting(false));
+    };
+
+    const handleDeleteAccount = async () => {
+        if (deleteConfirmation.trim() !== user.anonymousId) {
+            setDeleteAccountError('Type your exact contributor ID before deleting all observatory data.');
+            return;
+        }
+
+        setDeleteAccountError(null);
+        setIsDeletingAccount(true);
+
+        try {
+            await deleteAccount(deleteConfirmation.trim());
+            navigate('/login');
+        } catch (error) {
+            setDeleteAccountError(
+                error instanceof Error
+                    ? error.message
+                    : 'Unable to delete your contributor account right now.'
+            );
+        } finally {
+            setIsDeletingAccount(false);
+        }
     };
 
     const surfaceTrendLeaders = (() => {
@@ -435,8 +462,8 @@ export function Dashboard() {
             <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                        <p className="text-gray-600">Welcome back, {user.anonymousId}</p>
+                        <h1 className="text-3xl font-bold text-gray-900">Observatory Dashboard</h1>
+                        <p className="text-gray-600">Contributor ID: {user.anonymousId}</p>
                     </div>
                     <button
                         onClick={logout}
@@ -454,7 +481,61 @@ export function Dashboard() {
                     <StatCard title="Creators Tracked" value={stats?.totalCreators} icon={<BarChart2 className="w-6 h-6 text-white" />} color="bg-orange-500" />
                 </div>
 
+                <div className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Contributor Observatory</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                        Your captures stay pseudonymous and help power a shared recommendation observatory. Personal views stay scoped to your contributor account, while creator tooling only uses aggregate cohort outputs.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.9fr] gap-4 mb-8">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Retention & Privacy</p>
+                        <h2 className="mt-2 text-xl font-bold text-gray-900">Research-first, pseudonymous, contributor-controlled</h2>
+                        <p className="mt-2 text-sm text-gray-600">
+                            RESMA stores your contributor account, uploaded feed snapshots, and derived observatory analytics so recommendation research can accumulate over time.
+                            Creator-facing outputs remain aggregate-only and never expose raw contributor feeds.
+                        </p>
+                        <p className="mt-3 text-xs text-gray-500">
+                            You can permanently delete your contributor account and all associated observatory data from this dashboard at any time.
+                        </p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-100">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700">Delete My Data</p>
+                        <h2 className="mt-2 text-lg font-bold text-gray-900">Hard-delete this contributor account</h2>
+                        <p className="mt-2 text-sm text-gray-600">
+                            Type your contributor ID exactly to confirm permanent deletion of your pseudonymous account, snapshots, feed items, and ingest history.
+                        </p>
+                        <input
+                            type="text"
+                            value={deleteConfirmation}
+                            onChange={(event) => setDeleteConfirmation(event.target.value)}
+                            placeholder={user.anonymousId}
+                            className="mt-4 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        />
+                        {deleteAccountError && (
+                            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {deleteAccountError}
+                            </div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleDeleteAccount}
+                            disabled={isDeletingAccount}
+                            className="mt-4 inline-flex items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isDeletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete Contributor Account'}
+                        </button>
+                    </div>
+                </div>
+
                 {/* Data Quality Health */}
+                <ErrorBoundary
+                    title="Cross-user data quality failed to render."
+                    description="Quality diagnostics are temporarily unavailable, but the rest of the observatory can still load."
+                    resetKey={`${platform}:${qualityWindowHours}:${qualityBucketHours}:${dataQuality?.generatedAt ?? 'none'}`}
+                >
                 <div className="bg-white p-6 rounded-2xl shadow-sm mb-8">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-5">
                         <div>
@@ -518,15 +599,26 @@ export function Dashboard() {
 
                     {dataQuality ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3">
                                 <MapMetric title="Dedupe Rate" value={`${Math.round(dataQuality.stitching.duplicateRate * 100)}%`} />
                                 <MapMetric title="Parse Coverage" value={`${Math.round(dataQuality.recommendations.parseCoverage * 100)}%`} />
                                 <MapMetric title="Parser Drop" value={`${Math.round(dataQuality.recommendations.parserDropRate * 100)}%`} />
+                                <MapMetric title="Metadata Integrity" value={`${Math.round(dataQuality.stitching.metadataIntegrityScore * 100)}%`} />
                                 <MapMetric title="Surface Stability" value={`${Math.round(dataQuality.recommendations.surfaceTransitionStability * 100)}%`} />
                                 <MapMetric title="Cohort Stability" value={`${Math.round(dataQuality.cohorts.stabilityScore * 100)}%`} />
                                 <MapMetric title="Network Strength" value={`${Math.round(dataQuality.cohorts.networkStrength * 100)}%`} />
                                 <MapMetric title="Stitched Sessions" value={dataQuality.stitching.stitchedSessions} />
                             </div>
+
+                            {dataQuality.qualityGate.invalidMetadataSnapshots > 0 && (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                                    <p className="text-sm font-semibold text-amber-800">Metadata integrity warning</p>
+                                    <p className="mt-1 text-sm text-amber-700">
+                                        {dataQuality.qualityGate.invalidMetadataSnapshots} snapshot(s) in this window had session metadata that could not be decoded.
+                                        Forecast stitching stays backward-compatible for older captures, but confidence is reduced until clean metadata coverage improves.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                                 <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">Alert Thresholds</p>
@@ -726,10 +818,11 @@ export function Dashboard() {
                         </div>
                     )}
                 </div>
+                </ErrorBoundary>
 
                 {/* Charts Section */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 mb-6">Data Overview</h2>
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Observatory Snapshot</h2>
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={[
@@ -749,20 +842,25 @@ export function Dashboard() {
                 </div>
 
                 {/* Recommendation Map Section */}
+                <ErrorBoundary
+                    title="The recommendation observatory map failed to render."
+                    description="You can still use the contributor and aggregate insight controls while this panel is reset."
+                    resetKey={`${platform}:${seedVideoId}:${selectedCohortId ?? 'contributor'}:${mapResult?.summary.sharedVideos ?? 0}`}
+                >
                 <div className="bg-white p-6 rounded-2xl shadow-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
                         <div>
                             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <Network className="w-5 h-5 text-blue-600" />
-                                Recommendation Map
+                                Recommendation Observatory Map
                             </h2>
                             <p className="text-sm text-gray-600 mt-1">
-                                BFS and DFS run in parallel behind the scenes to map where recommendations converge or diverge.
+                                Explore where recommendations converge or diverge across your contributor feed and selected aggregate cohorts.
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
                                 Scope: {selectedCohortId
                                     ? `Cohort (${selectedCohortLabel || selectedCohortId})`
-                                    : 'Your personal feed'}
+                                    : 'Your contributor feed'}
                             </p>
                         </div>
                         {selectedCohortId && (
@@ -777,7 +875,7 @@ export function Dashboard() {
                                     }
                                 }}
                             >
-                                Use Personal Scope
+                                Use Contributor Scope
                             </button>
                         )}
                     </div>
@@ -872,18 +970,31 @@ export function Dashboard() {
                         </div>
                     )}
                 </div>
+                </ErrorBoundary>
+
+                <div className="mt-8 mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Aggregate Insight Studio</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                        Forecasts, cohort rankings, and briefs below are generated from aggregate observatory cohorts rather than raw contributor-level drilldowns.
+                    </p>
+                </div>
 
                 {/* Audience Forecast Section */}
+                <ErrorBoundary
+                    title="The aggregate reach forecast panel failed to render."
+                    description="Forecast calculations are still available after retrying this panel, and the rest of the observatory remains intact."
+                    resetKey={`${platform}:${targetVideoId}:${forecastSeedVideoId}:${forecast?.targetVideoId ?? 'none'}`}
+                >
                 <div className="bg-white p-6 rounded-2xl shadow-sm mt-8">
                     <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
                             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <Target className="w-5 h-5 text-emerald-600" />
-                                Cohort-Aware Audience Forecast
+                                Aggregate Reach Forecast
                             </h2>
                             <p className="text-sm text-gray-600 mt-1">
-                                Predicts who a target video is most likely to reach using cross-user cohort comparisons.
-                                Model quality increases as more users compare feeds.
+                                Predicts which aggregate cohorts a target video is most likely to reach using cross-user comparisons.
+                                Model quality increases as more contributors compare feeds.
                             </p>
                         </div>
                         <div className="flex flex-col gap-2 md:items-end">
@@ -893,7 +1004,7 @@ export function Dashboard() {
                                 disabled={isBriefExporting}
                                 className="inline-flex items-center justify-center rounded-xl border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isBriefExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Export Go-to-market Brief'}
+                                {isBriefExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Export Aggregate Brief'}
                             </button>
                             {briefExportMessage && (
                                 <p className="text-xs text-gray-600">{briefExportMessage}</p>
@@ -1014,11 +1125,34 @@ export function Dashboard() {
                                     : ' | Confidence quality gate passed.'}
                             </div>
 
+                            {forecast.qualityGate.degradationReasons.length > 0 && (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+                                    <p className="text-sm font-semibold text-amber-900">Forecast confidence is currently degraded</p>
+                                    <p className="mt-1 text-sm text-amber-800">
+                                        The model is still available, but one or more observatory quality gates are below target. Review the signals below before treating the cohort ranking as strong evidence.
+                                    </p>
+                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                                        <MapMetric title="Parser Coverage" value={`${Math.round(forecast.qualityGate.parseCoverage * 100)}%`} />
+                                        <MapMetric title="Parser Drop" value={`${Math.round(forecast.qualityGate.parserDropRate * 100)}%`} />
+                                        <MapMetric title="Metadata Integrity" value={`${Math.round(forecast.qualityGate.metadataIntegrityScore * 100)}%`} />
+                                        <MapMetric title="Compared Users" value={forecast.qualityGate.comparedUsers} />
+                                        <MapMetric title="Cohort Stability" value={`${Math.round(forecast.qualityGate.cohortStabilityScore * 100)}%`} />
+                                    </div>
+                                    <ul className="mt-3 space-y-2 text-sm text-amber-900">
+                                        {forecast.qualityGate.degradationReasons.map((reason) => (
+                                            <li key={reason} className="rounded-lg bg-white/70 px-3 py-2 border border-amber-100">
+                                                {reason}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
                             <div className="rounded-xl border border-gray-200 overflow-hidden">
                                 <div className="flex items-center justify-between bg-gray-50 px-4 py-3 border-b border-gray-200">
                                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                                         <Sigma className="w-4 h-4 text-emerald-600" />
-                                        Recommended Audience Cohorts
+                                        Aggregate Audience Cohorts
                                     </h3>
                                     <span className="text-xs text-gray-500">
                                         Sorted by probability, fit, and cohort evidence
@@ -1083,6 +1217,7 @@ export function Dashboard() {
                         </div>
                     )}
                 </div>
+                </ErrorBoundary>
             </div>
         </div>
     );
@@ -1251,6 +1386,14 @@ function deriveQualityAlerts(
             severity: 'warning',
             title: 'Metadata Coverage Is Incomplete',
             detail: 'Many snapshots are missing quality fingerprint metadata from ingestion.',
+        });
+    }
+    if (diagnostics.stitching.invalidMetadataSnapshots > 0) {
+        alerts.push({
+            id: 'metadata-integrity-warning',
+            severity: diagnostics.stitching.metadataIntegrityScore < 0.7 ? 'critical' : 'warning',
+            title: 'Some Session Metadata Failed To Decode',
+            detail: `${diagnostics.stitching.invalidMetadataSnapshots} snapshot(s) had invalid session metadata, which reduces stitching confidence.`,
         });
     }
 

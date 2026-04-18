@@ -54,6 +54,28 @@ describe('Audience forecast service', () => {
         expect(gate.reasonCodes).toContain('cohort_stability_below_minimum');
     });
 
+    it('degrades when session metadata integrity falls below the minimum threshold', () => {
+        const gate = deriveRecommendationQualityGate([
+            {
+                userId: 'u1',
+                videoId: 'seed001',
+                creatorHandle: 'creatorA',
+                contentCategories: ['reels'],
+                engagementMetrics: jsonMetrics([{ videoId: 'target001', position: 1 }]),
+            },
+        ], 'youtube', {
+            metadataIntegrityScore: 0.2,
+            snapshotsWithMetadata: 5,
+            decodedMetadataSnapshots: 1,
+            invalidMetadataSnapshots: 4,
+        });
+
+        expect(gate.status).toBe('degraded');
+        expect(gate.reasonCodes).toContain('metadata_integrity_below_minimum');
+        expect(gate.invalidMetadataSnapshots).toBe(4);
+        expect(gate.degradationReasons.some((reason) => reason.includes('could not be decoded'))).toBe(true);
+    });
+
     it('degrades low-volume windows even when parse coverage is perfect', () => {
         const gate = deriveRecommendationQualityGate([
             {

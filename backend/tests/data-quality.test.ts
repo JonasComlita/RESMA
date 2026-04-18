@@ -328,6 +328,77 @@ describe('Data quality diagnostics', () => {
         expect(summary.stitching.snapshotsWithStitchedSessionKey).toBe(2);
     });
 
+    it('surfaces invalid session metadata as an explicit degradation signal', () => {
+        const snapshots = [
+            {
+                id: 'bad-meta-1',
+                userId: 'u1',
+                capturedAt: new Date('2026-04-07T01:00:00.000Z'),
+                sessionMetadata: Buffer.from('{not-json', 'utf-8'),
+                feedItems: [
+                    {
+                        videoId: 'seedvideo001',
+                        creatorHandle: 'creatorA',
+                        contentCategories: ['gaming'],
+                        engagementMetrics: recMetrics([{ videoId: 'target001', position: 1 }]),
+                        positionInFeed: 0,
+                    },
+                    {
+                        videoId: 'sidevideo001',
+                        creatorHandle: 'creatorB',
+                        contentCategories: ['gaming'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 1,
+                    },
+                    {
+                        videoId: 'tailvideo001',
+                        creatorHandle: 'creatorC',
+                        contentCategories: ['gaming'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 2,
+                    },
+                ],
+            },
+            {
+                id: 'bad-meta-2',
+                userId: 'u2',
+                capturedAt: new Date('2026-04-07T01:10:00.000Z'),
+                sessionMetadata: Buffer.from('{still-bad', 'utf-8'),
+                feedItems: [
+                    {
+                        videoId: 'seedvideo002',
+                        creatorHandle: 'creatorD',
+                        contentCategories: ['gaming'],
+                        engagementMetrics: recMetrics([{ videoId: 'target002', position: 1 }]),
+                        positionInFeed: 0,
+                    },
+                    {
+                        videoId: 'sidevideo002',
+                        creatorHandle: 'creatorE',
+                        contentCategories: ['gaming'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 1,
+                    },
+                    {
+                        videoId: 'tailvideo002',
+                        creatorHandle: 'creatorF',
+                        contentCategories: ['gaming'],
+                        engagementMetrics: recMetrics([]),
+                        positionInFeed: 2,
+                    },
+                ],
+            },
+        ];
+
+        const summary = summarizeDataQualityFromSnapshots('youtube', snapshots, 24);
+
+        expect(summary.stitching.snapshotsWithSessionMetadata).toBe(2);
+        expect(summary.stitching.invalidMetadataSnapshots).toBe(2);
+        expect(summary.stitching.metadataIntegrityScore).toBe(0);
+        expect(summary.qualityGate.reasonCodes).toContain('metadata_integrity_below_minimum');
+        expect(summary.qualityGate.invalidMetadataSnapshots).toBe(2);
+    });
+
     it('builds time-bucketed trend points for quality drift tracking', () => {
         const snapshots = [
             {

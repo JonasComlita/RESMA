@@ -9,7 +9,11 @@ import { analysisRouter } from './routes/analysis.js';
 import { creatorsRouter } from './routes/creators.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { msgpackParser } from './middleware/msgpackParser.js';
-import { createAuthRateLimiter, createIngestRateLimiter } from './middleware/rateLimit.js';
+import {
+    createAnalysisRateLimiter,
+    createAuthRateLimiter,
+    createIngestRateLimiter,
+} from './middleware/rateLimit.js';
 import youtubeRouter from './routes/youtube.js';
 import instagramRouter from './routes/instagram.js';
 import insightsRouter from './routes/insights.js';
@@ -34,8 +38,11 @@ app.get('/health', (_req, res) => {
 // Routes
 app.use('/auth/login', createAuthRateLimiter());
 app.use('/auth/register', createAuthRateLimiter());
+app.use('/auth/recover', createAuthRateLimiter());
+app.use('/auth/delete-account', createAuthRateLimiter());
 app.use('/auth', authRouter);
 app.use('/feeds', createIngestRateLimiter(), feedsRouter);
+app.use('/analysis/similar', createAnalysisRateLimiter());
 app.use('/analysis', analysisRouter);
 app.use('/creators', creatorsRouter);
 app.use('/youtube/feed', createIngestRateLimiter());

@@ -12,6 +12,7 @@ type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok' | 'twitter';
 interface StorageData {
     token?: string;
     apiUrl?: string;
+    installId?: string;
 }
 
 interface RecommendationRow {
@@ -100,6 +101,18 @@ async function getApiBaseUrl(): Promise<string> {
         console.warn('[RESMA] Ignoring invalid apiUrl in storage; using fallback API URL');
     }
     return storageApiUrl ?? FALLBACK_API_URL;
+}
+
+async function getInstallId(): Promise<string> {
+    const data = await chrome.storage.local.get('installId') as StorageData;
+    const existingInstallId = sanitizeString(data.installId);
+    if (existingInstallId) {
+        return existingInstallId;
+    }
+
+    const createdInstallId = `inst-${createUploadId()}`;
+    await chrome.storage.local.set({ installId: createdInstallId });
+    return createdInstallId;
 }
 
 function createUploadId(): string {
@@ -255,7 +268,13 @@ async function handlePlatformUpload(rawPayload: unknown): Promise<boolean> {
 
     const apiBaseUrl = await getApiBaseUrl();
     const endpoint = uploadEndpointForPlatform(payload.platform, apiBaseUrl);
-    const requestPayload = payloadForPlatformUpload(payload);
+    const requestPayload = payloadForPlatformUpload({
+        ...payload,
+        sessionMetadata: {
+            ...payload.sessionMetadata,
+            clientInstallId: await getInstallId(),
+        },
+    });
     const uploadId = createUploadId();
     const success = await uploadPayload(endpoint, requestPayload, token, uploadId, payload.platform);
 

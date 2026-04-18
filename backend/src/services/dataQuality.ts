@@ -12,6 +12,7 @@ import {
 } from './recommendationParsing.js';
 import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
 import { buildSnapshotFingerprint } from './snapshotQuality.js';
+import { decodeSessionMetadataResult } from './sessionMetadata.js';
 
 let prismaClientPromise: Promise<any> | null = null;
 
@@ -51,6 +52,10 @@ interface StitchingSummary {
     avgSnapshotsPerSession: number;
     snapshotsWithQualityFingerprint: number;
     snapshotsWithStitchedSessionKey: number;
+    snapshotsWithSessionMetadata: number;
+    decodedMetadataSnapshots: number;
+    invalidMetadataSnapshots: number;
+    metadataIntegrityScore: number;
 }
 
 interface RecommendationSummary {
@@ -202,21 +207,6 @@ function asRecord(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
-function decodeSessionMetadata(data: Buffer | null): Record<string, unknown> | null {
-    if (!data) return null;
-    try {
-        const decoded = isCompressedMsgpack(data)
-            ? decompressAndUnpack<unknown>(data)
-            : JSON.parse(data.toString('utf-8'));
-        if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
-            return null;
-        }
-        return decoded as Record<string, unknown>;
-    } catch {
-        return null;
-    }
-}
-
 function decodeMetrics(metrics: Buffer | null): unknown {
     if (!metrics) return null;
     try {
@@ -309,6 +299,9 @@ function stitchSnapshots(
     let stitchedSessions = 0;
     let snapshotsWithQualityFingerprint = 0;
     let snapshotsWithStitchedSessionKey = 0;
+    let snapshotsWithSessionMetadata = 0;
+    let decodedMetadataSnapshots = 0;
+    let invalidMetadataSnapshots = 0;
 
     for (const [userId, userSnapshots] of snapshotsByUser.entries()) {
         let nextSessionNumber = 0;
@@ -322,8 +315,16 @@ function stitchSnapshots(
         } | null = null;
 
         for (const snapshot of userSnapshots) {
-            const metadata = decodeSessionMetadata(snapshot.sessionMetadata);
-            const quality = asRecord(metadata?.quality);
+            const metadataResult = decodeSessionMetadataResult(snapshot.sessionMetadata);
+            if (metadataResult.status !== 'missing') {
+                snapshotsWithSessionMetadata += 1;
+                if (metadataResult.status === 'decoded') {
+                    decodedMetadataSnapshots += 1;
+                } else {
+                    invalidMetadataSnapshots += 1;
+                }
+            }
+            const quality = asRecord(metadataResult.metadata?.quality);
             const qualityFingerprintHash = sanitizeString(quality.fingerprintHash);
             const stitchedSessionKey = sanitizeString(quality.stitchedSessionKey);
             if (qualityFingerprintHash) {
@@ -401,6 +402,9 @@ function stitchSnapshots(
     const totalSnapshots = snapshots.length;
     const duplicateRate = totalSnapshots > 0 ? dedupedSnapshots / totalSnapshots : 0;
     const avgSnapshotsPerSession = stitchedSessions > 0 ? snapshotsAfterDedupe / stitchedSessions : 0;
+    const metadataIntegrityScore = snapshotsWithSessionMetadata > 0
+        ? decodedMetadataSnapshots / snapshotsWithSessionMetadata
+        : 1;
 
     return {
         stitchedItems,
@@ -413,6 +417,10 @@ function stitchSnapshots(
             avgSnapshotsPerSession: roundTo(avgSnapshotsPerSession, 2),
             snapshotsWithQualityFingerprint,
             snapshotsWithStitchedSessionKey,
+            snapshotsWithSessionMetadata,
+            decodedMetadataSnapshots,
+            invalidMetadataSnapshots,
+            metadataIntegrityScore: roundTo(clamp(metadataIntegrityScore, 0, 1)),
         },
     };
 }
@@ -649,6 +657,10 @@ export function summarizeDataQualityFromSnapshots(
     const qualityGate = deriveRecommendationQualityGate(stitchedItems, platform, {
         comparedUsers: cohortSummary.eligibleUsers,
         cohortStabilityScore: cohortSummary.stabilityScore,
+        metadataIntegrityScore: stitching.metadataIntegrityScore,
+        snapshotsWithMetadata: stitching.snapshotsWithSessionMetadata,
+        decodedMetadataSnapshots: stitching.decodedMetadataSnapshots,
+        invalidMetadataSnapshots: stitching.invalidMetadataSnapshots,
         minimumCohortUsersForLift: thresholdConfig.minimumCohortUsersForLift,
     });
 

@@ -20,6 +20,10 @@ export interface DataQualityDiagnosticsResult {
         avgSnapshotsPerSession: number;
         snapshotsWithQualityFingerprint: number;
         snapshotsWithStitchedSessionKey: number;
+        snapshotsWithSessionMetadata: number;
+        decodedMetadataSnapshots: number;
+        invalidMetadataSnapshots: number;
+        metadataIntegrityScore: number;
     };
     recommendations: {
         itemsWithMetrics: number;
@@ -64,6 +68,11 @@ export interface DataQualityDiagnosticsResult {
         minimumComparedUsers: number;
         cohortStabilityScore: number;
         minimumCohortStabilityScore: number;
+        metadataIntegrityScore: number;
+        minimumMetadataIntegrityScore: number;
+        snapshotsWithMetadata: number;
+        decodedMetadataSnapshots: number;
+        invalidMetadataSnapshots: number;
         minimumCohortUsersForLift: number;
         canInterpretLift: boolean;
         reasonCodes: string[];

@@ -21,6 +21,7 @@ model User {
   id              String           @id @default(uuid())
   anonymousId     String           @unique @default(uuid())
   passwordHash    String
+  recoveryCodeHash String?         @unique
   userType        UserType         @default(VIEWER)
   subscriptionTier SubscriptionTier @default(FREE)
   createdAt       DateTime         @default(now())

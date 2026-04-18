@@ -22,6 +22,7 @@ import {
 import { generateGoToMarketCohortBrief } from '../services/goToMarketBrief.js';
 
 export const analysisRouter: Router = Router();
+const MAX_SIMILAR_LIMIT = 20;
 
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -31,13 +32,41 @@ function clampNumber(value: number, min: number, max: number) {
 analysisRouter.get('/similar', authenticate, async (req: AuthRequest, res, next) => {
     try {
         const snapshotId = req.query.snapshotId as string;
-        const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+        const requestedLimit = Math.max(1, parseInt(req.query.limit as string) || 10);
+        const appliedLimit = Math.min(requestedLimit, MAX_SIMILAR_LIMIT);
+        const startedAt = Date.now();
 
-        const similarFeeds = await findSimilarFeeds(req.userId!, snapshotId, limit);
+        const { similarFeeds, candidateCount } = await findSimilarFeeds(
+            req.userId!,
+            snapshotId,
+            appliedLimit
+        );
+        const durationMs = Date.now() - startedAt;
+
+        console.info('analysis.similar', {
+            userId: req.userId,
+            snapshotId: snapshotId || null,
+            requestedLimit,
+            appliedLimit,
+            returned: similarFeeds.length,
+            candidateCount,
+            durationMs,
+        });
 
         res.json({
             success: true,
-            data: { similarFeeds },
+            data: {
+                similarFeeds,
+                meta: {
+                    requestedLimit,
+                    appliedLimit,
+                    truncated: requestedLimit > appliedLimit,
+                    candidateCount,
+                    durationMs,
+                    privacyMode: 'aggregate-only',
+                    source: 'observatory-cohorts',
+                },
+            },
         });
     } catch (error) {
         next(error);
@@ -85,7 +114,13 @@ analysisRouter.get('/recommendation-map', authenticate, async (req: AuthRequest,
 
         res.json({
             success: true,
-            data: { map },
+            data: {
+                map,
+                meta: {
+                    privacyMode: 'aggregate-only',
+                    source: 'observatory-cohorts',
+                },
+            },
         });
     } catch (error) {
         if (error instanceof TraversalInputError || error instanceof AudienceForecastInputError) {
@@ -128,7 +163,13 @@ analysisRouter.get('/audience-forecast', authenticate, async (req: AuthRequest, 
 
         res.json({
             success: true,
-            data: { forecast },
+            data: {
+                forecast,
+                meta: {
+                    privacyMode: 'aggregate-only',
+                    source: 'observatory-cohorts',
+                },
+            },
         });
     } catch (error) {
         if (error instanceof AudienceForecastInputError) {
@@ -143,7 +184,7 @@ analysisRouter.get('/audience-forecast', authenticate, async (req: AuthRequest, 
     }
 });
 
-// Creator-facing Go-to-Market cohort brief export
+// Aggregate creator-facing cohort brief export
 analysisRouter.get('/go-to-market-brief', authenticate, async (req: AuthRequest, res, next) => {
     try {
         const targetVideoId = String(req.query.targetVideoId || '').trim();
@@ -181,7 +222,13 @@ analysisRouter.get('/go-to-market-brief', authenticate, async (req: AuthRequest,
 
         res.json({
             success: true,
-            data: { brief },
+            data: {
+                brief,
+                meta: {
+                    privacyMode: 'aggregate-only',
+                    source: 'observatory-cohorts',
+                },
+            },
         });
     } catch (error) {
         if (error instanceof AudienceForecastInputError) {

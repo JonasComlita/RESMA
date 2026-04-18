@@ -16,13 +16,13 @@ export function Navbar() {
                     </div>
                     <div className="hidden md:flex items-center space-x-8">
                         <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors">How it works</a>
-                        <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Features</a>
-                        <Link to="/login" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Log in</Link>
+                        <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Observatory</a>
+                        <Link to="/login" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Contributor Login</Link>
                         <a
-                            href="#"
+                            href="/login"
                             className="bg-black text-white px-5 py-2.5 rounded-full font-medium hover:bg-gray-800 transition-all transform hover:scale-105"
                         >
-                            Add to Browser
+                            Join Anonymously
                         </a>
                     </div>
                 </div>

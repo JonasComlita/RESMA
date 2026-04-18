@@ -137,10 +137,10 @@ const Popup: React.FC = () => {
                         ?? 0
                     );
                     let msg = '';
-                    if (platform === 'tiktok') msg = `Captured ${capturedCount} videos!`;
-                    else if (platform === 'twitter') msg = `Captured ${capturedCount} tweets!`;
-                    else if (platform === 'youtube') msg = `Captured ${capturedCount} YouTube items!`;
-                    else if (platform === 'instagram') msg = `Captured ${capturedCount} Instagram items!`;
+                    if (platform === 'tiktok') msg = `Contributed ${capturedCount} videos to the observatory.`;
+                    else if (platform === 'twitter') msg = `Contributed ${capturedCount} tweets to the observatory.`;
+                    else if (platform === 'youtube') msg = `Contributed ${capturedCount} YouTube items to the observatory.`;
+                    else if (platform === 'instagram') msg = `Contributed ${capturedCount} Instagram items to the observatory.`;
                     setMessage(msg);
                     setTimeout(() => setMessage(''), 3000);
                 }
@@ -152,28 +152,28 @@ const Popup: React.FC = () => {
         <div className="popup">
             <header className="popup-header">
                 <h1>RESMA</h1>
-                <p>Algorithm Transparency</p>
+                <p>Pseudonymous Observatory</p>
             </header>
 
             <main className="popup-content">
                 <div className="privacy-message">
-                    <strong>Privacy First:</strong> RESMA does not upload feed data until you press Start Capture. Capture stays optional, you can stop it at any time, and uploaded data is anonymized before analysis.
+                    <strong>Privacy First:</strong> RESMA only uploads feed data when you press Start Capture. Participation stays optional, you can stop at any time, and uploads stay pseudonymous while powering aggregate recommendation insights.
                 </div>
                 {!isAuthenticated ? (
                     <div className="auth-prompt">
-                        <p>Please log in at the RESMA Dashboard to use this extension.</p>
+                        <p>Create or sign in to a contributor account in the RESMA Dashboard to use this extension.</p>
                         <a
                             href="http://localhost:5173/login"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-primary"
                         >
-                            Open Dashboard
+                            Open Contributor Login
                         </a>
                     </div>
                 ) : !platform ? (
                     <div className="platform-prompt">
-                        <p>Navigate to TikTok, Twitter, YouTube, or Instagram to start capturing your feed.</p>
+                        <p>Navigate to TikTok, Twitter, YouTube, or Instagram to contribute recommendation data to the observatory.</p>
                         <a
                             href="https://www.tiktok.com"
                             target="_blank"
@@ -225,7 +225,7 @@ const Popup: React.FC = () => {
 
                         {captureStatus.isCapturing && (
                             <p className="capture-status">
-                                Captured: <strong>{captureStatus.itemCount}</strong> {
+                                Contributed: <strong>{captureStatus.itemCount}</strong> {
                                     platform === 'tiktok' ? 'videos' :
                                         platform === 'twitter' ? 'tweets' :
                                             platform === 'youtube' ? 'YouTube videos' :
@@ -241,7 +241,7 @@ const Popup: React.FC = () => {
 
             <footer className="popup-footer">
                 <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer">
-                    View Dashboard
+                    Open Observatory Dashboard
                 </a>
             </footer>
         </div>

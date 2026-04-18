@@ -5,12 +5,21 @@ interface User {
     id?: string;
     anonymousId: string;
     createdAt: string;
+    contributeToCreatorInsights?: boolean;
+}
+
+interface CredentialPacket {
+    anonymousId: string;
+    recoveryCode: string;
 }
 
 interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     login: (anonymousId: string, password: string) => Promise<void>;
+    register: (password: string) => Promise<CredentialPacket>;
+    recover: (recoveryCode: string, newPassword: string) => Promise<CredentialPacket>;
+    deleteAccount: (confirmAnonymousId: string) => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -44,13 +53,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(response.user);
     };
 
+    const register = async (password: string) => {
+        const response = await api.post<{ token: string; user: User; recoveryCode: string }>('/auth/register', { password });
+        localStorage.setItem('token', response.token);
+        setUser(response.user);
+        return {
+            anonymousId: response.user.anonymousId,
+            recoveryCode: response.recoveryCode,
+        };
+    };
+
+    const recover = async (recoveryCode: string, newPassword: string) => {
+        const response = await api.post<{ token: string; user: User; recoveryCode: string }>('/auth/recover', {
+            recoveryCode,
+            newPassword,
+        });
+        localStorage.setItem('token', response.token);
+        setUser(response.user);
+        return {
+            anonymousId: response.user.anonymousId,
+            recoveryCode: response.recoveryCode,
+        };
+    };
+
+    const deleteAccount = async (confirmAnonymousId: string) => {
+        await api.post('/auth/delete-account', { confirmAnonymousId });
+        localStorage.removeItem('token');
+        setUser(null);
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated: !!user }}>
+        <AuthContext.Provider value={{ user, isLoading, login, register, recover, deleteAccount, logout, isAuthenticated: !!user }}>
             {children}
         </AuthContext.Provider>
     );

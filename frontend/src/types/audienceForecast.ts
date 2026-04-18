@@ -69,6 +69,11 @@ export interface AudienceForecastResult {
         minimumComparedUsers: number;
         cohortStabilityScore: number;
         minimumCohortStabilityScore: number;
+        metadataIntegrityScore: number;
+        minimumMetadataIntegrityScore: number;
+        snapshotsWithMetadata: number;
+        decodedMetadataSnapshots: number;
+        invalidMetadataSnapshots: number;
         minimumCohortUsersForLift: number;
         canInterpretLift: boolean;
         reasonCodes: string[];
