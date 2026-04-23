@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { asRecord, sanitizeString } from '../lib/ingestUtils.js';
 
 const DEFAULT_FINGERPRINT_LIMIT = 35;
 const DEFAULT_SESSION_GAP_MS = 25 * 60 * 1000;
@@ -24,19 +25,6 @@ interface BuildSessionQualityMetadataInput {
     fingerprintLimit?: number;
     sessionGapMs?: number;
     duplicateWindowMs?: number;
-}
-
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return {};
-    }
-    return value as Record<string, unknown>;
 }
 
 function normalizePosition(value: unknown, fallback: number): number {
@@ -116,4 +104,3 @@ export function buildSessionQualityMetadata(input: BuildSessionQualityMetadataIn
         quality,
     };
 }
-

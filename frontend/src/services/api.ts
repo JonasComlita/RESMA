@@ -29,7 +29,7 @@ async function request<T>(endpoint: string, method: RequestMethod = 'GET', optio
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+        throw new Error(errorData.error || errorData.message || `Request failed with status ${response.status}`);
     }
 
     const result = await response.json();

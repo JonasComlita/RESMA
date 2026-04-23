@@ -2,20 +2,18 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import {
+    useDashboardDataQuality,
+} from '../hooks/useDashboardDataQuality';
+import { useDashboardForecast } from '../hooks/useDashboardForecast';
+import { useDashboardRecommendationMap } from '../hooks/useDashboardRecommendationMap';
 import { Navbar } from '../components/Navbar';
-import { ErrorBoundary } from '../components/ErrorBoundary';
-import { RecommendationGraphCanvas } from '../components/RecommendationGraphCanvas';
-import { BarChart2, Users, Database, Video, Network, Loader2, Target, Sigma, ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import type {
-    RecommendationMapResult,
-    TraversalSummary,
-    TraversalVisitStep,
-} from '../types/recommendationMap';
-import type { AudienceForecastResult, CohortAudienceForecast } from '../types/audienceForecast';
-import type { ForecastEvaluationResult } from '../types/forecastEvaluation';
-import type { DataQualityDiagnosticsResult, DataQualityTrendResult } from '../types/dataQuality';
-import type { GoToMarketBriefResult } from '../types/goToMarketBrief';
+import { DataQualitySection } from '../components/dashboard/DataQualitySection';
+import { DeleteAccountCard } from '../components/dashboard/DeleteAccountCard';
+import { ForecastSection } from '../components/dashboard/ForecastSection';
+import { RecommendationMapSection } from '../components/dashboard/RecommendationMapSection';
+import { BarChart2, Users, Database, Video } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface GlobalStats {
     totalUsers: number;
@@ -25,89 +23,62 @@ interface GlobalStats {
     recentSnapshots: number;
 }
 
-const DEFAULT_QUALITY_WINDOW_HOURS = 24 * 14;
-const DEFAULT_QUALITY_TREND_BUCKET_HOURS = 24;
-const QUALITY_THRESHOLDS_STORAGE_KEY = 'resmaDataQualityThresholdsV1';
-const QUALITY_WINDOW_OPTIONS = [
-    { label: '7d', hours: 24 * 7 },
-    { label: '14d', hours: 24 * 14 },
-    { label: '30d', hours: 24 * 30 },
-    { label: '60d', hours: 24 * 60 },
-    { label: '90d', hours: 24 * 90 },
-];
-const QUALITY_BUCKET_OPTIONS = [
-    { label: '6h', hours: 6 },
-    { label: '12h', hours: 12 },
-    { label: '24h', hours: 24 },
-    { label: '48h', hours: 48 },
-];
-const SURFACE_TREND_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed'];
-
-type SurfaceTrendMetric = 'parseCoverage' | 'parserDropRate' | 'transitionStabilityScore';
-const SURFACE_TREND_METRIC_OPTIONS: Array<{ id: SurfaceTrendMetric; label: string }> = [
-    { id: 'parseCoverage', label: 'Parse Coverage %' },
-    { id: 'parserDropRate', label: 'Parser Drop %' },
-    { id: 'transitionStabilityScore', label: 'Transition Stability %' },
-];
-
-interface QualityThresholds {
-    parserDropWarn: number;
-    parserDropCritical: number;
-    stabilityWarn: number;
-    stabilityCritical: number;
-    fingerprintCoverageWarn: number;
-    surfaceParserDropWarn: number;
-    surfaceParserDropCritical: number;
-    surfaceStabilityWarn: number;
-    surfaceStabilityCritical: number;
-}
-
-const DEFAULT_QUALITY_THRESHOLDS: QualityThresholds = {
-    parserDropWarn: 0.3,
-    parserDropCritical: 0.5,
-    stabilityWarn: 0.75,
-    stabilityCritical: 0.6,
-    fingerprintCoverageWarn: 0.6,
-    surfaceParserDropWarn: 0.4,
-    surfaceParserDropCritical: 0.6,
-    surfaceStabilityWarn: 0.25,
-    surfaceStabilityCritical: 0.12,
-};
-
 export function Dashboard() {
     const { user, isLoading, deleteAccount, logout } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState<GlobalStats | null>(null);
-    const [seedVideoId, setSeedVideoId] = useState('');
     const [maxDepth, setMaxDepth] = useState(3);
-    const [maxNodes, setMaxNodes] = useState(60);
     const [platform, setPlatform] = useState('youtube');
-    const [mapResult, setMapResult] = useState<RecommendationMapResult | null>(null);
-    const [mapError, setMapError] = useState<string | null>(null);
-    const [isMapLoading, setIsMapLoading] = useState(false);
-    const [targetVideoId, setTargetVideoId] = useState('');
-    const [forecastSeedVideoId, setForecastSeedVideoId] = useState('');
-    const [beamWidth, setBeamWidth] = useState(30);
-    const [forecast, setForecast] = useState<AudienceForecastResult | null>(null);
-    const [forecastError, setForecastError] = useState<string | null>(null);
-    const [isForecastLoading, setIsForecastLoading] = useState(false);
-    const [evaluation, setEvaluation] = useState<ForecastEvaluationResult | null>(null);
-    const [isEvaluationLoading, setIsEvaluationLoading] = useState(false);
-    const [dataQuality, setDataQuality] = useState<DataQualityDiagnosticsResult | null>(null);
-    const [dataQualityTrend, setDataQualityTrend] = useState<DataQualityTrendResult | null>(null);
-    const [dataQualityError, setDataQualityError] = useState<string | null>(null);
-    const [isDataQualityLoading, setIsDataQualityLoading] = useState(false);
-    const [qualityWindowHours, setQualityWindowHours] = useState(DEFAULT_QUALITY_WINDOW_HOURS);
-    const [qualityBucketHours, setQualityBucketHours] = useState(DEFAULT_QUALITY_TREND_BUCKET_HOURS);
-    const [qualityThresholds, setQualityThresholds] = useState<QualityThresholds>(DEFAULT_QUALITY_THRESHOLDS);
-    const [surfaceTrendMetric, setSurfaceTrendMetric] = useState<SurfaceTrendMetric>('parseCoverage');
-    const [isBriefExporting, setIsBriefExporting] = useState(false);
-    const [briefExportMessage, setBriefExportMessage] = useState<string | null>(null);
-    const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
-    const [selectedCohortLabel, setSelectedCohortLabel] = useState<string | null>(null);
-    const [deleteConfirmation, setDeleteConfirmation] = useState('');
-    const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
-    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const {
+        dataQuality,
+        dataQualityTrend,
+        dataQualityError,
+        isDataQualityLoading,
+        qualityWindowHours,
+        setQualityWindowHours,
+        qualityBucketHours,
+        setQualityBucketHours,
+        qualityThresholds,
+        setQualityThresholds,
+        surfaceTrendMetric,
+        setSurfaceTrendMetric,
+        loadDataQuality,
+        autoTuneQualityThresholds,
+        surfaceTrendLeaders,
+        surfaceTrendSeries,
+    } = useDashboardDataQuality(Boolean(user), platform);
+    const {
+        targetVideoId,
+        setTargetVideoId,
+        forecastSeedVideoId,
+        setForecastSeedVideoId,
+        beamWidth,
+        setBeamWidth,
+        forecast,
+        forecastError,
+        isForecastLoading,
+        evaluation,
+        isEvaluationLoading,
+        isBriefExporting,
+        briefExportMessage,
+        submitForecast,
+        exportGoToMarketBrief,
+        getForecastDrillSeed,
+    } = useDashboardForecast(platform, maxDepth);
+    const {
+        seedVideoId,
+        setSeedVideoId,
+        maxNodes,
+        setMaxNodes,
+        mapResult,
+        mapError,
+        isMapLoading,
+        selectedCohortId,
+        loadRecommendationMap,
+        resetToContributorScope,
+        selectedCohortLabel,
+        setMapError,
+    } = useDashboardRecommendationMap(platform, maxDepth);
 
     useEffect(() => {
         if (!isLoading && !user) {
@@ -123,338 +94,9 @@ export function Dashboard() {
         }
     }, [user]);
 
-    useEffect(() => {
-        if (user) {
-            loadDataQuality({
-                targetPlatform: platform,
-                windowHours: qualityWindowHours,
-                bucketHours: qualityBucketHours,
-                keepExisting: true,
-            });
-        }
-    }, [user, platform, qualityWindowHours, qualityBucketHours]);
-
-    useEffect(() => {
-        if (qualityBucketHours > qualityWindowHours) {
-            setQualityBucketHours(qualityWindowHours);
-        }
-    }, [qualityWindowHours, qualityBucketHours]);
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(QUALITY_THRESHOLDS_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw) as Partial<QualityThresholds>;
-            setQualityThresholds((current) => ({
-                parserDropWarn: typeof parsed.parserDropWarn === 'number' ? parsed.parserDropWarn : current.parserDropWarn,
-                parserDropCritical: typeof parsed.parserDropCritical === 'number' ? parsed.parserDropCritical : current.parserDropCritical,
-                stabilityWarn: typeof parsed.stabilityWarn === 'number' ? parsed.stabilityWarn : current.stabilityWarn,
-                stabilityCritical: typeof parsed.stabilityCritical === 'number' ? parsed.stabilityCritical : current.stabilityCritical,
-                fingerprintCoverageWarn: typeof parsed.fingerprintCoverageWarn === 'number'
-                    ? parsed.fingerprintCoverageWarn
-                    : current.fingerprintCoverageWarn,
-                surfaceParserDropWarn: typeof parsed.surfaceParserDropWarn === 'number'
-                    ? parsed.surfaceParserDropWarn
-                    : current.surfaceParserDropWarn,
-                surfaceParserDropCritical: typeof parsed.surfaceParserDropCritical === 'number'
-                    ? parsed.surfaceParserDropCritical
-                    : current.surfaceParserDropCritical,
-                surfaceStabilityWarn: typeof parsed.surfaceStabilityWarn === 'number'
-                    ? parsed.surfaceStabilityWarn
-                    : current.surfaceStabilityWarn,
-                surfaceStabilityCritical: typeof parsed.surfaceStabilityCritical === 'number'
-                    ? parsed.surfaceStabilityCritical
-                    : current.surfaceStabilityCritical,
-            }));
-        } catch {
-            // Ignore malformed local storage payloads.
-        }
-    }, []);
-
-    useEffect(() => {
-        localStorage.setItem(QUALITY_THRESHOLDS_STORAGE_KEY, JSON.stringify(qualityThresholds));
-    }, [qualityThresholds]);
-
     if (isLoading || !user) {
         return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
     }
-
-    const loadRecommendationMap = ({
-        seed,
-        cohortId,
-        cohortLabel,
-    }: {
-        seed: string;
-        cohortId?: string;
-        cohortLabel?: string;
-    }) => {
-        const cleanedSeed = seed.trim();
-        if (!cleanedSeed) {
-            setMapError('Enter a seed YouTube video ID to build the map.');
-            return;
-        }
-
-        setMapError(null);
-        setIsMapLoading(true);
-        setSelectedCohortId(cohortId ?? null);
-        setSelectedCohortLabel(cohortLabel ?? null);
-
-        const query = new URLSearchParams({
-            seedVideoId: cleanedSeed,
-            maxDepth: String(maxDepth),
-            maxNodes: String(maxNodes),
-            platform,
-        });
-
-        if (cohortId) {
-            query.set('cohortId', cohortId);
-        }
-
-        api.get<{ map: RecommendationMapResult }>(`/analysis/recommendation-map?${query.toString()}`)
-            .then((data) => setMapResult(data.map))
-            .catch((error: Error) => {
-                setMapResult(null);
-                setMapError(error.message || 'Unable to build recommendation map.');
-            })
-            .finally(() => setIsMapLoading(false));
-    };
-
-    const loadForecastEvaluation = (targetPlatform: string) => {
-        setIsEvaluationLoading(true);
-        const query = new URLSearchParams({
-            platform: targetPlatform,
-            topK: '5',
-        });
-
-        api.get<{ evaluation: ForecastEvaluationResult }>(`/analysis/forecast-evaluation?${query.toString()}`)
-            .then((data) => setEvaluation(data.evaluation))
-            .catch(() => setEvaluation(null))
-            .finally(() => setIsEvaluationLoading(false));
-    };
-
-    const loadDataQuality = ({
-        targetPlatform,
-        windowHours,
-        bucketHours,
-        keepExisting = false,
-    }: {
-        targetPlatform: string;
-        windowHours: number;
-        bucketHours: number;
-        keepExisting?: boolean;
-    }) => {
-        setIsDataQualityLoading(true);
-        setDataQualityError(null);
-        if (!keepExisting) {
-            setDataQuality(null);
-            setDataQualityTrend(null);
-        }
-
-        const query = new URLSearchParams({
-            platform: targetPlatform,
-            windowHours: String(windowHours),
-        });
-
-        const trendQuery = new URLSearchParams({
-            platform: targetPlatform,
-            windowHours: String(windowHours),
-            bucketHours: String(bucketHours),
-        });
-
-        Promise.allSettled([
-            api.get<{ diagnostics: DataQualityDiagnosticsResult }>(`/analysis/data-quality?${query.toString()}`),
-            api.get<{ trends: DataQualityTrendResult }>(`/analysis/data-quality-trends?${trendQuery.toString()}`),
-        ])
-            .then(([diagnosticsResult, trendResult]) => {
-                if (diagnosticsResult.status === 'fulfilled') {
-                    setDataQuality(diagnosticsResult.value.diagnostics);
-                } else {
-                    setDataQuality(null);
-                    setDataQualityError(diagnosticsResult.reason?.message || 'Unable to load data quality diagnostics.');
-                }
-
-                if (trendResult.status === 'fulfilled') {
-                    setDataQualityTrend(trendResult.value.trends);
-                } else {
-                    setDataQualityTrend(null);
-                }
-            })
-            .finally(() => setIsDataQualityLoading(false));
-    };
-
-    const percentile = (values: number[], p: number): number => {
-        if (values.length === 0) return 0;
-        const sorted = [...values].sort((left, right) => left - right);
-        const clampedP = Math.max(0, Math.min(1, p));
-        const index = Math.min(
-            sorted.length - 1,
-            Math.max(0, Math.round((sorted.length - 1) * clampedP))
-        );
-        return sorted[index];
-    };
-
-    const autoTuneQualityThresholds = () => {
-        if (!dataQualityTrend || dataQualityTrend.points.length === 0 || !dataQuality) {
-            setQualityThresholds(DEFAULT_QUALITY_THRESHOLDS);
-            return;
-        }
-
-        const parserSeries = dataQualityTrend.points
-            .map((point) => point.parserDropRate)
-            .filter((value) => Number.isFinite(value));
-        const stabilitySeries = dataQualityTrend.points
-            .map((point) => point.cohortStabilityScore)
-            .filter((value) => Number.isFinite(value));
-        const surfaceParserSeries = dataQualityTrend.points
-            .flatMap((point) => point.surfaceMetrics.map((surface) => surface.parserDropRate))
-            .filter((value) => Number.isFinite(value));
-        const surfaceStabilitySeries = dataQualityTrend.points
-            .flatMap((point) => point.surfaceMetrics.map((surface) => surface.transitionStabilityScore))
-            .filter((value) => Number.isFinite(value));
-        const fingerprintCoverage = dataQuality.stitching.totalSnapshots > 0
-            ? dataQuality.stitching.snapshotsWithQualityFingerprint / dataQuality.stitching.totalSnapshots
-            : DEFAULT_QUALITY_THRESHOLDS.fingerprintCoverageWarn;
-
-        const tuned = normalizeThresholds({
-            parserDropWarn: clampUnit(percentile(parserSeries, 0.75) + 0.02),
-            parserDropCritical: clampUnit(percentile(parserSeries, 0.9) + 0.04),
-            stabilityWarn: clampUnit(percentile(stabilitySeries, 0.25) - 0.01),
-            stabilityCritical: clampUnit(percentile(stabilitySeries, 0.1) - 0.02),
-            fingerprintCoverageWarn: clampUnit(fingerprintCoverage - 0.08),
-            surfaceParserDropWarn: surfaceParserSeries.length > 0
-                ? clampUnit(percentile(surfaceParserSeries, 0.75) + 0.02)
-                : DEFAULT_QUALITY_THRESHOLDS.surfaceParserDropWarn,
-            surfaceParserDropCritical: surfaceParserSeries.length > 0
-                ? clampUnit(percentile(surfaceParserSeries, 0.9) + 0.04)
-                : DEFAULT_QUALITY_THRESHOLDS.surfaceParserDropCritical,
-            surfaceStabilityWarn: surfaceStabilitySeries.length > 0
-                ? clampUnit(percentile(surfaceStabilitySeries, 0.25) - 0.01)
-                : DEFAULT_QUALITY_THRESHOLDS.surfaceStabilityWarn,
-            surfaceStabilityCritical: surfaceStabilitySeries.length > 0
-                ? clampUnit(percentile(surfaceStabilitySeries, 0.1) - 0.02)
-                : DEFAULT_QUALITY_THRESHOLDS.surfaceStabilityCritical,
-        });
-
-        setQualityThresholds(tuned);
-    };
-
-    const downloadTextFile = (filename: string, content: string, mimeType = 'text/markdown;charset=utf-8') => {
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
-
-    const exportGoToMarketBrief = () => {
-        const cleanedTarget = targetVideoId.trim() || forecast?.targetVideoId || '';
-        if (!cleanedTarget) {
-            setBriefExportMessage('Enter a target video ID before exporting.');
-            return;
-        }
-
-        setIsBriefExporting(true);
-        setBriefExportMessage(null);
-
-        const seedCandidate = forecastSeedVideoId.trim() || forecast?.seedVideoId || '';
-        const query = new URLSearchParams({
-            targetVideoId: cleanedTarget,
-            platform,
-            maxDepth: String(maxDepth),
-            beamWidth: String(beamWidth),
-            topCohorts: '5',
-            maxPathsPerCohort: '3',
-            pathBranchLimit: '6',
-        });
-
-        if (seedCandidate) {
-            query.set('seedVideoId', seedCandidate);
-        }
-
-        api.get<{ brief: GoToMarketBriefResult }>(`/analysis/go-to-market-brief?${query.toString()}`)
-            .then((data) => {
-                const brief = data.brief;
-                const dateStamp = brief.generatedAt.slice(0, 10);
-                const filename = `aggregate-insight-brief-${brief.platform}-${brief.targetVideoId}-${dateStamp}.md`;
-                downloadTextFile(filename, brief.markdown);
-                setBriefExportMessage(`Brief exported: ${filename}`);
-            })
-            .catch((error: Error) => {
-                setBriefExportMessage(error.message || 'Unable to export the aggregate insight brief.');
-            })
-            .finally(() => setIsBriefExporting(false));
-    };
-
-    const handleDeleteAccount = async () => {
-        if (deleteConfirmation.trim() !== user.anonymousId) {
-            setDeleteAccountError('Type your exact contributor ID before deleting all observatory data.');
-            return;
-        }
-
-        setDeleteAccountError(null);
-        setIsDeletingAccount(true);
-
-        try {
-            await deleteAccount(deleteConfirmation.trim());
-            navigate('/login');
-        } catch (error) {
-            setDeleteAccountError(
-                error instanceof Error
-                    ? error.message
-                    : 'Unable to delete your contributor account right now.'
-            );
-        } finally {
-            setIsDeletingAccount(false);
-        }
-    };
-
-    const surfaceTrendLeaders = (() => {
-        if (!dataQualityTrend || dataQualityTrend.points.length === 0) return [];
-        const strictRowsBySurface = new Map<string, number>();
-
-        for (const point of dataQualityTrend.points) {
-            const surfaceMetrics = Array.isArray(point.surfaceMetrics) ? point.surfaceMetrics : [];
-            for (const surface of surfaceMetrics) {
-                strictRowsBySurface.set(
-                    surface.surface,
-                    (strictRowsBySurface.get(surface.surface) ?? 0) + surface.strictRows
-                );
-            }
-        }
-
-        return Array.from(strictRowsBySurface.entries())
-            .filter(([, strictRows]) => strictRows > 0)
-            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-            .slice(0, 4)
-            .map(([surface]) => surface);
-    })();
-
-    const surfaceTrendSeries = (() => {
-        if (!dataQualityTrend || dataQualityTrend.points.length === 0 || surfaceTrendLeaders.length === 0) {
-            return [];
-        }
-
-        return dataQualityTrend.points.map((point) => {
-            const row: Record<string, string | number | null> = {
-                time: new Date(point.windowStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-            };
-
-            for (const surface of surfaceTrendLeaders) {
-                const pointSurfaces = Array.isArray(point.surfaceMetrics) ? point.surfaceMetrics : [];
-                const surfaceMetrics = pointSurfaces.find((entry) => entry.surface === surface);
-                const value = surfaceMetrics ? surfaceMetrics[surfaceTrendMetric] : null;
-                row[`surface:${surface}`] = typeof value === 'number'
-                    ? Math.round(value * 100)
-                    : null;
-            }
-
-            return row;
-        });
-    })();
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -501,324 +143,32 @@ export function Dashboard() {
                         </p>
                     </div>
 
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-100">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700">Delete My Data</p>
-                        <h2 className="mt-2 text-lg font-bold text-gray-900">Hard-delete this contributor account</h2>
-                        <p className="mt-2 text-sm text-gray-600">
-                            Type your contributor ID exactly to confirm permanent deletion of your pseudonymous account, snapshots, feed items, and ingest history.
-                        </p>
-                        <input
-                            type="text"
-                            value={deleteConfirmation}
-                            onChange={(event) => setDeleteConfirmation(event.target.value)}
-                            placeholder={user.anonymousId}
-                            className="mt-4 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                        />
-                        {deleteAccountError && (
-                            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                {deleteAccountError}
-                            </div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handleDeleteAccount}
-                            disabled={isDeletingAccount}
-                            className="mt-4 inline-flex items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isDeletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete Contributor Account'}
-                        </button>
-                    </div>
+                    <DeleteAccountCard
+                        anonymousId={user.anonymousId}
+                        onDeleteAccount={deleteAccount}
+                        onDeleted={() => navigate('/login')}
+                    />
                 </div>
 
-                {/* Data Quality Health */}
-                <ErrorBoundary
-                    title="Cross-user data quality failed to render."
-                    description="Quality diagnostics are temporarily unavailable, but the rest of the observatory can still load."
-                    resetKey={`${platform}:${qualityWindowHours}:${qualityBucketHours}:${dataQuality?.generatedAt ?? 'none'}`}
-                >
-                <div className="bg-white p-6 rounded-2xl shadow-sm mb-8">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-5">
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                                Cross-User Data Quality
-                            </h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Tracks stitching, dedupe, parser strictness, and cohort stability so forecast quality improves as comparisons scale.
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <select
-                                value={qualityWindowHours}
-                                onChange={(event) => setQualityWindowHours(Number(event.target.value))}
-                                className="rounded-md border border-gray-300 px-2 py-1.5 text-xs font-semibold text-gray-700 bg-white"
-                            >
-                                {QUALITY_WINDOW_OPTIONS.map((option) => (
-                                    <option key={`window-${option.hours}`} value={option.hours}>
-                                        Window {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                            <select
-                                value={qualityBucketHours}
-                                onChange={(event) => setQualityBucketHours(Number(event.target.value))}
-                                className="rounded-md border border-gray-300 px-2 py-1.5 text-xs font-semibold text-gray-700 bg-white"
-                            >
-                                {QUALITY_BUCKET_OPTIONS
-                                    .filter((option) => option.hours <= qualityWindowHours)
-                                    .map((option) => (
-                                        <option key={`bucket-${option.hours}`} value={option.hours}>
-                                            Bucket {option.label}
-                                        </option>
-                                    ))}
-                            </select>
-                            <button
-                                type="button"
-                                onClick={() => loadDataQuality({
-                                    targetPlatform: platform,
-                                    windowHours: qualityWindowHours,
-                                    bucketHours: qualityBucketHours,
-                                    keepExisting: true,
-                                })}
-                                disabled={isDataQualityLoading}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isDataQualityLoading
-                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    : <RefreshCw className="w-3.5 h-3.5" />}
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-
-                    {dataQualityError && (
-                        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {dataQualityError}
-                        </div>
-                    )}
-
-                    {dataQuality ? (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3">
-                                <MapMetric title="Dedupe Rate" value={`${Math.round(dataQuality.stitching.duplicateRate * 100)}%`} />
-                                <MapMetric title="Parse Coverage" value={`${Math.round(dataQuality.recommendations.parseCoverage * 100)}%`} />
-                                <MapMetric title="Parser Drop" value={`${Math.round(dataQuality.recommendations.parserDropRate * 100)}%`} />
-                                <MapMetric title="Metadata Integrity" value={`${Math.round(dataQuality.stitching.metadataIntegrityScore * 100)}%`} />
-                                <MapMetric title="Surface Stability" value={`${Math.round(dataQuality.recommendations.surfaceTransitionStability * 100)}%`} />
-                                <MapMetric title="Cohort Stability" value={`${Math.round(dataQuality.cohorts.stabilityScore * 100)}%`} />
-                                <MapMetric title="Network Strength" value={`${Math.round(dataQuality.cohorts.networkStrength * 100)}%`} />
-                                <MapMetric title="Stitched Sessions" value={dataQuality.stitching.stitchedSessions} />
-                            </div>
-
-                            {dataQuality.qualityGate.invalidMetadataSnapshots > 0 && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                                    <p className="text-sm font-semibold text-amber-800">Metadata integrity warning</p>
-                                    <p className="mt-1 text-sm text-amber-700">
-                                        {dataQuality.qualityGate.invalidMetadataSnapshots} snapshot(s) in this window had session metadata that could not be decoded.
-                                        Forecast stitching stays backward-compatible for older captures, but confidence is reduced until clean metadata coverage improves.
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">Alert Thresholds</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                    <ThresholdInput
-                                        label="Parser Warn %"
-                                        value={qualityThresholds.parserDropWarn}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, parserDropWarn: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Parser Critical %"
-                                        value={qualityThresholds.parserDropCritical}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, parserDropCritical: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Stability Warn %"
-                                        value={qualityThresholds.stabilityWarn}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, stabilityWarn: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Stability Critical %"
-                                        value={qualityThresholds.stabilityCritical}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, stabilityCritical: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Fingerprint Warn %"
-                                        value={qualityThresholds.fingerprintCoverageWarn}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, fingerprintCoverageWarn: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Surface Drop Warn %"
-                                        value={qualityThresholds.surfaceParserDropWarn}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceParserDropWarn: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Surface Drop Critical %"
-                                        value={qualityThresholds.surfaceParserDropCritical}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceParserDropCritical: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Surface Stability Warn %"
-                                        value={qualityThresholds.surfaceStabilityWarn}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceStabilityWarn: value }))}
-                                    />
-                                    <ThresholdInput
-                                        label="Surface Stability Critical %"
-                                        value={qualityThresholds.surfaceStabilityCritical}
-                                        onChange={(value) => setQualityThresholds((current) => ({ ...current, surfaceStabilityCritical: value }))}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-end gap-2 mt-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setQualityThresholds(DEFAULT_QUALITY_THRESHOLDS)}
-                                        className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
-                                    >
-                                        Reset
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={autoTuneQualityThresholds}
-                                        disabled={!dataQualityTrend || dataQualityTrend.points.length === 0}
-                                        className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Auto-Tune
-                                    </button>
-                                </div>
-                            </div>
-
-                            <QualityAlerts diagnostics={dataQuality} thresholds={qualityThresholds} />
-
-                            {dataQuality.recommendations.bySurface.length > 0 && (
-                                <div className="rounded-xl border border-gray-200 p-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Recommendation Surface Quality</h3>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full text-xs">
-                                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
-                                                <tr className="text-left">
-                                                    <th className="px-3 py-2 font-semibold">Surface</th>
-                                                    <th className="px-3 py-2 font-semibold">Raw Rows</th>
-                                                    <th className="px-3 py-2 font-semibold">Strict Rows</th>
-                                                    <th className="px-3 py-2 font-semibold">Parse Coverage</th>
-                                                    <th className="px-3 py-2 font-semibold">Parser Drop</th>
-                                                    <th className="px-3 py-2 font-semibold">Transition Stability</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {dataQuality.recommendations.bySurface.slice(0, 8).map((surface) => (
-                                                    <tr key={surface.surface} className="border-b border-gray-100 last:border-b-0">
-                                                        <td className="px-3 py-2 font-medium text-gray-800">{surface.surface}</td>
-                                                        <td className="px-3 py-2 text-gray-700">{surface.rawRows.toLocaleString()}</td>
-                                                        <td className="px-3 py-2 text-gray-700">{surface.strictRows.toLocaleString()}</td>
-                                                        <td className="px-3 py-2 text-gray-700">{Math.round(surface.parseCoverage * 100)}%</td>
-                                                        <td className="px-3 py-2 text-gray-700">{Math.round(surface.parserDropRate * 100)}%</td>
-                                                        <td className="px-3 py-2 text-gray-700">{Math.round(surface.transitionStabilityScore * 100)}%</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <p className="mt-2 text-[11px] text-gray-500">
-                                        Surface stability is transition repeat strength within each recommendation surface after strict parsing.
-                                    </p>
-                                </div>
-                            )}
-
-                            {dataQualityTrend && dataQualityTrend.points.length > 0 && (
-                                <div className="rounded-xl border border-gray-200 p-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Quality Trend</h3>
-                                    <div className="h-64 w-full">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart
-                                                data={dataQualityTrend.points.map((point) => ({
-                                                    time: new Date(point.windowStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-                                                    dedupeRate: Math.round(point.dedupeRate * 100),
-                                                    parseCoverage: Math.round(point.parseCoverage * 100),
-                                                    parserDropRate: Math.round(point.parserDropRate * 100),
-                                                    stability: Math.round(point.cohortStabilityScore * 100),
-                                                }))}
-                                                margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis dataKey="time" />
-                                                <YAxis domain={[0, 100]} />
-                                                <Tooltip />
-                                                <Legend />
-                                                <Line type="monotone" dataKey="parseCoverage" name="Parse Coverage %" stroke="#2563eb" strokeWidth={2} dot={false} />
-                                                <Line type="monotone" dataKey="stability" name="Cohort Stability %" stroke="#16a34a" strokeWidth={2} dot={false} />
-                                                <Line type="monotone" dataKey="parserDropRate" name="Parser Drop %" stroke="#dc2626" strokeWidth={2} dot={false} />
-                                                <Line type="monotone" dataKey="dedupeRate" name="Dedupe %" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            )}
-
-                            {surfaceTrendSeries.length > 0 && (
-                                <div className="rounded-xl border border-gray-200 p-4">
-                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
-                                        <h3 className="text-sm font-semibold text-gray-900">Surface Trend</h3>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            {SURFACE_TREND_METRIC_OPTIONS.map((option) => {
-                                                const isActive = surfaceTrendMetric === option.id;
-                                                return (
-                                                    <button
-                                                        key={`surface-metric-${option.id}`}
-                                                        type="button"
-                                                        onClick={() => setSurfaceTrendMetric(option.id)}
-                                                        className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${isActive
-                                                            ? 'border-blue-400 bg-blue-50 text-blue-700'
-                                                            : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-                                                            }`}
-                                                    >
-                                                        {option.label}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                    <div className="h-60 w-full">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart
-                                                data={surfaceTrendSeries}
-                                                margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis dataKey="time" />
-                                                <YAxis domain={[0, 100]} />
-                                                <Tooltip />
-                                                <Legend />
-                                                {surfaceTrendLeaders.map((surface, index) => (
-                                                    <Line
-                                                        key={`surface-line-${surface}`}
-                                                        type="monotone"
-                                                        dataKey={`surface:${surface}`}
-                                                        name={`${surface} %`}
-                                                        stroke={SURFACE_TREND_COLORS[index % SURFACE_TREND_COLORS.length]}
-                                                        strokeWidth={2}
-                                                        dot={false}
-                                                        connectNulls
-                                                    />
-                                                ))}
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            )}
-
-                            <p className="text-xs text-gray-500">
-                                Compared users: {dataQuality.totals.users.toLocaleString()} | snapshots: {dataQuality.totals.snapshots.toLocaleString()}
-                                {' '}({dataQuality.stitching.snapshotsAfterDedupe.toLocaleString()} after dedupe) | unique videos: {dataQuality.totals.uniqueVideos.toLocaleString()}.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="text-sm text-gray-500">
-                            {isDataQualityLoading ? 'Loading diagnostics...' : 'No diagnostics loaded yet.'}
-                        </div>
-                    )}
-                </div>
-                </ErrorBoundary>
+                <DataQualitySection
+                    platform={platform}
+                    dataQuality={dataQuality}
+                    dataQualityTrend={dataQualityTrend}
+                    dataQualityError={dataQualityError}
+                    isDataQualityLoading={isDataQualityLoading}
+                    qualityWindowHours={qualityWindowHours}
+                    setQualityWindowHours={setQualityWindowHours}
+                    qualityBucketHours={qualityBucketHours}
+                    setQualityBucketHours={setQualityBucketHours}
+                    qualityThresholds={qualityThresholds}
+                    setQualityThresholds={setQualityThresholds}
+                    surfaceTrendMetric={surfaceTrendMetric}
+                    setSurfaceTrendMetric={setSurfaceTrendMetric}
+                    loadDataQuality={loadDataQuality}
+                    autoTuneQualityThresholds={autoTuneQualityThresholds}
+                    surfaceTrendLeaders={surfaceTrendLeaders}
+                    surfaceTrendSeries={surfaceTrendSeries}
+                />
 
                 {/* Charts Section */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm mb-8">
@@ -841,383 +191,57 @@ export function Dashboard() {
                     </div>
                 </div>
 
-                {/* Recommendation Map Section */}
-                <ErrorBoundary
-                    title="The recommendation observatory map failed to render."
-                    description="You can still use the contributor and aggregate insight controls while this panel is reset."
-                    resetKey={`${platform}:${seedVideoId}:${selectedCohortId ?? 'contributor'}:${mapResult?.summary.sharedVideos ?? 0}`}
-                >
-                <div className="bg-white p-6 rounded-2xl shadow-sm">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <Network className="w-5 h-5 text-blue-600" />
-                                Recommendation Observatory Map
-                            </h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Explore where recommendations converge or diverge across your contributor feed and selected aggregate cohorts.
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                                Scope: {selectedCohortId
-                                    ? `Cohort (${selectedCohortLabel || selectedCohortId})`
-                                    : 'Your contributor feed'}
-                            </p>
-                        </div>
-                        {selectedCohortId && (
-                            <button
-                                type="button"
-                                className="self-start rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                                onClick={() => {
-                                    setSelectedCohortId(null);
-                                    setSelectedCohortLabel(null);
-                                    if (seedVideoId.trim()) {
-                                        loadRecommendationMap({ seed: seedVideoId.trim() });
-                                    }
-                                }}
-                            >
-                                Use Contributor Scope
-                            </button>
-                        )}
-                    </div>
+                <RecommendationMapSection
+                    platform={platform}
+                    setPlatform={setPlatform}
+                    maxDepth={maxDepth}
+                    setMaxDepth={setMaxDepth}
+                    seedVideoId={seedVideoId}
+                    setSeedVideoId={setSeedVideoId}
+                    maxNodes={maxNodes}
+                    setMaxNodes={setMaxNodes}
+                    mapResult={mapResult}
+                    mapError={mapError}
+                    isMapLoading={isMapLoading}
+                    selectedCohortId={selectedCohortId}
+                    selectedCohortLabel={selectedCohortLabel}
+                    onLoadRecommendationMap={loadRecommendationMap}
+                    onResetToContributorScope={resetToContributorScope}
+                />
 
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            loadRecommendationMap({
-                                seed: seedVideoId,
-                                cohortId: selectedCohortId ?? undefined,
-                                cohortLabel: selectedCohortLabel ?? undefined,
-                            });
-                        }}
-                        className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6"
-                    >
-                        <input
-                            type="text"
-                            value={seedVideoId}
-                            onChange={(event) => setSeedVideoId(event.target.value)}
-                            placeholder="Seed video ID (for example: dQw4w9WgXcQ)"
-                            className="md:col-span-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <select
-                            value={platform}
-                            onChange={(event) => setPlatform(event.target.value)}
-                            className="rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                            <option value="youtube">YouTube</option>
-                            <option value="instagram">Instagram</option>
-                            <option value="twitter">Twitter</option>
-                            <option value="tiktok">TikTok</option>
-                        </select>
-                        <input
-                            type="number"
-                            min={1}
-                            max={8}
-                            value={maxDepth}
-                            onChange={(event) => setMaxDepth(Math.min(8, Math.max(1, Number(event.target.value) || 1)))}
-                            className="rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            title="Max depth"
-                        />
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                min={10}
-                                max={300}
-                                value={maxNodes}
-                                onChange={(event) => setMaxNodes(Math.min(300, Math.max(10, Number(event.target.value) || 10)))}
-                                className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                title="Max nodes"
-                            />
-                            <button
-                                type="submit"
-                                disabled={isMapLoading}
-                                className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isMapLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Map'}
-                            </button>
-                        </div>
-                    </form>
+                <ForecastSection
+                    platform={platform}
+                    targetVideoId={targetVideoId}
+                    setTargetVideoId={setTargetVideoId}
+                    forecastSeedVideoId={forecastSeedVideoId}
+                    setForecastSeedVideoId={setForecastSeedVideoId}
+                    beamWidth={beamWidth}
+                    setBeamWidth={setBeamWidth}
+                    forecast={forecast}
+                    forecastError={forecastError}
+                    isForecastLoading={isForecastLoading}
+                    evaluation={evaluation}
+                    isEvaluationLoading={isEvaluationLoading}
+                    isBriefExporting={isBriefExporting}
+                    briefExportMessage={briefExportMessage}
+                    onSubmitForecast={submitForecast}
+                    onExportBrief={exportGoToMarketBrief}
+                    onViewCohortMap={(cohort) => {
+                        const drillSeed = getForecastDrillSeed(seedVideoId);
 
-                    {mapError && (
-                        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {mapError}
-                        </div>
-                    )}
+                        if (!drillSeed) {
+                            setMapError('Set a map seed or forecast seed before cohort drilldown.');
+                            return;
+                        }
 
-                    {mapResult && (
-                        <div className="space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                                <MapMetric title="Shared Videos" value={mapResult.summary.sharedVideos} />
-                                <MapMetric title="BFS-Only" value={mapResult.summary.bfsUniqueVideos} />
-                                <MapMetric title="DFS-Only" value={mapResult.summary.dfsUniqueVideos} />
-                                <MapMetric title="Shared Rate" value={`${Math.round(mapResult.summary.sharedRate * 100)}%`} />
-                                <MapMetric title="Avg Confidence" value={`${Math.round(mapResult.summary.avgPredictionConfidence * 100)}%`} />
-                            </div>
-
-                            <RecommendationGraphCanvas map={mapResult} />
-
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                <TraversalLane
-                                    title="BFS Signal"
-                                    summary={mapResult.bfs.summary}
-                                    steps={mapResult.bfs.visitOrder}
-                                />
-                                <TraversalLane
-                                    title="DFS Signal"
-                                    summary={mapResult.dfs.summary}
-                                    steps={mapResult.dfs.visitOrder}
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
-                </ErrorBoundary>
-
-                <div className="mt-8 mb-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Aggregate Insight Studio</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                        Forecasts, cohort rankings, and briefs below are generated from aggregate observatory cohorts rather than raw contributor-level drilldowns.
-                    </p>
-                </div>
-
-                {/* Audience Forecast Section */}
-                <ErrorBoundary
-                    title="The aggregate reach forecast panel failed to render."
-                    description="Forecast calculations are still available after retrying this panel, and the rest of the observatory remains intact."
-                    resetKey={`${platform}:${targetVideoId}:${forecastSeedVideoId}:${forecast?.targetVideoId ?? 'none'}`}
-                >
-                <div className="bg-white p-6 rounded-2xl shadow-sm mt-8">
-                    <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <Target className="w-5 h-5 text-emerald-600" />
-                                Aggregate Reach Forecast
-                            </h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Predicts which aggregate cohorts a target video is most likely to reach using cross-user comparisons.
-                                Model quality increases as more contributors compare feeds.
-                            </p>
-                        </div>
-                        <div className="flex flex-col gap-2 md:items-end">
-                            <button
-                                type="button"
-                                onClick={exportGoToMarketBrief}
-                                disabled={isBriefExporting}
-                                className="inline-flex items-center justify-center rounded-xl border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isBriefExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Export Aggregate Brief'}
-                            </button>
-                            {briefExportMessage && (
-                                <p className="text-xs text-gray-600">{briefExportMessage}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            const cleanedTarget = targetVideoId.trim();
-                            if (!cleanedTarget) {
-                                setForecastError('Enter a target video ID.');
-                                return;
-                            }
-
-                            setForecastError(null);
-                            setBriefExportMessage(null);
-                            setIsForecastLoading(true);
-                            setEvaluation(null);
-
-                            const query = new URLSearchParams({
-                                targetVideoId: cleanedTarget,
-                                platform,
-                                maxDepth: String(maxDepth),
-                                beamWidth: String(beamWidth),
-                            });
-
-                            const cleanedSeed = forecastSeedVideoId.trim();
-                            if (cleanedSeed) {
-                                query.set('seedVideoId', cleanedSeed);
-                            }
-
-                            api.get<{ forecast: AudienceForecastResult }>(`/analysis/audience-forecast?${query.toString()}`)
-                                .then((data) => {
-                                    setForecast(data.forecast);
-                                    loadForecastEvaluation(platform);
-                                })
-                                .catch((error: Error) => {
-                                    setForecast(null);
-                                    setForecastError(error.message || 'Unable to generate audience forecast.');
-                                })
-                                .finally(() => setIsForecastLoading(false));
-                        }}
-                        className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-5"
-                    >
-                        <input
-                            type="text"
-                            value={targetVideoId}
-                            onChange={(event) => setTargetVideoId(event.target.value)}
-                            placeholder="Target video ID (your video)"
-                            className="md:col-span-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                        <input
-                            type="text"
-                            value={forecastSeedVideoId}
-                            onChange={(event) => setForecastSeedVideoId(event.target.value)}
-                            placeholder="Optional context seed video ID"
-                            className="md:col-span-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                        <input
-                            type="number"
-                            min={5}
-                            max={120}
-                            value={beamWidth}
-                            onChange={(event) => setBeamWidth(Math.min(120, Math.max(5, Number(event.target.value) || 5)))}
-                            className="rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            title="Beam width"
-                        />
-                        <button
-                            type="submit"
-                            disabled={isForecastLoading}
-                            className="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isForecastLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Forecast'}
-                        </button>
-                    </form>
-
-                    {forecastError && (
-                        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {forecastError}
-                        </div>
-                    )}
-
-                    {forecast && (
-                        <div className="space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
-                                <MapMetric title="Compared Users" value={forecast.networkEffect.comparedUsers} />
-                                <MapMetric title="Pairwise Compares" value={forecast.networkEffect.pairwiseComparisons} />
-                                <MapMetric title="Transitions" value={forecast.networkEffect.comparedTransitions} />
-                                <MapMetric title="Network Strength" value={`${Math.round(forecast.networkEffect.networkStrength * 100)}%`} />
-                                <MapMetric title="Global Exposure" value={`${Math.round(forecast.global.targetExposureRate * 100)}%`} />
-                                <MapMetric
-                                    title="Reliability"
-                                    value={isEvaluationLoading
-                                        ? '...'
-                                        : evaluation
-                                            ? `${Math.round(evaluation.metrics.reliabilityScore * 100)}%`
-                                            : '-'}
-                                />
-                            </div>
-                            <p className="text-xs text-gray-500 -mt-2">
-                                Holdout evaluation (train older snapshots, test newer): top-{evaluation?.metrics.topK ?? 5}
-                                {' '}hit {evaluation ? `${Math.round(evaluation.metrics.topKReachHitRate * 100)}%` : '-'},
-                                {' '}precision {evaluation ? `${Math.round(evaluation.metrics.precisionAtK * 100)}%` : '-'},
-                                {' '}calibration {evaluation ? `${Math.round(evaluation.metrics.calibrationScore * 100)}%` : '-'}.
-                            </p>
-
-                            <div className={`rounded-xl border px-3 py-2 text-xs ${forecast.qualityGate.status === 'degraded'
-                                ? 'border-amber-200 bg-amber-50 text-amber-800'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                }`}>
-                                Parser coverage: {Math.round(forecast.qualityGate.parseCoverage * 100)}%
-                                {' '}| parser drop: {Math.round(forecast.qualityGate.parserDropRate * 100)}%
-                                {' '}| minimum target: {Math.round(forecast.qualityGate.minimumParseCoverage * 100)}%
-                                {forecast.qualityGate.status === 'degraded'
-                                    ? ' | Confidence is currently degraded for forecast scoring.'
-                                    : ' | Confidence quality gate passed.'}
-                            </div>
-
-                            {forecast.qualityGate.degradationReasons.length > 0 && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-                                    <p className="text-sm font-semibold text-amber-900">Forecast confidence is currently degraded</p>
-                                    <p className="mt-1 text-sm text-amber-800">
-                                        The model is still available, but one or more observatory quality gates are below target. Review the signals below before treating the cohort ranking as strong evidence.
-                                    </p>
-                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-                                        <MapMetric title="Parser Coverage" value={`${Math.round(forecast.qualityGate.parseCoverage * 100)}%`} />
-                                        <MapMetric title="Parser Drop" value={`${Math.round(forecast.qualityGate.parserDropRate * 100)}%`} />
-                                        <MapMetric title="Metadata Integrity" value={`${Math.round(forecast.qualityGate.metadataIntegrityScore * 100)}%`} />
-                                        <MapMetric title="Compared Users" value={forecast.qualityGate.comparedUsers} />
-                                        <MapMetric title="Cohort Stability" value={`${Math.round(forecast.qualityGate.cohortStabilityScore * 100)}%`} />
-                                    </div>
-                                    <ul className="mt-3 space-y-2 text-sm text-amber-900">
-                                        {forecast.qualityGate.degradationReasons.map((reason) => (
-                                            <li key={reason} className="rounded-lg bg-white/70 px-3 py-2 border border-amber-100">
-                                                {reason}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            <div className="rounded-xl border border-gray-200 overflow-hidden">
-                                <div className="flex items-center justify-between bg-gray-50 px-4 py-3 border-b border-gray-200">
-                                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                                        <Sigma className="w-4 h-4 text-emerald-600" />
-                                        Aggregate Audience Cohorts
-                                    </h3>
-                                    <span className="text-xs text-gray-500">
-                                        Sorted by probability, fit, and cohort evidence
-                                    </span>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full text-sm">
-                                        <thead className="bg-white border-b border-gray-100">
-                                            <tr className="text-left text-gray-600">
-                                                <th className="px-4 py-3 font-semibold">Cohort</th>
-                                                <th className="px-4 py-3 font-semibold">Users</th>
-                                                <th className="px-4 py-3 font-semibold">Exposure</th>
-                                                <th className="px-4 py-3 font-semibold">Reach from Seed</th>
-                                                <th className="px-4 py-3 font-semibold">Lift vs Global</th>
-                                                <th className="px-4 py-3 font-semibold">Fit</th>
-                                                <th className="px-4 py-3 font-semibold">Score</th>
-                                                <th className="px-4 py-3 font-semibold">Reliability</th>
-                                                <th className="px-4 py-3 font-semibold">Drilldown</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(forecast.recommendedAudienceCohorts.length > 0
-                                                ? forecast.recommendedAudienceCohorts
-                                                : forecast.cohorts.slice(0, 8)
-                                            ).map((cohort) => (
-                                                <CohortRow
-                                                    key={cohort.cohortId}
-                                                    cohort={cohort}
-                                                    reliabilityScore={
-                                                        evaluation?.cohortMetrics.find((entry) => entry.cohortId === cohort.cohortId)?.reliabilityScore
-                                                        ?? evaluation?.metrics.reliabilityScore
-                                                        ?? null
-                                                    }
-                                                    reliabilitySampleSize={
-                                                        evaluation?.cohortMetrics.find((entry) => entry.cohortId === cohort.cohortId)?.sampleSize
-                                                        ?? evaluation?.metrics.sampleSize
-                                                        ?? null
-                                                    }
-                                                    onViewMap={() => {
-                                                        const drillSeed = seedVideoId.trim()
-                                                            || forecastSeedVideoId.trim()
-                                                            || targetVideoId.trim();
-
-                                                        if (!drillSeed) {
-                                                            setMapError('Set a map seed or forecast seed before cohort drilldown.');
-                                                            return;
-                                                        }
-
-                                                        setSeedVideoId(drillSeed);
-                                                        loadRecommendationMap({
-                                                            seed: drillSeed,
-                                                            cohortId: cohort.cohortId,
-                                                            cohortLabel: cohort.cohortLabel,
-                                                        });
-                                                    }}
-                                                />
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                </ErrorBoundary>
+                        setSeedVideoId(drillSeed);
+                        loadRecommendationMap({
+                            seed: drillSeed,
+                            cohortId: cohort.cohortId,
+                            cohortLabel: cohort.cohortLabel,
+                        });
+                    }}
+                />
             </div>
         </div>
     );
@@ -1242,343 +266,5 @@ function StatCard({ title, value, icon, color }: { title: string, value?: number
                 </div>
             </div>
         </div>
-    );
-}
-
-function MapMetric({ title, value }: { title: string; value: number | string }) {
-    return (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">{title}</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">{value}</p>
-        </div>
-    );
-}
-
-function TraversalLane({
-    title,
-    summary,
-    steps,
-}: {
-    title: string;
-    summary: TraversalSummary;
-    steps: TraversalVisitStep[];
-}) {
-    return (
-        <div className="rounded-xl border border-gray-200 p-4 bg-gray-50">
-            <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
-            <p className="text-xs text-gray-500 mb-3">
-                Visited {summary.totalVisitedVideos} videos | loops {summary.loopEdgeCount} | depth {summary.maxDepthReached}
-            </p>
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                {steps.map((step) => (
-                    <div key={`${title}-${step.step}-${step.videoId}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-semibold text-gray-500">#{step.step}</span>
-                            <span className="text-xs text-gray-500">depth {step.depth}</span>
-                        </div>
-                        <code className="block mt-1 text-xs text-gray-900 break-all">{step.videoId}</code>
-                        <p className="mt-1 text-[11px] text-gray-500">
-                            Predicts next: {step.predictedNextVideoId ?? 'none'} ({Math.round((step.predictedConfidence ?? 0) * 100)}%)
-                        </p>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-interface QualityAlert {
-    id: string;
-    severity: 'good' | 'warning' | 'critical';
-    title: string;
-    detail: string;
-}
-
-function clampUnit(value: number) {
-    if (!Number.isFinite(value)) return 0;
-    return Math.max(0, Math.min(1, value));
-}
-
-function normalizeThresholds(input: QualityThresholds): QualityThresholds {
-    const parserWarn = clampUnit(Math.min(input.parserDropWarn, input.parserDropCritical));
-    const parserCritical = clampUnit(Math.max(input.parserDropWarn, input.parserDropCritical));
-    const stabilityCritical = clampUnit(Math.min(input.stabilityCritical, input.stabilityWarn));
-    const stabilityWarn = clampUnit(Math.max(input.stabilityCritical, input.stabilityWarn));
-    const fingerprintCoverageWarn = clampUnit(input.fingerprintCoverageWarn);
-    const surfaceParserDropWarn = clampUnit(Math.min(input.surfaceParserDropWarn, input.surfaceParserDropCritical));
-    const surfaceParserDropCritical = clampUnit(Math.max(input.surfaceParserDropWarn, input.surfaceParserDropCritical));
-    const surfaceStabilityCritical = clampUnit(Math.min(input.surfaceStabilityCritical, input.surfaceStabilityWarn));
-    const surfaceStabilityWarn = clampUnit(Math.max(input.surfaceStabilityCritical, input.surfaceStabilityWarn));
-
-    return {
-        parserDropWarn: parserWarn,
-        parserDropCritical: parserCritical,
-        stabilityWarn,
-        stabilityCritical,
-        fingerprintCoverageWarn,
-        surfaceParserDropWarn,
-        surfaceParserDropCritical,
-        surfaceStabilityWarn,
-        surfaceStabilityCritical,
-    };
-}
-
-function deriveQualityAlerts(
-    diagnostics: DataQualityDiagnosticsResult,
-    thresholds: QualityThresholds
-): QualityAlert[] {
-    const normalized = normalizeThresholds(thresholds);
-    const alerts: QualityAlert[] = [];
-    const MIN_SURFACE_ROWS_FOR_ALERTS = 20;
-
-    if (diagnostics.recommendations.parserDropRate >= normalized.parserDropCritical) {
-        alerts.push({
-            id: 'parser-drop-critical',
-            severity: 'critical',
-            title: 'Parser Loss Is High',
-            detail: 'Strict parsing is dropping too many recommendation rows for reliable transition modeling.',
-        });
-    } else if (diagnostics.recommendations.parserDropRate >= normalized.parserDropWarn) {
-        alerts.push({
-            id: 'parser-drop-warning',
-            severity: 'warning',
-            title: 'Parser Loss Needs Attention',
-            detail: 'Strict parsing is dropping a meaningful share of recommendation rows.',
-        });
-    } else {
-        alerts.push({
-            id: 'parser-drop-good',
-            severity: 'good',
-            title: 'Parser Quality Looks Healthy',
-            detail: 'Strict parser retention is stable for current captured recommendation rows.',
-        });
-    }
-
-    if (diagnostics.cohorts.stabilityScore < normalized.stabilityCritical) {
-        alerts.push({
-            id: 'cohort-stability-critical',
-            severity: 'critical',
-            title: 'Cohort Stability Is Low',
-            detail: 'Small-fragment cohort share is high, so transitions may still be noisy.',
-        });
-    } else if (diagnostics.cohorts.stabilityScore < normalized.stabilityWarn) {
-        alerts.push({
-            id: 'cohort-stability-warning',
-            severity: 'warning',
-            title: 'Cohort Stability Is Moderate',
-            detail: 'Model is usable but should improve with more cross-user comparisons.',
-        });
-    } else {
-        alerts.push({
-            id: 'cohort-stability-good',
-            severity: 'good',
-            title: 'Cohort Stability Is Strong',
-            detail: 'Cohort assignments are stable with low fragmentation.',
-        });
-    }
-
-    const fingerprintCoverage = diagnostics.stitching.totalSnapshots > 0
-        ? diagnostics.stitching.snapshotsWithQualityFingerprint / diagnostics.stitching.totalSnapshots
-        : 0;
-    if (fingerprintCoverage < normalized.fingerprintCoverageWarn) {
-        alerts.push({
-            id: 'fingerprint-coverage-warning',
-            severity: 'warning',
-            title: 'Metadata Coverage Is Incomplete',
-            detail: 'Many snapshots are missing quality fingerprint metadata from ingestion.',
-        });
-    }
-    if (diagnostics.stitching.invalidMetadataSnapshots > 0) {
-        alerts.push({
-            id: 'metadata-integrity-warning',
-            severity: diagnostics.stitching.metadataIntegrityScore < 0.7 ? 'critical' : 'warning',
-            title: 'Some Session Metadata Failed To Decode',
-            detail: `${diagnostics.stitching.invalidMetadataSnapshots} snapshot(s) had invalid session metadata, which reduces stitching confidence.`,
-        });
-    }
-
-    const surfacedRecommendations = diagnostics.recommendations.bySurface
-        .filter((surface) => surface.rawRows >= MIN_SURFACE_ROWS_FOR_ALERTS || surface.strictRows >= MIN_SURFACE_ROWS_FOR_ALERTS);
-
-    if (surfacedRecommendations.length > 0) {
-        const highestSurfaceDrop = [...surfacedRecommendations]
-            .sort((left, right) => right.parserDropRate - left.parserDropRate)[0];
-        if (highestSurfaceDrop.parserDropRate >= normalized.surfaceParserDropCritical) {
-            alerts.push({
-                id: `surface-drop-critical-${highestSurfaceDrop.surface}`,
-                severity: 'critical',
-                title: `High Surface Parser Loss (${highestSurfaceDrop.surface})`,
-                detail: `${Math.round(highestSurfaceDrop.parserDropRate * 100)}% of rows are dropped on this surface; prediction transitions may be biased.`,
-            });
-        } else if (highestSurfaceDrop.parserDropRate >= normalized.surfaceParserDropWarn) {
-            alerts.push({
-                id: `surface-drop-warning-${highestSurfaceDrop.surface}`,
-                severity: 'warning',
-                title: `Surface Parser Loss Rising (${highestSurfaceDrop.surface})`,
-                detail: `${Math.round(highestSurfaceDrop.parserDropRate * 100)}% row drop rate suggests parser drift on this recommendation surface.`,
-            });
-        }
-
-        const lowestSurfaceStability = [...surfacedRecommendations]
-            .sort((left, right) => left.transitionStabilityScore - right.transitionStabilityScore)[0];
-        if (lowestSurfaceStability.transitionStabilityScore <= normalized.surfaceStabilityCritical) {
-            alerts.push({
-                id: `surface-stability-critical-${lowestSurfaceStability.surface}`,
-                severity: 'critical',
-                title: `Surface Transition Stability Is Low (${lowestSurfaceStability.surface})`,
-                detail: `${Math.round(lowestSurfaceStability.transitionStabilityScore * 100)}% repeat strength indicates noisy transitions on this surface.`,
-            });
-        } else if (lowestSurfaceStability.transitionStabilityScore <= normalized.surfaceStabilityWarn) {
-            alerts.push({
-                id: `surface-stability-warning-${lowestSurfaceStability.surface}`,
-                severity: 'warning',
-                title: `Surface Transition Stability Needs Work (${lowestSurfaceStability.surface})`,
-                detail: `${Math.round(lowestSurfaceStability.transitionStabilityScore * 100)}% repeat strength is below target for stable pathing.`,
-            });
-        }
-    }
-
-    const severityRank: Record<QualityAlert['severity'], number> = {
-        critical: 0,
-        warning: 1,
-        good: 2,
-    };
-
-    return alerts
-        .sort((left, right) => {
-            const severityDiff = severityRank[left.severity] - severityRank[right.severity];
-            if (severityDiff !== 0) {
-                return severityDiff;
-            }
-            return left.title.localeCompare(right.title);
-        })
-        .slice(0, 6);
-}
-
-function QualityAlerts({
-    diagnostics,
-    thresholds,
-}: {
-    diagnostics: DataQualityDiagnosticsResult;
-    thresholds: QualityThresholds;
-}) {
-    const alerts = deriveQualityAlerts(diagnostics, thresholds);
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {alerts.map((alert) => {
-                const isCritical = alert.severity === 'critical';
-                const isWarning = alert.severity === 'warning';
-                const boxClass = isCritical
-                    ? 'border-red-200 bg-red-50'
-                    : isWarning
-                        ? 'border-amber-200 bg-amber-50'
-                        : 'border-emerald-200 bg-emerald-50';
-                const iconClass = isCritical
-                    ? 'text-red-600'
-                    : isWarning
-                        ? 'text-amber-600'
-                        : 'text-emerald-600';
-                const titleClass = isCritical
-                    ? 'text-red-800'
-                    : isWarning
-                        ? 'text-amber-800'
-                        : 'text-emerald-800';
-                const detailClass = isCritical
-                    ? 'text-red-700'
-                    : isWarning
-                        ? 'text-amber-700'
-                        : 'text-emerald-700';
-
-                return (
-                    <div key={alert.id} className={`rounded-xl border px-3 py-2 ${boxClass}`}>
-                        <div className="flex items-start gap-2">
-                            <AlertTriangle className={`w-4 h-4 mt-0.5 ${iconClass}`} />
-                            <div>
-                                <p className={`text-sm font-semibold ${titleClass}`}>{alert.title}</p>
-                                <p className={`text-xs mt-0.5 ${detailClass}`}>{alert.detail}</p>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-function ThresholdInput({
-    label,
-    value,
-    onChange,
-}: {
-    label: string;
-    value: number;
-    onChange: (value: number) => void;
-}) {
-    return (
-        <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-gray-500">{label}</span>
-            <input
-                type="number"
-                min={0}
-                max={100}
-                value={Math.round(value * 100)}
-                onChange={(event) => {
-                    const parsed = Number(event.target.value);
-                    const clamped = Math.max(0, Math.min(100, Number.isFinite(parsed) ? parsed : 0));
-                    onChange(clamped / 100);
-                }}
-                className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            />
-        </label>
-    );
-}
-
-function CohortRow({
-    cohort,
-    reliabilityScore,
-    reliabilitySampleSize,
-    onViewMap,
-}: {
-    cohort: CohortAudienceForecast;
-    reliabilityScore: number | null;
-    reliabilitySampleSize: number | null;
-    onViewMap: () => void;
-}) {
-    return (
-        <tr className="border-b border-gray-100 last:border-0">
-            <td className="px-4 py-3">
-                <div className="font-medium text-gray-900">{cohort.cohortLabel}</div>
-                <div className="text-xs text-gray-500">{cohort.cohortId}</div>
-            </td>
-            <td className="px-4 py-3 text-gray-700">{cohort.users.toLocaleString()}</td>
-            <td className="px-4 py-3 text-gray-700">
-                {Math.round(cohort.targetExposureRate * 100)}%
-                <span className="text-xs text-gray-500 ml-1">
-                    ({Math.round(cohort.exposureConfidenceInterval.low * 100)}-{Math.round(cohort.exposureConfidenceInterval.high * 100)}%)
-                </span>
-            </td>
-            <td className="px-4 py-3 text-gray-700">{Math.round((cohort.reachProbabilityFromSeed ?? 0) * 100)}%</td>
-            <td className="px-4 py-3 text-gray-700">
-                {cohort.relativeLiftVsGlobalExposure ? `${cohort.relativeLiftVsGlobalExposure.toFixed(2)}x` : '-'}
-            </td>
-            <td className="px-4 py-3 text-gray-700">{Math.round(cohort.fitScore * 100)}%</td>
-            <td className="px-4 py-3 text-gray-900 font-semibold">{cohort.score.toFixed(3)}</td>
-            <td className="px-4 py-3 text-gray-700">
-                {reliabilityScore !== null ? `${Math.round(reliabilityScore * 100)}%` : '-'}
-                {reliabilitySampleSize !== null ? (
-                    <span className="ml-1 text-xs text-gray-500">(n={reliabilitySampleSize})</span>
-                ) : null}
-            </td>
-            <td className="px-4 py-3">
-                <button
-                    type="button"
-                    onClick={onViewMap}
-                    className="rounded-md border border-blue-200 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-                >
-                    View In Map
-                </button>
-            </td>
-        </tr>
     );
 }

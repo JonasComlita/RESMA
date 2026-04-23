@@ -4,8 +4,15 @@ import {
     RawAudienceFeedItem,
 } from './audienceForecast.js';
 import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
+import { sanitizeString } from '../lib/ingestUtils.js';
+import { config } from '../config.js';
 
 let prismaClientPromise: Promise<any> | null = null;
+const forecastEvaluationCache = new Map<string, {
+    expiresAt: number;
+    cacheKey: string;
+    value: ForecastEvaluationResult;
+}>();
 
 async function getPrismaClient() {
     if (!prismaClientPromise) {
@@ -88,6 +95,12 @@ export interface ForecastEvaluationResult {
     generatedAt: string;
 }
 
+interface EvaluationWatermark {
+    snapshotCount: number;
+    latestCapturedAt: Date | null;
+    watermarkKey: string;
+}
+
 function roundTo(value: number, digits = 3): number {
     const factor = 10 ** digits;
     return Math.round(value * factor) / factor;
@@ -105,12 +118,6 @@ const FORECAST_RELIABILITY_THRESHOLDS = {
     maximumAdjacentWindowReliabilityDelta: 0.35,
     keyCohortCount: 5,
 };
-
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-}
 
 function extractRecommendations(
     metrics: Buffer | null,
@@ -367,11 +374,48 @@ function medianTimestamp(values: number[]): number | null {
     return sorted[middle];
 }
 
+async function loadEvaluationWatermark(platform: string): Promise<EvaluationWatermark> {
+    const prisma = await getPrismaClient();
+    const summary = await prisma.feedSnapshot.aggregate({
+        where: { platform },
+        _count: {
+            _all: true,
+        },
+        _max: {
+            capturedAt: true,
+        },
+    });
+
+    const snapshotCount = Number(summary?._count?._all ?? 0);
+    const latestCapturedAt = summary?._max?.capturedAt ?? null;
+
+    return {
+        snapshotCount,
+        latestCapturedAt,
+        watermarkKey: `${platform}:${snapshotCount}:${latestCapturedAt?.getTime() ?? 0}`,
+    };
+}
+
+export function resetForecastEvaluationCacheForTests() {
+    forecastEvaluationCache.clear();
+}
+
 export async function generateForecastEvaluation(
     platform: string,
     topK = 5
 ): Promise<ForecastEvaluationResult> {
     const boundedTopK = clamp(Math.round(topK), 1, 20);
+    const watermark = await loadEvaluationWatermark(platform);
+    const cacheKey = `${watermark.watermarkKey}:${boundedTopK}`;
+    const cached = forecastEvaluationCache.get(platform);
+    if (
+        cached
+        && cached.expiresAt > Date.now()
+        && cached.cacheKey === cacheKey
+    ) {
+        return cached.value;
+    }
+
     const prisma = await getPrismaClient();
     const snapshots = await prisma.feedSnapshot.findMany({
         where: { platform },
@@ -519,7 +563,7 @@ export async function generateForecastEvaluation(
         maximumAdjacentWindowReliabilityDelta: FORECAST_RELIABILITY_THRESHOLDS.maximumAdjacentWindowReliabilityDelta,
     };
 
-    return {
+    const result: ForecastEvaluationResult = {
         platform,
         split: {
             trainSnapshots: trainSnapshots.length,
@@ -537,4 +581,12 @@ export async function generateForecastEvaluation(
         },
         generatedAt: new Date().toISOString(),
     };
+
+    forecastEvaluationCache.set(platform, {
+        expiresAt: Date.now() + config.analytics.evaluationCacheTtlMs,
+        cacheKey,
+        value: result,
+    });
+
+    return result;
 }

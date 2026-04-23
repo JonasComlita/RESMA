@@ -1,64 +1,27 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import {
+    asRecord,
+    normalizeSurface,
+    parseNonNegativeInt,
+    parseNonNegativeNumber,
+    sanitizeString,
+} from '../lib/ingestUtils.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
+import { createError } from '../middleware/errorHandler.js';
+import { validateIngestPayload, type ValidatedFeedRequest } from '../middleware/validateIngestPayload.js';
 import { packAndCompress } from '../services/serialization.js';
 import { buildSessionQualityMetadata } from '../services/snapshotQuality.js';
 import {
-    coercePlatformFeedPayload,
     CURRENT_INGEST_VERSION,
-    getFeedItemLimitError,
 } from '@resma/shared';
 import { withDurableIngestIdempotency } from '../services/ingestIdempotency.js';
-import { logIngestError, logIngestInfo, logIngestWarn } from '../services/ingestObservability.js';
+import { logIngestError, logIngestInfo } from '../services/ingestObservability.js';
 import { getReplayKey, getUploadId, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
 
 const router: Router = Router();
 const MAX_RECOMMENDATIONS_PER_ITEM = 40;
-
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-}
-
-export function parseNonNegativeInt(value: unknown): number | null {
-    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-        return Math.round(value);
-    }
-    if (typeof value === 'string') {
-        const parsed = Number.parseInt(value, 10);
-        if (Number.isFinite(parsed) && parsed >= 0) {
-            return parsed;
-        }
-    }
-    return null;
-}
-
-function parseNonNegativeNumber(value: unknown): number | null {
-    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-        return value;
-    }
-    if (typeof value === 'string') {
-        const parsed = Number.parseFloat(value);
-        if (Number.isFinite(parsed) && parsed >= 0) {
-            return parsed;
-        }
-    }
-    return null;
-}
-
-function normalizeSurface(surface: unknown): string {
-    const raw = sanitizeString(surface);
-    if (!raw) return 'unknown';
-
-    const normalized = raw
-        .toLowerCase()
-        .replace(/[^a-z0-9-_ ]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
-
-    return normalized.length > 0 ? normalized.slice(0, 48) : 'unknown';
-}
+export { parseNonNegativeInt } from '../lib/ingestUtils.js';
 
 function normalizeYouTubeVideoId(raw: unknown): string | null {
     const value = sanitizeString(raw);
@@ -211,13 +174,6 @@ function recommendationSurfaceCounts(recommendations: Array<{ surface: string; s
     return counts;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return {};
-    }
-    return value as Record<string, unknown>;
-}
-
 export function deriveYouTubeCreatorIdentity(item: Record<string, unknown>) {
     const rawHandle = sanitizeString(item.creatorHandle) ?? sanitizeString(item.channelHandle);
     const normalizedHandle = normalizeYouTubeCreatorHandle(rawHandle);
@@ -238,34 +194,12 @@ export function hasYouTubeWatchSignals(item: unknown): boolean {
     return Boolean(watchTime && watchTime > 0) || adSignals || recommendations.length > 0;
 }
 
-router.post('/feed', authenticate, async (req: AuthRequest, res) => {
+router.post('/feed', authenticate, validateIngestPayload({
+    platform: 'youtube',
+    routeLabel: '/youtube/feed',
+}), async (req: ValidatedFeedRequest, res, next) => {
     try {
-        const feedLimitError = getFeedItemLimitError({
-            feed: req.body?.feed,
-            items: req.body?.items,
-        });
-        if (feedLimitError) {
-            logIngestWarn('Feed item limit exceeded for /youtube/feed', req, {
-                reason: feedLimitError,
-            });
-            return res.status(400).json({ error: feedLimitError });
-        }
-
-        const validPayload = coercePlatformFeedPayload({
-            platform: 'youtube',
-            feed: req.body?.feed,
-            sessionMetadata: req.body?.sessionMetadata,
-        }, {
-            expectedPlatform: 'youtube',
-            requireFullFeedValidity: true,
-        });
-        if (!validPayload) {
-            logIngestWarn('Contract validation failed for /youtube/feed', req, {
-                reason: 'payload failed shared contract coercion',
-            });
-            return res.status(400).json({ error: 'Payload failed contract validation' });
-        }
-
+        const validPayload = req.validatedFeedPayload!;
         const incomingMetadata = asRecord(validPayload.sessionMetadata);
         const itemsToCreate = validPayload.feed
             .map((item: any, index: number) => {
@@ -321,10 +255,10 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
                     watchDuration,
                 };
             })
-            .filter((item): item is NonNullable<typeof item> => Boolean(item));
+            .filter((item: any): item is NonNullable<typeof item> => Boolean(item));
 
         if (itemsToCreate.length === 0) {
-            return res.status(400).json({ error: 'Invalid feed item structure' });
+            return next(createError('Invalid feed item structure', 400));
         }
 
         const replayKey = getReplayKey(req, req.userId);
@@ -414,7 +348,7 @@ router.post('/feed', authenticate, async (req: AuthRequest, res) => {
             error: err instanceof Error ? err.message : 'unknown-error',
         });
         console.error('Failed to save YouTube feed data:', err);
-        res.status(500).json({ error: 'Failed to save YouTube feed data' });
+        return next(createError('Failed to save YouTube feed data', 500));
     }
 });
 

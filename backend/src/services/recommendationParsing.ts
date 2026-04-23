@@ -1,4 +1,5 @@
 import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
+import { sanitizeString } from '../lib/ingestUtils.js';
 
 export interface ParsedRecommendation {
     videoId: string;
@@ -38,12 +39,6 @@ interface ExtractRecommendationOptions {
     platform: string;
     sourceVideoId?: string | null;
     maxRecommendations?: number;
-}
-
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
 }
 
 function parsePositiveInt(value: unknown): number | null {

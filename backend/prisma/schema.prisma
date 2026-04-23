@@ -103,7 +103,6 @@ model FeedSnapshot {
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   feedItems     FeedItem[]
   ingestEvent   IngestEvent?
-  patternGroups PatternGroupMembership[]
 
   @@index([userId])
   @@index([capturedAt])
@@ -155,30 +154,4 @@ model FeedItem {
   @@index([commentsCount])
   @@index([sharesCount])
   @@map("feed_items")
-}
-
-model PatternGroup {
-  id              String    @id @default(uuid())
-  name            String
-  description     String?
-  characteristics Bytes     // MessagePack + Zstandard compressed
-  createdAt       DateTime  @default(now())
-  
-  members         PatternGroupMembership[]
-
-  @@map("pattern_groups")
-}
-
-model PatternGroupMembership {
-  id              String       @id @default(uuid())
-  snapshotId      String
-  patternGroupId  String
-  similarityScore Float
-  addedAt         DateTime     @default(now())
-  
-  snapshot        FeedSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
-  patternGroup    PatternGroup @relation(fields: [patternGroupId], references: [id], onDelete: Cascade)
-
-  @@unique([snapshotId, patternGroupId])
-  @@map("pattern_group_memberships")
 }

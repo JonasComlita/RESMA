@@ -211,6 +211,43 @@ All creator-facing outputs are intended to remain aggregate-only. They are deriv
 
 These updates reinforce the core thesis of RESMA: pseudonymous cross-user feed comparisons improve observatory quality over time, making recommendation-path modeling more useful for research, accountability work, and aggregate creator strategy.
 
+## April 2026 Engineering Update
+
+This work session focused on making the observatory path safer to operate, easier to maintain, and more scalable under repeated analytics traffic.
+
+### Backend hardening and consistency
+
+- Extracted shared ingest/helper utilities so platform routes stop duplicating the same parsing and sanitization logic.
+- Added shared request validation middleware for analysis, insights, feeds, and ingest boundaries.
+- Normalized major ingest routes onto shared error middleware instead of mixed inline error responses.
+- Improved analysis rate limiting so authenticated analysis traffic can be keyed per user where available.
+- Added a short-lived premium-tier cache to avoid querying Prisma on every protected request.
+- Added a database-backed health check and graceful shutdown flow for the backend process.
+
+### Forecast and analytics scalability
+
+- Split the audience forecast system into focused modules for loading, model building, quality gating, and forecast computation.
+- Added in-memory dataset, materialized model, lift-stability, and holdout-evaluation caching keyed by snapshot watermark so repeated forecast requests reuse stitched inputs and computed models.
+- Reused that same materialized forecast context for go-to-market brief generation.
+- Upgraded the similarity analysis from simple creator-handle overlap to weighted same-platform snapshot-profile matching.
+
+### Frontend and extension improvements
+
+- Moved recommendation graph layout work off the main thread into a Web Worker to reduce UI freezes on larger graphs.
+- Broke the dashboard into smaller hooks and sections for forecast, data quality, recommendation mapping, and account deletion workflows.
+- Hardened extension auth handling with token expiry checks, clearer invalid-session behavior, and better popup error surfacing.
+
+### Schema and cleanup
+
+- Removed dormant `PatternGroup` and `PatternGroupMembership` schema pieces and added a migration to drop the unused tables.
+- Removed dead migration-script handling tied to those unused pattern-group records.
+
+### Verification highlights
+
+- Backend builds passed after the refactors and cache/materialization work.
+- Targeted backend tests now cover request hardening, premium caching, upgraded similarity behavior, and analytics caching/materialization paths.
+- Frontend builds passed after the dashboard decomposition and graph worker migration.
+
 ## 🔭 Future Goals
 
 ### Web-Enabled Research Agents

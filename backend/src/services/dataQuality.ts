@@ -13,6 +13,7 @@ import {
 import { decompressAndUnpack, isCompressedMsgpack } from './serialization.js';
 import { buildSnapshotFingerprint } from './snapshotQuality.js';
 import { decodeSessionMetadataResult } from './sessionMetadata.js';
+import { asRecord, normalizeSurface, sanitizeString } from '../lib/ingestUtils.js';
 
 let prismaClientPromise: Promise<any> | null = null;
 
@@ -181,30 +182,8 @@ function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-}
-
 function normalizeSurfaceLabel(value: unknown): string {
-    const sanitized = sanitizeString(value);
-    if (!sanitized) return 'unknown';
-
-    const normalized = sanitized
-        .toLowerCase()
-        .replace(/[^a-z0-9-_ ]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
-
-    return normalized.length > 0 ? normalized.slice(0, 48) : 'unknown';
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return {};
-    }
-    return value as Record<string, unknown>;
+    return normalizeSurface(value, 'unknown');
 }
 
 function decodeMetrics(metrics: Buffer | null): unknown {

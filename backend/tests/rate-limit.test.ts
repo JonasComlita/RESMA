@@ -19,6 +19,7 @@ vi.mock('../src/lib/prisma.js', () => ({
             count: vi.fn(),
             findFirst: vi.fn(),
             delete: vi.fn(),
+            findUnique: vi.fn(),
         },
         feedItem: {
             findFirst: vi.fn(),
@@ -72,15 +73,38 @@ describe('Route rate limiting', () => {
 
     it('returns 429 after repeated authenticated requests on /analysis/similar', async () => {
         const token = jwt.sign({ userId: 'user-1' }, config.jwt.secret);
-        vi.mocked(prisma.feedItem.findMany).mockResolvedValue([
-            { creatorHandle: 'creator-a' },
-        ] as any);
+        vi.mocked(prisma.feedSnapshot.findFirst).mockResolvedValue({
+            id: 'snapshot-1',
+            userId: 'user-1',
+            platform: 'youtube',
+            capturedAt: new Date('2026-04-18T00:00:00.000Z'),
+            feedItems: [
+                {
+                    creatorHandle: 'creator-a',
+                    contentCategories: ['gaming'],
+                    interactionType: 'like',
+                    interacted: true,
+                    watchDuration: 18,
+                    positionInFeed: 0,
+                },
+            ],
+        } as any);
         vi.mocked(prisma.feedSnapshot.findMany).mockResolvedValue([
             {
                 id: 'snapshot-2',
                 userId: 'user-2',
+                platform: 'youtube',
                 capturedAt: new Date('2026-04-17T00:00:00.000Z'),
-                feedItems: [{ creatorHandle: 'creator-a' }],
+                feedItems: [
+                    {
+                        creatorHandle: 'creator-a',
+                        contentCategories: ['gaming'],
+                        interactionType: 'like',
+                        interacted: true,
+                        watchDuration: 16,
+                        positionInFeed: 1,
+                    },
+                ],
             },
         ] as any);
 

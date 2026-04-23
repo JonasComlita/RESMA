@@ -8,6 +8,7 @@ interface CaptureStatus {
 
 const Popup: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [authMessage, setAuthMessage] = useState('');
     const [platform, setPlatform] = useState<'tiktok' | 'twitter' | 'youtube' | 'instagram' | null>(null);
     const [captureStatus, setCaptureStatus] = useState<CaptureStatus>({
         isCapturing: false,
@@ -19,6 +20,7 @@ const Popup: React.FC = () => {
         // Check auth status
         chrome.runtime.sendMessage({ type: 'GET_AUTH_STATUS' }, (response) => {
             setIsAuthenticated(response?.isAuthenticated || false);
+            setAuthMessage(response?.isAuthenticated ? '' : (response?.message || ''));
         });
 
         // Detect platform (TikTok, Twitter, YouTube, Instagram)
@@ -161,6 +163,7 @@ const Popup: React.FC = () => {
                 </div>
                 {!isAuthenticated ? (
                     <div className="auth-prompt">
+                        {authMessage && <p>{authMessage}</p>}
                         <p>Create or sign in to a contributor account in the RESMA Dashboard to use this extension.</p>
                         <a
                             href="http://localhost:5173/login"

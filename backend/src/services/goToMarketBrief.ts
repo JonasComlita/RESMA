@@ -9,7 +9,8 @@ import {
     deriveCohortLiftStabilityEvidence,
     getRecommendationQualityThresholds,
     deriveRecommendationQualityGate,
-    loadAudienceFeedItems,
+    loadCohortLiftStabilityEvidence,
+    loadMaterializedAudienceModelContext,
     RecommendationQualityGate,
 } from './audienceForecast.js';
 import {
@@ -626,31 +627,11 @@ export async function generateGoToMarketCohortBrief(
         throw new AudienceForecastInputError('targetVideoId is required');
     }
 
-    const items = await loadAudienceFeedItems(options.platform);
-    if (items.length === 0) {
-        throw new AudienceForecastInputError(
-            `No ${options.platform} comparison snapshots found yet.`,
-            404,
-            { platform: options.platform }
-        );
-    }
-
-    const model = buildAudienceModel(items, options.platform);
-    const thresholds = getRecommendationQualityThresholds(options.platform);
-    const cohortStabilityScore = deriveCohortStabilityScore(
-        model,
-        thresholds.minimumCohortUsersForLift
-    );
-    const qualityGate = deriveRecommendationQualityGate(items, options.platform, {
-        comparedUsers: model.userProfiles.size,
-        cohortStabilityScore,
-        minimumCohortUsersForLift: thresholds.minimumCohortUsersForLift,
-    });
-    const liftStabilityByCohort = deriveCohortLiftStabilityEvidence(
-        items,
-        model,
+    const context = await loadMaterializedAudienceModelContext(options.platform);
+    const { model, qualityGate } = context;
+    const liftStabilityByCohort = await loadCohortLiftStabilityEvidence(
+        options.platform,
         targetVideoId,
-        options.platform
     );
 
     let reliabilitySummary: BriefReliabilitySummary;

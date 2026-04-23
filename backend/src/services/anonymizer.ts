@@ -2,6 +2,7 @@
  * Anonymization service for feed data
  * Strips or hashes PII before storage
  */
+import { sanitizeString } from '../lib/ingestUtils.js';
 
 interface FeedItemInput {
     videoId: string;
@@ -17,12 +18,6 @@ interface FeedItemInput {
     interacted?: boolean;
     interactionType?: string;
     positionInFeed?: number;
-}
-
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
 }
 
 function sanitizeRecommendationRows(recommendations: unknown): Array<Record<string, unknown>> {

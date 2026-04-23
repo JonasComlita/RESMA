@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { extractRecommendationsFromMetrics } from './recommendationParsing.js';
+import { sanitizeString } from '../lib/ingestUtils.js';
 
 export type TraversalStrategy = 'bfs' | 'dfs';
 
@@ -163,12 +164,6 @@ interface GraphBuildInput {
     title: string | null;
     channel: string | null;
     recommendations: NormalizedRecommendation[];
-}
-
-function sanitizeString(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
 }
 
 function extractRecommendations(metrics: Buffer | null, platform: string): NormalizedRecommendation[] {

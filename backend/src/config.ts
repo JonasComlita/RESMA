@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
+const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const DISALLOWED_PRODUCTION_JWT_SECRETS = new Set([
     DEFAULT_JWT_SECRET,
     'your-super-secret-jwt-key-change-in-production',
@@ -29,5 +29,15 @@ export const config = {
 
     database: {
         url: process.env.DATABASE_URL,
+    },
+
+    premium: {
+        cacheTtlMs: parseInt(process.env.PREMIUM_CACHE_TTL_MS || '30000', 10),
+    },
+
+    analytics: {
+        datasetCacheTtlMs: parseInt(process.env.ANALYTICS_DATASET_CACHE_TTL_MS || '30000', 10),
+        materializedCacheTtlMs: parseInt(process.env.ANALYTICS_MATERIALIZED_CACHE_TTL_MS || '30000', 10),
+        evaluationCacheTtlMs: parseInt(process.env.ANALYTICS_EVALUATION_CACHE_TTL_MS || '30000', 10),
     },
 };

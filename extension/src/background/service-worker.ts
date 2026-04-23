@@ -6,6 +6,7 @@
 import { packData, getCompressionStats } from '../utils/serialization.js';
 import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 import { createTwitterUploadPayload } from './twitter-service.js';
+import { getJwtExpiryTime, isJwtExpired } from './authSession.js';
 
 type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok' | 'twitter';
 
@@ -13,6 +14,8 @@ interface StorageData {
     token?: string;
     apiUrl?: string;
     installId?: string;
+    authMessage?: string | null;
+    tokenExpiresAt?: number | null;
 }
 
 interface RecommendationRow {
@@ -135,34 +138,98 @@ function sanitizeString(value: unknown): string | null {
     return trimmed.length > 0 ? trimmed : null;
 }
 
-async function getAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any }> {
-    const data = await chrome.storage.local.get('token') as StorageData;
-    if (!data.token) {
-        return { isAuthenticated: false };
+async function setAuthMessage(message: string | null) {
+    await chrome.storage.local.set({ authMessage: message });
+}
+
+async function clearStoredToken(message: string | null) {
+    await chrome.storage.local.remove('token');
+    await chrome.storage.local.set({
+        authMessage: message,
+        tokenExpiresAt: null,
+    });
+}
+
+function sessionExpiredMessage() {
+    return 'Your RESMA session expired. Sign in again in the dashboard.';
+}
+
+function unauthorizedMessage() {
+    return 'Your RESMA session is no longer valid. Sign in again in the dashboard.';
+}
+
+async function getAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any; message?: string }> {
+    const data = await chrome.storage.local.get(['token', 'authMessage', 'tokenExpiresAt']) as StorageData;
+    const token = sanitizeString(data.token);
+    if (!token) {
+        return {
+            isAuthenticated: false,
+            ...(data.authMessage ? { message: data.authMessage } : {}),
+        };
+    }
+
+    const expiresAt = typeof data.tokenExpiresAt === 'number' ? data.tokenExpiresAt : getJwtExpiryTime(token);
+    if (isJwtExpired(token)) {
+        await clearStoredToken(sessionExpiredMessage());
+        return {
+            isAuthenticated: false,
+            message: sessionExpiredMessage(),
+        };
     }
 
     try {
         const apiBaseUrl = await getApiBaseUrl();
         const response = await fetch(`${apiBaseUrl}/auth/me`, {
-            headers: { Authorization: `Bearer ${data.token}` },
+            headers: { Authorization: `Bearer ${token}` },
         });
 
+        if (response.status === 401 || response.status === 403) {
+            await clearStoredToken(unauthorizedMessage());
+            return {
+                isAuthenticated: false,
+                message: unauthorizedMessage(),
+            };
+        }
+
         if (!response.ok) {
-            return { isAuthenticated: false };
+            return {
+                isAuthenticated: false,
+                message: 'Unable to verify your RESMA session right now.',
+            };
         }
 
         const result = await response.json();
+        await setAuthMessage(null);
+        if (typeof expiresAt === 'number') {
+            await chrome.storage.local.set({ tokenExpiresAt: expiresAt });
+        }
         return { isAuthenticated: true, user: result.data.user };
     } catch (error) {
         console.error('[RESMA] Auth check failed:', error);
-        return { isAuthenticated: false };
+        return {
+            isAuthenticated: false,
+            message: 'Unable to reach the RESMA API to verify your session.',
+        };
     }
 }
 
 async function getAuthToken(): Promise<string | null> {
-    const data = await chrome.storage.local.get('token') as StorageData;
+    const data = await chrome.storage.local.get(['token', 'tokenExpiresAt']) as StorageData;
     const normalizedToken = sanitizeString(data.token);
-    return normalizedToken ?? null;
+    if (!normalizedToken) {
+        return null;
+    }
+
+    if (isJwtExpired(normalizedToken)) {
+        await clearStoredToken(sessionExpiredMessage());
+        return null;
+    }
+
+    if (typeof data.tokenExpiresAt !== 'number') {
+        await chrome.storage.local.set({ tokenExpiresAt: getJwtExpiryTime(normalizedToken) });
+    }
+
+    return normalizedToken;
 }
 
 function uploadEndpointForPlatform(platform: SupportedPlatform, apiBaseUrl: string): string {
@@ -216,11 +283,15 @@ async function uploadPayload(
         });
 
         if (response.ok) {
+            await setAuthMessage(null);
             console.log(`[RESMA] [${platform}] [${uploadId}] MessagePack upload succeeded (${response.status})`);
             return true;
         }
 
         if (!shouldAttemptJsonFallback(response.status)) {
+            if (response.status === 401 || response.status === 403) {
+                await clearStoredToken(unauthorizedMessage());
+            }
             console.error(`[RESMA] [${platform}] [${uploadId}] MessagePack upload failed with non-retryable status ${response.status}`);
             return false;
         }
@@ -242,9 +313,13 @@ async function uploadPayload(
             body: JSON.stringify(payload),
         });
         if (!fallbackResponse.ok) {
+            if (fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+                await clearStoredToken(unauthorizedMessage());
+            }
             console.error(`[RESMA] [${platform}] [${uploadId}] JSON fallback failed with status ${fallbackResponse.status}`);
             return false;
         }
+        await setAuthMessage(null);
         console.log(`[RESMA] [${platform}] [${uploadId}] JSON fallback upload succeeded (${fallbackResponse.status})`);
         return fallbackResponse.ok;
     } catch (error) {
@@ -375,7 +450,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 break;
             }
 
-            const updates: StorageData = { token };
+            if (isJwtExpired(token)) {
+                sendResponse({ success: false, error: sessionExpiredMessage() });
+                break;
+            }
+
+            const updates: StorageData = {
+                token,
+                authMessage: null,
+                tokenExpiresAt: getJwtExpiryTime(token),
+            };
             const apiUrl = normalizeApiUrl(message.apiUrl);
             if (apiUrl) {
                 updates.apiUrl = apiUrl;
@@ -387,7 +471,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         case 'LOGOUT':
-            chrome.storage.local.remove('token');
+            chrome.storage.local.remove(['token', 'authMessage', 'tokenExpiresAt']);
             sendResponse({ success: true });
             break;
 

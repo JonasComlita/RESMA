@@ -120,16 +120,6 @@ async function main() {
     );
     allStats.push(reachStats);
 
-    // Migrate PatternGroups (characteristics)
-    const patternStats = await migrateTable(
-        'PatternGroup',
-        () => prisma.patternGroup.findMany(),
-        (id, data) => prisma.patternGroup.update({ where: { id }, data }),
-        (record: any) => ({ characteristics: record.characteristics }),
-        (compressed) => ({ characteristics: compressed.characteristics })
-    );
-    allStats.push(patternStats);
-
     // Migrate Users (preferences)
     const userStats = await migrateTable(
         'User',

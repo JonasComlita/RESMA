@@ -1,12 +1,13 @@
 import { Router, Response, NextFunction } from 'express';
+import { param, query } from 'express-validator';
 import { prisma } from '../lib/prisma.js';
 import { createError } from '../middleware/errorHandler.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
+import { validateIngestPayload, type ValidatedFeedRequest } from '../middleware/validateIngestPayload.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 import { anonymizeSnapshot } from '../services/anonymizer.js';
 import {
-    coercePlatformFeedPayload,
     CURRENT_INGEST_VERSION,
-    getFeedItemLimitError,
 } from '@resma/shared';
 import {
     packAndCompress,
@@ -107,37 +108,13 @@ function asNumber(value: unknown): number | null {
 feedsRouter.post(
     '/',
     authenticate,
-    async (req: AuthRequest, res: Response, next: NextFunction) => {
+    validateIngestPayload({
+        platform: GENERIC_FEEDS_PLATFORM,
+        routeLabel: '/feeds',
+    }),
+    async (req: ValidatedFeedRequest, res: Response, next: NextFunction) => {
         try {
-            const requestedPlatform = typeof req.body?.platform === 'string'
-                ? req.body.platform.trim().toLowerCase()
-                : null;
-            if (requestedPlatform && requestedPlatform !== GENERIC_FEEDS_PLATFORM) {
-                logIngestWarn('Contract validation failed for /feeds', req, {
-                    reason: 'payload requested explicit platform outside the /feeds tiktok gateway',
-                });
-                return next(createError('Payload failed contract validation', 400));
-            }
-
-            const feedLimitError = getFeedItemLimitError(req.body);
-            if (feedLimitError) {
-                logIngestWarn('Feed item limit exceeded for /feeds', req, {
-                    reason: feedLimitError,
-                });
-                return next(createError(feedLimitError, 400));
-            }
-
-            const validPayload = coercePlatformFeedPayload(req.body, {
-                expectedPlatform: GENERIC_FEEDS_PLATFORM,
-                requireFullFeedValidity: true,
-            });
-            if (!validPayload) {
-                logIngestWarn('Contract validation failed for /feeds', req, {
-                    reason: 'payload failed shared contract coercion',
-                });
-                return next(createError('Payload failed contract validation', 400));
-            }
-
+            const validPayload = req.validatedFeedPayload!;
             const platform = GENERIC_FEEDS_PLATFORM;
             const replayKey = getReplayKey(req, req.userId);
             const uploadId = getUploadId(req);
@@ -286,7 +263,20 @@ feedsRouter.post(
 );
 
 // Get user's feed snapshots
-feedsRouter.get('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+feedsRouter.get(
+    '/',
+    authenticate,
+    ...validateRequest([
+        query('page')
+            .optional()
+            .isInt({ min: 1 })
+            .withMessage('page must be at least 1'),
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 50 })
+            .withMessage('limit must be between 1 and 50'),
+    ]),
+    async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const page = parseInt(req.query.page as string) || 1;
         const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
@@ -329,7 +319,16 @@ feedsRouter.get('/', authenticate, async (req: AuthRequest, res: Response, next:
 });
 
 // Get single snapshot with items
-feedsRouter.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+feedsRouter.get(
+    '/:id',
+    authenticate,
+    ...validateRequest([
+        param('id')
+            .trim()
+            .notEmpty()
+            .withMessage('Snapshot ID is required'),
+    ]),
+    async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const snapshot = await prisma.feedSnapshot.findFirst({
             where: {
@@ -360,7 +359,16 @@ feedsRouter.get('/:id', authenticate, async (req: AuthRequest, res: Response, ne
 });
 
 // Delete a snapshot
-feedsRouter.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+feedsRouter.delete(
+    '/:id',
+    authenticate,
+    ...validateRequest([
+        param('id')
+            .trim()
+            .notEmpty()
+            .withMessage('Snapshot ID is required'),
+    ]),
+    async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const snapshot = await prisma.feedSnapshot.findFirst({
             where: {

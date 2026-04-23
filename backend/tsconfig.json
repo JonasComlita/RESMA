@@ -6,7 +6,7 @@
         "baseUrl": ".",
         "paths": {
             "@resma/shared": [
-                "../packages/shared/dist/esm/index.d.ts"
+                "../packages/shared"
             ]
         },
         "lib": [

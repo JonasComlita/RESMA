@@ -1,6 +1,9 @@
 import { Router } from 'express';
+import { param, query } from 'express-validator';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
+import { createAnalysisRateLimiter, createUserAnalysisRateLimiter } from '../middleware/rateLimit.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 import { findSimilarFeeds } from '../services/similarity.js';
 import { generateFeedInsights, generateVideoInsights } from '../services/insights.js';
 import {
@@ -23,20 +26,44 @@ import { generateGoToMarketCohortBrief } from '../services/goToMarketBrief.js';
 
 export const analysisRouter: Router = Router();
 const MAX_SIMILAR_LIMIT = 20;
+const SUPPORTED_ANALYSIS_PLATFORMS = ['youtube', 'instagram', 'twitter', 'tiktok'] as const;
+const userAnalysisRateLimiter = createUserAnalysisRateLimiter();
+const publicAnalysisRateLimiter = createAnalysisRateLimiter();
 
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
+const platformQueryValidation = query('platform')
+    .optional()
+    .trim()
+    .isIn(Array.from(SUPPORTED_ANALYSIS_PLATFORMS))
+    .withMessage('platform must be one of youtube, instagram, twitter, or tiktok');
+
 // Get similar feeds/users with enhanced matching
-analysisRouter.get('/similar', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/similar',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        query('snapshotId')
+            .optional()
+            .trim()
+            .notEmpty()
+            .withMessage('snapshotId cannot be empty'),
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: MAX_SIMILAR_LIMIT })
+            .withMessage(`limit must be between 1 and ${MAX_SIMILAR_LIMIT}`),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const snapshotId = req.query.snapshotId as string;
         const requestedLimit = Math.max(1, parseInt(req.query.limit as string) || 10);
         const appliedLimit = Math.min(requestedLimit, MAX_SIMILAR_LIMIT);
         const startedAt = Date.now();
 
-        const { similarFeeds, candidateCount } = await findSimilarFeeds(
+        const { similarFeeds, candidateCount, targetSnapshotId, method } = await findSimilarFeeds(
             req.userId!,
             snapshotId,
             appliedLimit
@@ -65,6 +92,8 @@ analysisRouter.get('/similar', authenticate, async (req: AuthRequest, res, next)
                     durationMs,
                     privacyMode: 'aggregate-only',
                     source: 'observatory-cohorts',
+                    method,
+                    targetSnapshotId,
                 },
             },
         });
@@ -74,16 +103,33 @@ analysisRouter.get('/similar', authenticate, async (req: AuthRequest, res, next)
 });
 
 // Build recommendation map by running BFS + DFS in parallel (internally)
-analysisRouter.get('/recommendation-map', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/recommendation-map',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        query('seedVideoId')
+            .trim()
+            .notEmpty()
+            .withMessage('seedVideoId is required'),
+        query('maxDepth')
+            .optional()
+            .isInt({ min: 1, max: 8 })
+            .withMessage('maxDepth must be between 1 and 8'),
+        query('maxNodes')
+            .optional()
+            .isInt({ min: 1, max: 300 })
+            .withMessage('maxNodes must be between 1 and 300'),
+        platformQueryValidation,
+        query('cohortId')
+            .optional()
+            .trim()
+            .notEmpty()
+            .withMessage('cohortId cannot be empty'),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const seedVideoId = String(req.query.seedVideoId || '').trim();
-        if (!seedVideoId) {
-            return res.status(400).json({
-                success: false,
-                error: 'seedVideoId is required',
-            });
-        }
-
         const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
         const maxNodesRaw = Number.parseInt(String(req.query.maxNodes || '40'), 10);
         const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 8);
@@ -136,16 +182,33 @@ analysisRouter.get('/recommendation-map', authenticate, async (req: AuthRequest,
 });
 
 // Cohort-aware audience forecast (improves with more cross-user comparisons)
-analysisRouter.get('/audience-forecast', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/audience-forecast',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        query('targetVideoId')
+            .trim()
+            .notEmpty()
+            .withMessage('targetVideoId is required'),
+        query('seedVideoId')
+            .optional()
+            .trim()
+            .notEmpty()
+            .withMessage('seedVideoId cannot be empty'),
+        platformQueryValidation,
+        query('maxDepth')
+            .optional()
+            .isInt({ min: 1, max: 6 })
+            .withMessage('maxDepth must be between 1 and 6'),
+        query('beamWidth')
+            .optional()
+            .isInt({ min: 5, max: 120 })
+            .withMessage('beamWidth must be between 5 and 120'),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const targetVideoId = String(req.query.targetVideoId || '').trim();
-        if (!targetVideoId) {
-            return res.status(400).json({
-                success: false,
-                error: 'targetVideoId is required',
-            });
-        }
-
         const seedVideoId = String(req.query.seedVideoId || '').trim() || undefined;
         const platform = String(req.query.platform || 'youtube').toLowerCase();
         const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
@@ -185,16 +248,45 @@ analysisRouter.get('/audience-forecast', authenticate, async (req: AuthRequest, 
 });
 
 // Aggregate creator-facing cohort brief export
-analysisRouter.get('/go-to-market-brief', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/go-to-market-brief',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        query('targetVideoId')
+            .trim()
+            .notEmpty()
+            .withMessage('targetVideoId is required'),
+        query('seedVideoId')
+            .optional()
+            .trim()
+            .notEmpty()
+            .withMessage('seedVideoId cannot be empty'),
+        platformQueryValidation,
+        query('maxDepth')
+            .optional()
+            .isInt({ min: 1, max: 6 })
+            .withMessage('maxDepth must be between 1 and 6'),
+        query('beamWidth')
+            .optional()
+            .isInt({ min: 5, max: 120 })
+            .withMessage('beamWidth must be between 5 and 120'),
+        query('topCohorts')
+            .optional()
+            .isInt({ min: 1, max: 12 })
+            .withMessage('topCohorts must be between 1 and 12'),
+        query('maxPathsPerCohort')
+            .optional()
+            .isInt({ min: 1, max: 10 })
+            .withMessage('maxPathsPerCohort must be between 1 and 10'),
+        query('pathBranchLimit')
+            .optional()
+            .isInt({ min: 1, max: 25 })
+            .withMessage('pathBranchLimit must be between 1 and 25'),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const targetVideoId = String(req.query.targetVideoId || '').trim();
-        if (!targetVideoId) {
-            return res.status(400).json({
-                success: false,
-                error: 'targetVideoId is required',
-            });
-        }
-
         const seedVideoId = String(req.query.seedVideoId || '').trim() || undefined;
         const platform = String(req.query.platform || 'youtube').toLowerCase();
         const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
@@ -244,7 +336,18 @@ analysisRouter.get('/go-to-market-brief', authenticate, async (req: AuthRequest,
 });
 
 // Holdout evaluation for forecast reliability
-analysisRouter.get('/forecast-evaluation', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/forecast-evaluation',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        platformQueryValidation,
+        query('topK')
+            .optional()
+            .isInt({ min: 1, max: 20 })
+            .withMessage('topK must be between 1 and 20'),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const platform = String(req.query.platform || 'youtube').toLowerCase();
         const topKRaw = Number.parseInt(String(req.query.topK || '5'), 10);
@@ -270,7 +373,18 @@ analysisRouter.get('/forecast-evaluation', authenticate, async (req: AuthRequest
 });
 
 // Data quality diagnostics for cross-user comparison reliability
-analysisRouter.get('/data-quality', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/data-quality',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        platformQueryValidation,
+        query('windowHours')
+            .optional()
+            .isInt({ min: 1, max: 24 * 180 })
+            .withMessage(`windowHours must be between 1 and ${24 * 180}`),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const platform = String(req.query.platform || 'youtube').toLowerCase();
         const windowHoursRaw = Number.parseInt(String(req.query.windowHours || String(24 * 14)), 10);
@@ -296,7 +410,22 @@ analysisRouter.get('/data-quality', authenticate, async (req: AuthRequest, res, 
 });
 
 // Data quality trend points for drift monitoring
-analysisRouter.get('/data-quality-trends', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/data-quality-trends',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        platformQueryValidation,
+        query('windowHours')
+            .optional()
+            .isInt({ min: 1, max: 24 * 180 })
+            .withMessage(`windowHours must be between 1 and ${24 * 180}`),
+        query('bucketHours')
+            .optional()
+            .isInt({ min: 1, max: 24 * 180 })
+            .withMessage(`bucketHours must be between 1 and ${24 * 180}`),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const platform = String(req.query.platform || 'youtube').toLowerCase();
         const windowHoursRaw = Number.parseInt(String(req.query.windowHours || String(24 * 14)), 10);
@@ -324,7 +453,17 @@ analysisRouter.get('/data-quality-trends', authenticate, async (req: AuthRequest
 });
 
 // Get "why am I seeing this" insights for a feed
-analysisRouter.get('/insights/:snapshotId', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/insights/:snapshotId',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        param('snapshotId')
+            .trim()
+            .notEmpty()
+            .withMessage('snapshotId is required'),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const { snapshotId } = req.params;
 
@@ -340,7 +479,17 @@ analysisRouter.get('/insights/:snapshotId', authenticate, async (req: AuthReques
 });
 
 // Get insights for a specific video
-analysisRouter.get('/insights/video/:videoId', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+    '/insights/video/:videoId',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        param('videoId')
+            .trim()
+            .notEmpty()
+            .withMessage('videoId is required'),
+    ]),
+    async (req: AuthRequest, res, next) => {
     try {
         const { videoId } = req.params;
 
@@ -382,7 +531,7 @@ analysisRouter.get('/insights/video/:videoId', authenticate, async (req: AuthReq
 });
 
 // Get global statistics
-analysisRouter.get('/stats', async (req, res, next) => {
+analysisRouter.get('/stats', publicAnalysisRateLimiter, async (req, res, next) => {
     try {
         const [
             totalUsers,
@@ -422,7 +571,16 @@ analysisRouter.get('/stats', async (req, res, next) => {
 });
 
 // Get top creators from all feeds
-analysisRouter.get('/top-creators', async (req, res, next) => {
+analysisRouter.get(
+    '/top-creators',
+    publicAnalysisRateLimiter,
+    ...validateRequest([
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 100 })
+            .withMessage('limit must be between 1 and 100'),
+    ]),
+    async (req, res, next) => {
     try {
         const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
 
@@ -451,7 +609,7 @@ analysisRouter.get('/top-creators', async (req, res, next) => {
 });
 
 // Get user's algorithm profile summary
-analysisRouter.get('/profile', authenticate, async (req: AuthRequest, res, next) => {
+analysisRouter.get('/profile', authenticate, userAnalysisRateLimiter, async (req: AuthRequest, res, next) => {
     try {
         // Get all user's feed items
         const feedItems = await prisma.feedItem.findMany({
