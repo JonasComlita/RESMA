@@ -1,0 +1,322 @@
+export function buildOpenApiDocument() {
+    return {
+        openapi: '3.1.0',
+        info: {
+            title: 'RESMA Programmatic API',
+            version: '0.1.0',
+            summary: 'Stable machine-facing surface for aggregate-only observatory analysis.',
+            description: [
+                'RESMA exposes aggregate-only observatory endpoints for machine clients, AI agents, and future paid API users.',
+                'This specification covers the stable programmatic surface, API-key management routes, and OpenAPI discovery endpoint.',
+                'Contributor-level raw feed data is intentionally excluded.',
+            ].join(' '),
+        },
+        servers: [
+            {
+                url: 'http://localhost:3001',
+                description: 'Local development server',
+            },
+        ],
+        tags: [
+            { name: 'Docs', description: 'Machine-readable API discovery' },
+            { name: 'API Keys', description: 'JWT-authenticated API key management' },
+            { name: 'Programmatic Analysis', description: 'Aggregate-only AI and machine endpoints' },
+        ],
+        components: {
+            securitySchemes: {
+                bearerAuth: {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT',
+                },
+                apiKeyAuth: {
+                    type: 'apiKey',
+                    in: 'header',
+                    name: 'x-api-key',
+                    description: 'Programmatic API key. `Authorization: Bearer <api-key>` is also accepted.',
+                },
+            },
+            parameters: {
+                format: {
+                    name: 'format',
+                    in: 'query',
+                    schema: {
+                        type: 'string',
+                        enum: ['json', 'llm'],
+                        default: 'json',
+                    },
+                    description: 'Optional LLM-friendly response envelope.',
+                },
+                platform: {
+                    name: 'platform',
+                    in: 'query',
+                    schema: {
+                        type: 'string',
+                        enum: ['youtube', 'instagram', 'twitter', 'tiktok'],
+                        default: 'youtube',
+                    },
+                },
+            },
+            schemas: {
+                ErrorResponse: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean', const: false },
+                        error: { type: 'string' },
+                        details: { type: ['object', 'null'], additionalProperties: true },
+                    },
+                    required: ['success', 'error'],
+                },
+                SuccessEnvelope: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean', const: true },
+                        data: { type: 'object', additionalProperties: true },
+                        meta: { type: 'object', additionalProperties: true },
+                        format: { type: 'string', enum: ['llm'] },
+                        llm: {
+                            type: 'object',
+                            properties: {
+                                kind: { type: 'string' },
+                                title: { type: 'string' },
+                                bullets: { type: 'array', items: { type: 'string' } },
+                                markdown: { type: 'string' },
+                                followUpQuestions: { type: 'array', items: { type: 'string' } },
+                                caveats: { type: 'array', items: { type: 'string' } },
+                            },
+                            required: ['kind', 'title', 'bullets', 'markdown'],
+                            additionalProperties: false,
+                        },
+                    },
+                    required: ['success', 'data', 'meta'],
+                    additionalProperties: true,
+                },
+            },
+        },
+        paths: {
+            '/docs/openapi.json': {
+                get: {
+                    tags: ['Docs'],
+                    summary: 'Get the RESMA OpenAPI document',
+                    operationId: 'getOpenApiDocument',
+                    responses: {
+                        '200': {
+                            description: 'OpenAPI document',
+                            content: {
+                                'application/json': {
+                                    schema: {
+                                        type: 'object',
+                                        additionalProperties: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            '/api-keys': {
+                get: {
+                    tags: ['API Keys'],
+                    summary: 'List API keys for the authenticated contributor',
+                    operationId: 'listApiKeys',
+                    security: [{ bearerAuth: [] }],
+                    responses: {
+                        '200': {
+                            description: 'Current API keys',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                                },
+                            },
+                        },
+                        '401': {
+                            description: 'Missing or invalid JWT',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/ErrorResponse' },
+                                },
+                            },
+                        },
+                    },
+                },
+                post: {
+                    tags: ['API Keys'],
+                    summary: 'Create a new API key',
+                    operationId: 'createApiKey',
+                    security: [{ bearerAuth: [] }],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        name: { type: 'string', minLength: 3, maxLength: 80 },
+                                        scopes: { type: 'array', items: { type: 'string' } },
+                                        dailyQuota: { type: 'integer', minimum: 1 },
+                                        monthlyQuota: { type: 'integer', minimum: 1 },
+                                        expiresAt: { type: 'string', format: 'date-time' },
+                                    },
+                                    required: ['name'],
+                                },
+                            },
+                        },
+                    },
+                    responses: {
+                        '201': {
+                            description: 'API key created. Secret is returned once.',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                                },
+                            },
+                        },
+                        '400': {
+                            description: 'Validation error',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/ErrorResponse' },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            '/api-keys/{apiKeyId}': {
+                delete: {
+                    tags: ['API Keys'],
+                    summary: 'Revoke an API key',
+                    operationId: 'revokeApiKey',
+                    security: [{ bearerAuth: [] }],
+                    parameters: [
+                        {
+                            name: 'apiKeyId',
+                            in: 'path',
+                            required: true,
+                            schema: {
+                                type: 'string',
+                                format: 'uuid',
+                            },
+                        },
+                    ],
+                    responses: {
+                        '200': {
+                            description: 'Key revoked',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                                },
+                            },
+                        },
+                        '404': {
+                            description: 'Key not found',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/ErrorResponse' },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            '/api/v1/analysis/audience-forecast': {
+                get: {
+                    tags: ['Programmatic Analysis'],
+                    summary: 'Generate an aggregate-only audience forecast',
+                    operationId: 'getAudienceForecast',
+                    security: [{ apiKeyAuth: [] }],
+                    parameters: [
+                        { name: 'targetVideoId', in: 'query', required: true, schema: { type: 'string' } },
+                        { name: 'seedVideoId', in: 'query', required: false, schema: { type: 'string' } },
+                        { $ref: '#/components/parameters/platform' },
+                        { name: 'maxDepth', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 6, default: 3 } },
+                        { name: 'beamWidth', in: 'query', schema: { type: 'integer', minimum: 5, maximum: 120, default: 30 } },
+                        { $ref: '#/components/parameters/format' },
+                    ],
+                    responses: {
+                        '200': {
+                            description: 'Audience forecast',
+                            content: {
+                                'application/json': {
+                                    schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                                },
+                            },
+                        },
+                        '401': { description: 'Missing or invalid API key', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+                        '429': { description: 'API key quota exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+                    },
+                },
+            },
+            '/api/v1/analysis/recommendation-map': {
+                get: {
+                    tags: ['Programmatic Analysis'],
+                    summary: 'Build a machine-consumable recommendation map',
+                    operationId: 'getRecommendationMap',
+                    security: [{ apiKeyAuth: [] }],
+                    parameters: [
+                        { name: 'seedVideoId', in: 'query', required: true, schema: { type: 'string' } },
+                        { $ref: '#/components/parameters/platform' },
+                        { name: 'maxDepth', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 8, default: 3 } },
+                        { name: 'maxNodes', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 300, default: 40 } },
+                        { name: 'cohortId', in: 'query', required: false, schema: { type: 'string' } },
+                        { $ref: '#/components/parameters/format' },
+                    ],
+                    responses: {
+                        '200': { description: 'Recommendation map', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+                        '401': { description: 'Missing or invalid API key', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+                    },
+                },
+            },
+            '/api/v1/analysis/go-to-market-brief': {
+                get: {
+                    tags: ['Programmatic Analysis'],
+                    summary: 'Generate a cohort-level go-to-market brief',
+                    operationId: 'getGoToMarketBrief',
+                    security: [{ apiKeyAuth: [] }],
+                    parameters: [
+                        { name: 'targetVideoId', in: 'query', required: true, schema: { type: 'string' } },
+                        { name: 'seedVideoId', in: 'query', required: false, schema: { type: 'string' } },
+                        { $ref: '#/components/parameters/platform' },
+                        { name: 'maxDepth', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 6, default: 3 } },
+                        { name: 'beamWidth', in: 'query', schema: { type: 'integer', minimum: 5, maximum: 120, default: 30 } },
+                        { name: 'topCohorts', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 12, default: 5 } },
+                        { name: 'maxPathsPerCohort', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 10, default: 3 } },
+                        { name: 'pathBranchLimit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 25, default: 6 } },
+                        { $ref: '#/components/parameters/format' },
+                    ],
+                    responses: {
+                        '200': { description: 'Go-to-market brief', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+                    },
+                },
+            },
+            '/api/v1/analysis/data-quality': {
+                get: {
+                    tags: ['Programmatic Analysis'],
+                    summary: 'Inspect aggregate recommendation-data quality',
+                    operationId: 'getDataQualityDiagnostics',
+                    security: [{ apiKeyAuth: [] }],
+                    parameters: [
+                        { $ref: '#/components/parameters/platform' },
+                        { name: 'windowHours', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 4320, default: 336 } },
+                        { $ref: '#/components/parameters/format' },
+                    ],
+                    responses: {
+                        '200': { description: 'Data quality diagnostics', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+                    },
+                },
+            },
+            '/api/v1/analysis/stats': {
+                get: {
+                    tags: ['Programmatic Analysis'],
+                    summary: 'Return aggregate observatory counts',
+                    operationId: 'getObservatoryStats',
+                    security: [{ apiKeyAuth: [] }],
+                    parameters: [{ $ref: '#/components/parameters/format' }],
+                    responses: {
+                        '200': { description: 'Observatory stats', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+                    },
+                },
+            },
+        },
+    } as const;
+}

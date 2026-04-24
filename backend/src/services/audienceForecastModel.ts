@@ -256,6 +256,21 @@ export function countTransitionSamples(transitionCounts: Map<string, Map<string,
     return total;
 }
 
+function deriveTransitionConcentration(transitionCounts: Map<string, Map<string, number>>) {
+    let total = 0;
+    let strongestEdge = 0;
+
+    for (const targets of transitionCounts.values()) {
+        for (const count of targets.values()) {
+            total += count;
+            strongestEdge = Math.max(strongestEdge, count);
+        }
+    }
+
+    if (total <= 0) return 0;
+    return roundTo(clamp(strongestEdge / total, 0, 1));
+}
+
 export function evaluateLiftInterpretation(
     cohortUsers: number,
     cohortTransitionSamples: number,
@@ -571,6 +586,11 @@ export function buildAudienceModel(items: RawAudienceFeedItem[], platform = 'you
         dominantCategory: string;
         diversityBand: DiversityBand;
         loyaltyBand: LoyaltyBand;
+        topCategoryShare: number;
+        topCreatorShare: number;
+        uniqueCreatorRatio: number;
+        transitionConcentration: number;
+        categoryCounts: Map<string, number>;
         seenVideos: Set<string>;
         transitionCounts: Map<string, Map<string, number>>;
         rawCohortId: string;
@@ -592,7 +612,9 @@ export function buildAudienceModel(items: RawAudienceFeedItem[], platform = 'you
             0
         );
         const topCreatorShare = profile.totalItems > 0 ? topCreatorCount / profile.totalItems : 0;
+        const uniqueCreatorRatio = profile.totalItems > 0 ? uniqueCreators / profile.totalItems : 0;
         const loyaltyBand = assignLoyaltyBand(topCreatorShare, profile.totalItems);
+        const transitionConcentration = deriveTransitionConcentration(profile.transitionCounts);
         const rawCohortId = buildInitialCohortId(stableCategory, diversityBand, loyaltyBand);
         rawCohortCounts.set(rawCohortId, (rawCohortCounts.get(rawCohortId) ?? 0) + 1);
 
@@ -602,6 +624,11 @@ export function buildAudienceModel(items: RawAudienceFeedItem[], platform = 'you
             dominantCategory: stableCategory,
             diversityBand,
             loyaltyBand,
+            topCategoryShare: roundTo(clamp(dominantCategoryShare, 0, 1)),
+            topCreatorShare: roundTo(clamp(topCreatorShare, 0, 1)),
+            uniqueCreatorRatio: roundTo(clamp(uniqueCreatorRatio, 0, 1)),
+            transitionConcentration,
+            categoryCounts: new Map(profile.categoryCounts),
             seenVideos: profile.seenVideos,
             transitionCounts: profile.transitionCounts,
             rawCohortId,
@@ -624,6 +651,10 @@ export function buildAudienceModel(items: RawAudienceFeedItem[], platform = 'you
             dominantCategory: profile.dominantCategory,
             diversityBand: profile.diversityBand,
             loyaltyBand: profile.loyaltyBand,
+            topCategoryShare: profile.topCategoryShare,
+            topCreatorShare: profile.topCreatorShare,
+            uniqueCreatorRatio: profile.uniqueCreatorRatio,
+            transitionConcentration: profile.transitionConcentration,
             seenVideos: profile.seenVideos,
             transitionCounts: profile.transitionCounts,
             cohortId,
@@ -641,12 +672,22 @@ export function buildAudienceModel(items: RawAudienceFeedItem[], platform = 'you
                 dominantCategory: category || 'general',
                 diversityBand: (diversity as DiversityBand) || 'low',
                 loyaltyBand: (loyalty as LoyaltyBand) || 'low',
+                seenVideos: new Set<string>(),
+                videoUserCounts: new Map<string, number>(),
+                topCategories: new Map<string, number>(),
                 transitionCounts: new Map<string, Map<string, number>>(),
             };
             cohorts.set(cohortId, cohort);
         }
 
         cohort.users.push(userId);
+        for (const videoId of profile.seenVideos) {
+            cohort.seenVideos.add(videoId);
+            cohort.videoUserCounts.set(videoId, (cohort.videoUserCounts.get(videoId) ?? 0) + 1);
+        }
+        for (const [category, count] of profile.categoryCounts.entries()) {
+            cohort.topCategories.set(category, (cohort.topCategories.get(category) ?? 0) + count);
+        }
         addTransitionCounts(cohort.transitionCounts, profile.transitionCounts);
     }
 

@@ -179,6 +179,14 @@ If you want to run RESMA as a multi-agent workflow, start here:
 
 RESMA now includes a stronger aggregate insight workflow built on observatory-wide, cross-user comparison quality.
 
+### Programmatic API + MCP Access
+
+- Added API key infrastructure with hashed storage, scopes, quotas, and per-route usage counting.
+- Added a versioned machine-facing surface under `GET /api/v1/analysis/*` for aggregate-only analysis outputs.
+- Added optional `format=llm` envelopes so AI clients can consume structured data plus concise markdown summaries.
+- Added OpenAPI discovery at `GET /docs/openapi.json` with supporting notes in `docs/api/README.md`.
+- Added `packages/mcp`, a read-only MCP server that wraps the highest-value aggregate analysis endpoints.
+
 ### Aggregate Insight Brief Export
 
 - New API route: `GET /analysis/go-to-market-brief`

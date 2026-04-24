@@ -12,7 +12,8 @@
         "db:migrate": "prisma migrate dev",
         "db:validate-platform-migration": "tsx src/scripts/validate-platform-account-migration.ts",
         "db:generate": "prisma generate",
-        "db:studio": "prisma studio"
+        "db:studio": "prisma studio",
+        "openapi:write": "tsx src/scripts/write-openapi.ts"
     },
     "dependencies": {
         "@msgpack/msgpack": "^3.0.0-beta2",

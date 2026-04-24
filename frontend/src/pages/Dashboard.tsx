@@ -6,11 +6,13 @@ import {
     useDashboardDataQuality,
 } from '../hooks/useDashboardDataQuality';
 import { useDashboardForecast } from '../hooks/useDashboardForecast';
+import { useDashboardOppositeDiscovery } from '../hooks/useDashboardOppositeDiscovery';
 import { useDashboardRecommendationMap } from '../hooks/useDashboardRecommendationMap';
 import { Navbar } from '../components/Navbar';
 import { DataQualitySection } from '../components/dashboard/DataQualitySection';
 import { DeleteAccountCard } from '../components/dashboard/DeleteAccountCard';
 import { ForecastSection } from '../components/dashboard/ForecastSection';
+import { OppositeDiscoverySection } from '../components/dashboard/OppositeDiscoverySection';
 import { RecommendationMapSection } from '../components/dashboard/RecommendationMapSection';
 import { BarChart2, Users, Database, Video } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -79,6 +81,12 @@ export function Dashboard() {
         selectedCohortLabel,
         setMapError,
     } = useDashboardRecommendationMap(platform, maxDepth);
+    const {
+        oppositeDiscovery,
+        oppositeDiscoveryError,
+        isOppositeDiscoveryLoading,
+        loadOppositeDiscovery,
+    } = useDashboardOppositeDiscovery(Boolean(user), platform);
 
     useEffect(() => {
         if (!isLoading && !user) {
@@ -207,6 +215,14 @@ export function Dashboard() {
                     selectedCohortLabel={selectedCohortLabel}
                     onLoadRecommendationMap={loadRecommendationMap}
                     onResetToContributorScope={resetToContributorScope}
+                />
+
+                <OppositeDiscoverySection
+                    platform={platform}
+                    result={oppositeDiscovery}
+                    error={oppositeDiscoveryError}
+                    isLoading={isOppositeDiscoveryLoading}
+                    onRefresh={() => loadOppositeDiscovery(platform, false)}
                 />
 
                 <ForecastSection

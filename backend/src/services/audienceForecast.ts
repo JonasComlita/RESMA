@@ -42,6 +42,10 @@ export interface UserProfile {
     dominantCategory: string;
     diversityBand: DiversityBand;
     loyaltyBand: LoyaltyBand;
+    topCategoryShare: number;
+    topCreatorShare: number;
+    uniqueCreatorRatio: number;
+    transitionConcentration: number;
     seenVideos: Set<string>;
     transitionCounts: Map<string, Map<string, number>>;
     cohortId: string;
@@ -53,6 +57,9 @@ export interface CohortAggregate {
     dominantCategory: string;
     diversityBand: DiversityBand;
     loyaltyBand: LoyaltyBand;
+    seenVideos: Set<string>;
+    videoUserCounts: Map<string, number>;
+    topCategories: Map<string, number>;
     transitionCounts: Map<string, Map<string, number>>;
 }
 
@@ -612,10 +619,12 @@ export async function generateAudienceForecast(
 
 export {
     buildAudienceModel,
+    cohortLabel,
     computeReachProbability,
     deriveCohortLiftStabilityEvidence,
     deriveCohortStabilityScore,
     deriveRecommendationQualityGate,
     getRecommendationQualityThresholds,
     loadAudienceFeedItems,
+    normalizeTransitions,
 };

@@ -3,15 +3,25 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
+const DEFAULT_API_KEY_PEPPER = 'dev-api-key-pepper-change-me';
 const DISALLOWED_PRODUCTION_JWT_SECRETS = new Set([
     DEFAULT_JWT_SECRET,
     'your-super-secret-jwt-key-change-in-production',
 ]);
+const DISALLOWED_PRODUCTION_API_KEY_PEPPERS = new Set([
+    DEFAULT_API_KEY_PEPPER,
+    'change-me-before-production',
+]);
 
 const jwtSecret = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
+const apiKeyPepper = process.env.API_KEY_PEPPER || DEFAULT_API_KEY_PEPPER;
 
 if (process.env.NODE_ENV === 'production' && DISALLOWED_PRODUCTION_JWT_SECRETS.has(jwtSecret)) {
     throw new Error('JWT_SECRET must be set to a non-default value in production');
+}
+
+if (process.env.NODE_ENV === 'production' && DISALLOWED_PRODUCTION_API_KEY_PEPPERS.has(apiKeyPepper)) {
+    throw new Error('API_KEY_PEPPER must be set to a non-default value in production');
 }
 
 export const config = {
@@ -33,6 +43,13 @@ export const config = {
 
     premium: {
         cacheTtlMs: parseInt(process.env.PREMIUM_CACHE_TTL_MS || '30000', 10),
+    },
+
+    apiKeys: {
+        pepper: apiKeyPepper,
+        prefix: process.env.API_KEY_PREFIX || (process.env.NODE_ENV === 'production' ? 'resma_live' : 'resma_test'),
+        defaultDailyQuota: parseInt(process.env.API_KEY_DEFAULT_DAILY_QUOTA || '500', 10),
+        defaultMonthlyQuota: parseInt(process.env.API_KEY_DEFAULT_MONTHLY_QUOTA || '10000', 10),
     },
 
     analytics: {

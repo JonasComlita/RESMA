@@ -16,6 +16,7 @@ import {
     generateAudienceForecast,
     getCohortUserIds,
 } from '../services/audienceForecast.js';
+import { generateOppositeDiscovery, OppositeDiscoveryInputError } from '../services/oppositeDiscovery.js';
 import { generateForecastEvaluation } from '../services/forecastEvaluation.js';
 import {
     DataQualityInputError,
@@ -236,6 +237,54 @@ analysisRouter.get(
         });
     } catch (error) {
         if (error instanceof AudienceForecastInputError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.message,
+                details: error.details,
+            });
+        }
+
+        next(error);
+    }
+});
+
+analysisRouter.get(
+    '/opposite-discovery',
+    authenticate,
+    userAnalysisRateLimiter,
+    ...validateRequest([
+        platformQueryValidation,
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 20 })
+            .withMessage('limit must be between 1 and 20'),
+    ]),
+    async (req: AuthRequest, res, next) => {
+    try {
+        const platform = String(req.query.platform || 'youtube').toLowerCase();
+        const limitRaw = Number.parseInt(String(req.query.limit || '10'), 10);
+        const limit = clampNumber(Number.isFinite(limitRaw) ? limitRaw : 10, 1, 20);
+
+        const result = await generateOppositeDiscovery(req.userId!, {
+            platform,
+            limit,
+        });
+
+        res.json({
+            success: true,
+            data: {
+                result,
+                meta: {
+                    privacyMode: 'aggregate-only',
+                    source: 'observatory-cohorts',
+                    qualityGateStatus: result.qualityGate.status,
+                    confidenceDegraded: result.qualityGate.status === 'degraded',
+                    degradationReasons: result.qualityGate.degradationReasons,
+                },
+            },
+        });
+    } catch (error) {
+        if (error instanceof OppositeDiscoveryInputError || error instanceof AudienceForecastInputError) {
             return res.status(error.statusCode).json({
                 success: false,
                 error: error.message,

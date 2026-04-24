@@ -19,6 +19,9 @@ import youtubeRouter from './routes/youtube.js';
 import instagramRouter from './routes/instagram.js';
 import insightsRouter from './routes/insights.js';
 import twitterRouter from './routes/twitter.js';
+import { apiKeysRouter } from './routes/apiKeys.js';
+import { programmaticApiRouter } from './routes/programmaticApi.js';
+import { buildOpenApiDocument } from './openapi.js';
 
 const app: express.Express = express();
 const HEALTH_CACHE_MS = 10_000;
@@ -145,6 +148,8 @@ app.use('/auth/delete-account', createAuthRateLimiter());
 app.use('/auth', authRouter);
 app.use('/feeds', createIngestRateLimiter(), feedsRouter);
 app.use('/analysis', analysisRouter);
+app.use('/api/v1', programmaticApiRouter);
+app.use('/api-keys', apiKeysRouter);
 app.use('/creators', creatorsRouter);
 app.use('/youtube/feed', createIngestRateLimiter());
 app.use('/youtube', youtubeRouter);
@@ -153,6 +158,26 @@ app.use('/instagram/feed', createIngestRateLimiter());
 app.use('/instagram', instagramRouter);
 app.use('/twitter/feed', createIngestRateLimiter());
 app.use('/twitter', twitterRouter);
+app.get('/docs/openapi.json', (_req, res) => {
+    res.json(buildOpenApiDocument());
+});
+app.get('/docs', (_req, res) => {
+    res.type('html').send([
+        '<!doctype html>',
+        '<html lang="en">',
+        '<head><meta charset="utf-8"><title>RESMA API Docs</title></head>',
+        '<body>',
+        '<h1>RESMA Programmatic API</h1>',
+        '<p>Aggregate-only machine endpoints live under <code>/api/v1/analysis/*</code>.</p>',
+        '<ul>',
+        '<li><a href="/docs/openapi.json">OpenAPI JSON</a></li>',
+        '<li>Repository guide: <code>docs/api/README.md</code></li>',
+        '<li>JWT key management routes: <code>/api-keys</code></li>',
+        '</ul>',
+        '</body>',
+        '</html>',
+    ].join(''));
+});
 
 // Error handling
 app.use(errorHandler);
