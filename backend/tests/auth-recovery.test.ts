@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../src/index';
 import { config } from '../src/config.js';
@@ -56,14 +57,18 @@ describe('Pseudonymous auth recovery', () => {
 
     const createArgs = vi.mocked(prisma.user.create).mock.calls[0]?.[0];
     expect(createArgs?.data.passwordHash).toEqual(expect.any(String));
-    expect(createArgs?.data.recoveryCodeHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(createArgs?.data.recoveryCodeHash).toMatch(/^\$2[aby]\$/);
+    expect(createArgs?.data.recoveryCodeLookupHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('recovers a pseudonymous contributor account with a saved recovery code', async () => {
+    const recoveryCodeHash = await bcrypt.hash('ABCDEFGHIJKLMNOP', 4);
+
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       anonymousId: 'anon-1',
       passwordHash: 'old-hash',
+      recoveryCodeHash,
       createdAt: new Date('2026-04-17T00:00:00.000Z'),
     } as any);
     vi.mocked(prisma.user.update).mockResolvedValue({
@@ -85,11 +90,12 @@ describe('Pseudonymous auth recovery', () => {
     expect(res.body.data.recoveryCode).toMatch(/^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/);
 
     const findArgs = vi.mocked(prisma.user.findUnique).mock.calls[0]?.[0];
-    expect(findArgs?.where.recoveryCodeHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(findArgs?.where.recoveryCodeLookupHash).toMatch(/^[a-f0-9]{64}$/);
 
     const updateArgs = vi.mocked(prisma.user.update).mock.calls[0]?.[0];
     expect(updateArgs?.data.passwordHash).toEqual(expect.any(String));
-    expect(updateArgs?.data.recoveryCodeHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(updateArgs?.data.recoveryCodeHash).toMatch(/^\$2[aby]\$/);
+    expect(updateArgs?.data.recoveryCodeLookupHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('deletes a contributor account only when the typed anonymous ID matches', async () => {

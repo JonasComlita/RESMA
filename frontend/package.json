@@ -10,19 +10,29 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@msrvida/sanddance-react": "^4.0.2",
     "@resma/shared": "workspace:*",
     "@tailwindcss/postcss": "^4.1.18",
     "clsx": "^2.1.1",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
+    "d3-zoom": "^3.0.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
     "recharts": "^3.6.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "vega": "^5.33.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-shape": "^3.1.8",
+    "@types/d3-zoom": "^3.0.8",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",

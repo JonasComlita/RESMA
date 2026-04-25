@@ -1,5 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { buildSyntheticProfiles } from './profiles.js';
 import { runSyntheticCaptureMatrix } from './orchestrator.js';
 import type { CaptureRuntimeOptions, SyntheticResearchProfile } from './types.js';
@@ -9,11 +10,14 @@ interface ParsedArgs {
     categories: string[];
     profileIds: string[];
     variantsPerRegionCategory: number;
-    limit: number | null;
+    limitPerCell: number | null;
+    maxProfiles: number | null;
     outputDir: string;
     profileStorageDir: string;
+    profileTimeoutMs: number | null;
     apiBaseUrl?: string;
     authToken?: string;
+    resumeExisting: boolean;
     upload: boolean;
     headless: boolean;
     browserChannel?: string;
@@ -28,15 +32,25 @@ function printUsage() {
         '  --category technology       Limit categories by key slug',
         '  --profile yt-us-technology  Run a specific profile id',
         '  --variants-per-pair 1       Profiles per region/category cell',
-        '  --limit 1                   Stop after N profiles',
+        '  --limit 1                   Keep up to N profiles per region/category cell',
+        '  --max-profiles 8            Stop after N total profiles globally',
         '  --output-dir .captures      Capture artifact output directory',
         '  --profile-storage-dir .profiles  Persistent browser state directory',
+        '  --timeout-ms 180000         Per-profile timeout before the browser is closed',
+        '  --no-resume                 Do not reuse existing artifacts in the output directory',
         '  --upload                    POST captures to the existing ingest routes',
         '  --api-url http://localhost:3001',
         '  --token <jwt>',
         '  --headful                   Run headed instead of headless',
         '  --browser-channel chrome    Use a locally installed browser channel',
     ].join('\n'));
+}
+
+function parseListFlag(value: string): string[] {
+    return value
+        .split(/[,\s]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
 }
 
 function readFlagValue(args: string[], index: number): string {
@@ -53,11 +67,14 @@ function parseArgs(argv: string[]): ParsedArgs {
         categories: [],
         profileIds: [],
         variantsPerRegionCategory: 1,
-        limit: null,
+        limitPerCell: null,
+        maxProfiles: null,
         outputDir: path.resolve(process.cwd(), '.captures', 'headless'),
         profileStorageDir: path.resolve(process.cwd(), '.captures', 'profiles'),
+        profileTimeoutMs: null,
         apiBaseUrl: process.env.RESMA_API_URL,
         authToken: process.env.RESMA_TOKEN,
+        resumeExisting: true,
         upload: false,
         headless: true,
         browserChannel: process.env.RESMA_BROWSER_CHANNEL,
@@ -67,15 +84,15 @@ function parseArgs(argv: string[]): ParsedArgs {
         const argument = argv[index];
         switch (argument) {
             case '--region':
-                parsed.regions = readFlagValue(argv, index).split(',').map((value) => value.trim()).filter(Boolean);
+                parsed.regions = parseListFlag(readFlagValue(argv, index));
                 index += 1;
                 break;
             case '--category':
-                parsed.categories = readFlagValue(argv, index).split(',').map((value) => value.trim()).filter(Boolean);
+                parsed.categories = parseListFlag(readFlagValue(argv, index));
                 index += 1;
                 break;
             case '--profile':
-                parsed.profileIds = readFlagValue(argv, index).split(',').map((value) => value.trim()).filter(Boolean);
+                parsed.profileIds = parseListFlag(readFlagValue(argv, index));
                 index += 1;
                 break;
             case '--variants-per-pair':
@@ -83,7 +100,11 @@ function parseArgs(argv: string[]): ParsedArgs {
                 index += 1;
                 break;
             case '--limit':
-                parsed.limit = Number.parseInt(readFlagValue(argv, index), 10);
+                parsed.limitPerCell = Number.parseInt(readFlagValue(argv, index), 10);
+                index += 1;
+                break;
+            case '--max-profiles':
+                parsed.maxProfiles = Number.parseInt(readFlagValue(argv, index), 10);
                 index += 1;
                 break;
             case '--output-dir':
@@ -94,6 +115,10 @@ function parseArgs(argv: string[]): ParsedArgs {
                 parsed.profileStorageDir = path.resolve(process.cwd(), readFlagValue(argv, index));
                 index += 1;
                 break;
+            case '--timeout-ms':
+                parsed.profileTimeoutMs = Number.parseInt(readFlagValue(argv, index), 10);
+                index += 1;
+                break;
             case '--api-url':
                 parsed.apiBaseUrl = readFlagValue(argv, index);
                 index += 1;
@@ -101,6 +126,9 @@ function parseArgs(argv: string[]): ParsedArgs {
             case '--token':
                 parsed.authToken = readFlagValue(argv, index);
                 index += 1;
+                break;
+            case '--no-resume':
+                parsed.resumeExisting = false;
                 break;
             case '--upload':
                 parsed.upload = true;
@@ -126,8 +154,16 @@ function parseArgs(argv: string[]): ParsedArgs {
         throw new Error('--variants-per-pair must be at least 1');
     }
 
-    if (parsed.limit !== null && (!Number.isFinite(parsed.limit) || parsed.limit < 1)) {
+    if (parsed.limitPerCell !== null && (!Number.isFinite(parsed.limitPerCell) || parsed.limitPerCell < 1)) {
         throw new Error('--limit must be at least 1 when provided');
+    }
+
+    if (parsed.maxProfiles !== null && (!Number.isFinite(parsed.maxProfiles) || parsed.maxProfiles < 1)) {
+        throw new Error('--max-profiles must be at least 1 when provided');
+    }
+
+    if (parsed.profileTimeoutMs !== null && (!Number.isFinite(parsed.profileTimeoutMs) || parsed.profileTimeoutMs < 1_000)) {
+        throw new Error('--timeout-ms must be at least 1000 when provided');
     }
 
     if (parsed.upload && (!parsed.apiBaseUrl || !parsed.authToken)) {
@@ -137,7 +173,28 @@ function parseArgs(argv: string[]): ParsedArgs {
     return parsed;
 }
 
-function filterProfiles(profiles: SyntheticResearchProfile[], args: ParsedArgs): SyntheticResearchProfile[] {
+function applyPerCellLimit(profiles: SyntheticResearchProfile[], limitPerCell: number | null): SyntheticResearchProfile[] {
+    if (limitPerCell === null) {
+        return profiles;
+    }
+
+    const counts = new Map<string, number>();
+    const limited: SyntheticResearchProfile[] = [];
+
+    for (const profile of profiles) {
+        const key = `${profile.region.key}:${profile.category.key}`;
+        const count = counts.get(key) ?? 0;
+        if (count >= limitPerCell) {
+            continue;
+        }
+        counts.set(key, count + 1);
+        limited.push(profile);
+    }
+
+    return limited;
+}
+
+export function filterProfiles(profiles: SyntheticResearchProfile[], args: ParsedArgs): SyntheticResearchProfile[] {
     let filtered = profiles;
 
     if (args.profileIds.length > 0) {
@@ -154,14 +211,16 @@ function filterProfiles(profiles: SyntheticResearchProfile[], args: ParsedArgs):
         filtered = filtered.filter((profile) => categoryKeys.has(profile.category.key));
     }
 
-    if (args.limit !== null) {
-        filtered = filtered.slice(0, args.limit);
+    filtered = applyPerCellLimit(filtered, args.limitPerCell);
+
+    if (args.maxProfiles !== null) {
+        filtered = filtered.slice(0, args.maxProfiles);
     }
 
     return filtered;
 }
 
-async function main() {
+export async function main() {
     const commandAndArgs = process.argv.slice(2);
     const command = commandAndArgs[0] === 'capture' ? 'capture' : 'capture';
     const parsed = parseArgs(commandAndArgs[0] === 'capture' ? commandAndArgs.slice(1) : commandAndArgs);
@@ -186,11 +245,17 @@ async function main() {
         headless: parsed.headless,
         outputDir: parsed.outputDir,
         profileStorageDir: parsed.profileStorageDir,
+        profileTimeoutMs: parsed.profileTimeoutMs ?? undefined,
+        resumeExisting: parsed.resumeExisting,
         upload: parsed.upload,
     };
 
     console.log(`Running ${profiles.length} synthetic profile capture(s)...`);
     const result = await runSyntheticCaptureMatrix(profiles, runtimeOptions);
+
+    for (const existing of result.resumed) {
+        console.log(`RESUMED ${existing.profile.id}`);
+    }
 
     for (const completed of result.completed) {
         console.log([
@@ -209,6 +274,7 @@ async function main() {
         'Run summary:',
         `  summary: ${result.summaryPath}`,
         `  completed: ${result.summary.completedCount}/${result.summary.totalProfilesRequested}`,
+        `  resumed: ${result.summary.resumedCount}`,
         `  low recommendations: ${result.summary.lowRecommendationProfiles.length}`,
         `  missing coverage cells: ${result.summary.missingCoverageCells.length}`,
     ].join('\n'));
@@ -218,8 +284,12 @@ async function main() {
     }
 }
 
-void main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    printUsage();
-    process.exit(1);
-});
+const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isDirectExecution) {
+    void main().catch((error) => {
+        console.error(error instanceof Error ? error.message : error);
+        printUsage();
+        process.exit(1);
+    });
+}

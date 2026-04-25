@@ -1,5 +1,15 @@
 /// <reference lib="webworker" />
 
+import {
+    forceCenter,
+    forceCollide,
+    forceLink,
+    forceManyBody,
+    forceSimulation,
+    type SimulationLinkDatum,
+    type SimulationNodeDatum,
+} from 'd3-force';
+
 interface MergedEdge {
     fromVideoId: string;
     toVideoId: string;
@@ -11,6 +21,19 @@ interface MergedEdge {
 interface NodePosition {
     x: number;
     y: number;
+}
+
+interface LayoutNode extends SimulationNodeDatum {
+    id: string;
+    depth: number;
+    x: number;
+    y: number;
+}
+
+interface LayoutLink extends SimulationLinkDatum<LayoutNode> {
+    source: string | LayoutNode;
+    target: string | LayoutNode;
+    confidence: number;
 }
 
 interface LayoutRequest {
@@ -35,6 +58,19 @@ function hashString(value: string): number {
     return Math.abs(hash >>> 0);
 }
 
+function seedNodePosition(videoId: string, depth: number, width: number, height: number): NodePosition {
+    const seed = hashString(videoId);
+    const angle = ((seed % 360) * Math.PI) / 180;
+    const radialBase = Math.min(width, height) * 0.13;
+    const depthOffset = depth * (Math.min(width, height) * 0.09);
+    const radius = radialBase + depthOffset + (seed % 37);
+
+    return {
+        x: width / 2 + Math.cos(angle) * radius,
+        y: height / 2 + Math.sin(angle) * radius,
+    };
+}
+
 function computeLayout(
     nodeIds: string[],
     edges: MergedEdge[],
@@ -46,96 +82,50 @@ function computeLayout(
         return [];
     }
 
-    const area = width * height;
-    const k = Math.sqrt(area / nodeIds.length);
-    const positions = new Map<string, NodePosition>();
-
-    for (let index = 0; index < nodeIds.length; index += 1) {
-        const videoId = nodeIds[index];
-        const seed = hashString(videoId);
+    const nodes: LayoutNode[] = nodeIds.map((videoId) => {
         const depth = nodeDepths.get(videoId) ?? 0;
-        const angle = ((seed % 360) * Math.PI) / 180;
-        const radialBase = Math.min(width, height) * 0.13;
-        const depthOffset = depth * (Math.min(width, height) * 0.09);
-        const radius = radialBase + depthOffset + (seed % 37);
+        const position = seedNodePosition(videoId, depth, width, height);
 
-        positions.set(videoId, {
-            x: width / 2 + Math.cos(angle) * radius,
-            y: height / 2 + Math.sin(angle) * radius,
-        });
-    }
+        return {
+            id: videoId,
+            depth,
+            x: position.x,
+            y: position.y,
+        };
+    });
 
-    const iterations = nodeIds.length > 140 ? 120 : 180;
-    const temperatureStart = Math.min(width, height) * 0.12;
+    const visibleNodeIds = new Set(nodeIds);
+    const links: LayoutLink[] = edges
+        .filter((edge) => visibleNodeIds.has(edge.fromVideoId) && visibleNodeIds.has(edge.toVideoId))
+        .map((edge) => ({
+            source: edge.fromVideoId,
+            target: edge.toVideoId,
+            confidence: edge.confidence,
+        }));
 
-    for (let iteration = 0; iteration < iterations; iteration += 1) {
-        const displacements = new Map<string, { dx: number; dy: number }>();
-        for (const videoId of nodeIds) {
-            displacements.set(videoId, { dx: 0, dy: 0 });
-        }
+    const simulation = forceSimulation<LayoutNode>(nodes)
+        .force('charge', forceManyBody<LayoutNode>().strength((node) => -230 - node.depth * 28))
+        .force('link', forceLink<LayoutNode, LayoutLink>(links)
+            .id((node) => node.id)
+            .distance((link) => {
+                const sourceDepth = typeof link.source === 'string' ? nodeDepths.get(link.source) ?? 0 : link.source.depth;
+                const targetDepth = typeof link.target === 'string' ? nodeDepths.get(link.target) ?? 0 : link.target.depth;
+                const shallowestDepth = Math.min(sourceDepth, targetDepth);
+                const depthGap = Math.abs(sourceDepth - targetDepth);
+                return 58 + shallowestDepth * 32 + depthGap * 20 - link.confidence * 12;
+            })
+            .strength((link) => 0.38 + link.confidence * 0.34))
+        .force('center', forceCenter<LayoutNode>(width / 2, height / 2).strength(0.18))
+        .force('collide', forceCollide<LayoutNode>().radius((node) => 24 + node.depth * 2).strength(0.85))
+        .stop();
 
-        for (let i = 0; i < nodeIds.length; i += 1) {
-            const aId = nodeIds[i];
-            const a = positions.get(aId)!;
-            for (let j = i + 1; j < nodeIds.length; j += 1) {
-                const bId = nodeIds[j];
-                const b = positions.get(bId)!;
+    simulation.tick(300);
 
-                let dx = a.x - b.x;
-                let dy = a.y - b.y;
-                const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-                const repulsive = (k * k) / distance;
-                dx = (dx / distance) * repulsive;
-                dy = (dy / distance) * repulsive;
-
-                const dispA = displacements.get(aId)!;
-                const dispB = displacements.get(bId)!;
-                dispA.dx += dx;
-                dispA.dy += dy;
-                dispB.dx -= dx;
-                dispB.dy -= dy;
-            }
-        }
-
-        for (const edge of edges) {
-            const source = positions.get(edge.fromVideoId);
-            const target = positions.get(edge.toVideoId);
-            if (!source || !target) continue;
-
-            let dx = source.x - target.x;
-            let dy = source.y - target.y;
-            const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-            const attractive = (distance * distance) / k;
-            dx = (dx / distance) * attractive;
-            dy = (dy / distance) * attractive;
-
-            const sourceDisp = displacements.get(edge.fromVideoId)!;
-            const targetDisp = displacements.get(edge.toVideoId)!;
-            sourceDisp.dx -= dx;
-            sourceDisp.dy -= dy;
-            targetDisp.dx += dx;
-            targetDisp.dy += dy;
-        }
-
-        const temperature = temperatureStart * (1 - iteration / iterations);
-        for (const videoId of nodeIds) {
-            const position = positions.get(videoId)!;
-            const disp = displacements.get(videoId)!;
-            const displacementLength = Math.max(1, Math.sqrt(disp.dx * disp.dx + disp.dy * disp.dy));
-            const limitedDx = (disp.dx / displacementLength) * Math.min(temperature, displacementLength);
-            const limitedDy = (disp.dy / displacementLength) * Math.min(temperature, displacementLength);
-
-            position.x = clamp(position.x + limitedDx, 50, width - 50);
-            position.y = clamp(position.y + limitedDy, 50, height - 50);
-        }
-    }
-
-    return nodeIds
-        .map((videoId) => {
-            const position = positions.get(videoId);
-            return position ? { videoId, x: position.x, y: position.y } : null;
-        })
-        .filter((entry): entry is { videoId: string; x: number; y: number } => Boolean(entry));
+    return nodes.map((node) => ({
+        videoId: node.id,
+        x: clamp(node.x, 50, width - 50),
+        y: clamp(node.y, 50, height - 50),
+    }));
 }
 
 self.onmessage = (event: MessageEvent<LayoutRequest>) => {

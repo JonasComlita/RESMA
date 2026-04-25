@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent, WheelEvent } from 'react';
+import { select } from 'd3-selection';
+import { linkHorizontal } from 'd3-shape';
+import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import type { RecommendationMapResult } from '../types/recommendationMap';
 
 interface RecommendationGraphCanvasProps {
@@ -23,10 +25,6 @@ const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 700;
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.8;
-
-function clamp(value: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, value));
-}
 
 function shortenVideoId(videoId: string) {
     return videoId.length > 10 ? `${videoId.slice(0, 8)}...` : videoId;
@@ -94,11 +92,10 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set([map.seedVideoId]));
     const [selectedNodeId, setSelectedNodeId] = useState<string>(map.seedVideoId);
     const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
-    const [isPanning, setIsPanning] = useState(false);
-    const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
     const [nodePositions, setNodePositions] = useState<Map<string, NodePosition>>(new Map());
 
     const svgRef = useRef<SVGSVGElement | null>(null);
+    const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
     const layoutRequestIdRef = useRef(0);
 
     useEffect(() => {
@@ -106,6 +103,34 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
         setSelectedNodeId(map.seedVideoId);
         setViewport({ x: 0, y: 0, scale: 1 });
     }, [map.seedVideoId]);
+
+    useEffect(() => {
+        const svg = svgRef.current;
+        if (!svg) return;
+
+        const selection = select<SVGSVGElement, unknown>(svg);
+        const zoomBehavior = zoom<SVGSVGElement, unknown>()
+            .scaleExtent([MIN_SCALE, MAX_SCALE])
+            .translateExtent([
+                [-CANVAS_WIDTH * 0.5, -CANVAS_HEIGHT * 0.5],
+                [CANVAS_WIDTH * 1.5, CANVAS_HEIGHT * 1.5],
+            ])
+            .on('zoom', (event: D3ZoomEvent<SVGSVGElement, unknown>) => {
+                setViewport({
+                    x: event.transform.x,
+                    y: event.transform.y,
+                    scale: event.transform.k,
+                });
+            });
+
+        zoomBehaviorRef.current = zoomBehavior;
+        selection.call(zoomBehavior);
+
+        return () => {
+            selection.on('.zoom', null);
+            zoomBehaviorRef.current = null;
+        };
+    }, []);
 
     const visibleNodeIds = useMemo(() => {
         const visible = new Set<string>([map.seedVideoId]);
@@ -182,56 +207,17 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
         };
     }, [depthMap, visibleEdges, visibleNodes]);
 
+    const edgePath = useMemo(
+        () => linkHorizontal<{ source: NodePosition; target: NodePosition }, NodePosition>()
+            .x((point) => point.x)
+            .y((point) => point.y),
+        []
+    );
+
     const selectedNode = useMemo(
         () => map.combinedNodes.find((node) => node.videoId === selectedNodeId) || null,
         [map.combinedNodes, selectedNodeId]
     );
-
-    const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
-        event.preventDefault();
-
-        const svg = svgRef.current;
-        if (!svg) return;
-
-        const rect = svg.getBoundingClientRect();
-        const pointerX = event.clientX - rect.left;
-        const pointerY = event.clientY - rect.top;
-        const zoomFactor = event.deltaY < 0 ? 1.12 : 0.9;
-
-        setViewport((current) => {
-            const nextScale = clamp(current.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
-            const worldX = (pointerX - current.x) / current.scale;
-            const worldY = (pointerY - current.y) / current.scale;
-
-            return {
-                scale: nextScale,
-                x: pointerX - worldX * nextScale,
-                y: pointerY - worldY * nextScale,
-            };
-        });
-    };
-
-    const handleMouseDown = (event: MouseEvent<SVGSVGElement>) => {
-        setIsPanning(true);
-        setPanStart({
-            x: event.clientX - viewport.x,
-            y: event.clientY - viewport.y,
-        });
-    };
-
-    const handleMouseMove = (event: MouseEvent<SVGSVGElement>) => {
-        if (!isPanning || !panStart) return;
-        setViewport((current) => ({
-            ...current,
-            x: event.clientX - panStart.x,
-            y: event.clientY - panStart.y,
-        }));
-    };
-
-    const endPanning = () => {
-        setIsPanning(false);
-        setPanStart(null);
-    };
 
     const toggleNodeExpansion = (videoId: string) => {
         setSelectedNodeId(videoId);
@@ -256,7 +242,13 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
                     <button
                         type="button"
                         onClick={() => {
-                            setViewport({ x: 0, y: 0, scale: 1 });
+                            const svg = svgRef.current;
+                            const zoomBehavior = zoomBehaviorRef.current;
+                            if (svg && zoomBehavior) {
+                                select<SVGSVGElement, unknown>(svg).call(zoomBehavior.transform, zoomIdentity);
+                            } else {
+                                setViewport({ x: 0, y: 0, scale: 1 });
+                            }
                         }}
                         className="rounded-md border border-slate-700 px-2 py-1 hover:bg-slate-800"
                     >
@@ -287,12 +279,7 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
             <svg
                 ref={svgRef}
                 viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-                className={`h-[540px] w-full cursor-${isPanning ? 'grabbing' : 'grab'} rounded-xl bg-slate-900`}
-                onWheel={handleWheel}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={endPanning}
-                onMouseLeave={endPanning}
+                className="h-[540px] w-full cursor-grab rounded-xl bg-slate-900 active:cursor-grabbing"
             >
                 <defs>
                     <pattern id="grid-pattern" width="32" height="32" patternUnits="userSpaceOnUse">
@@ -309,12 +296,10 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
                         if (!source || !target) return null;
 
                         return (
-                            <line
+                            <path
                                 key={`${edge.fromVideoId}-${edge.toVideoId}`}
-                                x1={source.x}
-                                y1={source.y}
-                                x2={target.x}
-                                y2={target.y}
+                                d={edgePath({ source, target }) ?? undefined}
+                                fill="none"
                                 stroke={edgeColor(edge)}
                                 strokeOpacity={0.32 + edge.confidence * 0.35}
                                 strokeWidth={1.2 + edge.confidence * 2}

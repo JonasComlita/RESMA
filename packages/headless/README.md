@@ -95,6 +95,35 @@ Upload through the existing ingest pipeline:
 pnpm --filter @resma/headless capture --region us --category news-politics --limit 1 --upload --api-url http://localhost:3001 --token <jwt>
 ```
 
+Run a matrix with one profile per requested region/category cell:
+
+```bash
+pnpm --filter @resma/headless capture --region "us uk ca br de in jp mx" --category "technology music news-politics sports" --limit 1 --upload --api-url http://localhost:3001 --token <jwt>
+```
+
+Global cap semantics now live on `--max-profiles` instead of `--limit`:
+
+```bash
+pnpm --filter @resma/headless capture --region "us uk" --category "technology music" --limit 1 --max-profiles 2
+```
+
+Long-running matrix runs can be resumed safely from the same output directory:
+
+```bash
+pnpm --filter @resma/headless capture --region "us uk ca br de in jp mx" --category "technology music news-politics sports" --limit 1 --upload --api-url http://localhost:3001 --token <jwt> --output-dir .captures/headless-matrix-upload-1
+```
+
+By default the runner will:
+
+- reuse existing artifact files in the selected output directory
+- rewrite `run-summary.json` after each profile
+- stop waiting on a single profile after `180000ms`
+
+Useful flags:
+
+- `--timeout-ms 240000` to raise/lower the per-profile timeout
+- `--no-resume` to ignore existing artifacts and start fresh
+
 Environment variables:
 
 - `RESMA_API_URL`
@@ -130,6 +159,13 @@ Each run now emits a summary file with:
 - missing region/category cells
 
 That makes it easier to start with low-volume matrix runs and quickly see where recommendation density or coverage is weak before scaling up.
+
+CLI note:
+
+- `--limit` applies per region/category cell after filtering
+- `--max-profiles` applies a global cap after per-cell limiting
+- `--timeout-ms` applies per profile, not to the whole batch
+- reruns resume from existing artifacts in the same `--output-dir` unless `--no-resume` is set
 
 ## Local Upload Troubleshooting
 

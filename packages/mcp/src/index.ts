@@ -85,9 +85,10 @@ const server = new McpServer(
     },
     {
         instructions: [
-            'Use these tools for aggregate-only observatory analysis.',
+            'Use these tools for aggregate-only observatory analysis and agency-ready report delivery.',
             'Do not infer raw contributor-level behavior from these outputs.',
             'If a quality gate is degraded, say so plainly before making recommendations.',
+            'Treat RESMA as independent pre-impression intelligence, not as an ad-buying or audience-sync platform.',
         ].join(' '),
     },
 );
@@ -227,6 +228,32 @@ server.registerTool(
         try {
             const payload = await callResma('/api/v1/analysis/stats', {
                 format: 'llm',
+            });
+            return toolSuccess(payload);
+        } catch (error) {
+            return toolFailure(error);
+        }
+    },
+);
+
+server.registerTool(
+    'agency_report_export',
+    {
+        title: 'Agency Report Export',
+        description: 'Read a saved aggregate report run in a delivery-friendly format for white-glove agency workflows.',
+        inputSchema: {
+            reportRunId: z.string().uuid(),
+            format: z.enum(['json', 'llm', 'markdown', 'client-report']).optional(),
+        },
+        annotations: {
+            readOnlyHint: true,
+            idempotentHint: true,
+        },
+    },
+    async (args) => {
+        try {
+            const payload = await callResma(`/api/v1/reports/runs/${args.reportRunId}/export`, {
+                format: args.format ?? 'client-report',
             });
             return toolSuccess(payload);
         } catch (error) {

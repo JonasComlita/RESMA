@@ -18,6 +18,28 @@ vi.mock('../src/lib/prisma.js', () => ({
             findUnique: vi.fn(),
             count: vi.fn(),
         },
+        agencyReportPreset: {
+            findMany: vi.fn(),
+            count: vi.fn(),
+            create: vi.fn(),
+            update: vi.fn(),
+            findFirst: vi.fn(),
+        },
+        agencyReportRun: {
+            create: vi.fn(),
+            findMany: vi.fn(),
+            findFirst: vi.fn(),
+        },
+        agencyReportShare: {
+            count: vi.fn(),
+            create: vi.fn(),
+            findUnique: vi.fn(),
+            update: vi.fn(),
+            findFirst: vi.fn(),
+        },
+        agencyReportAuditEvent: {
+            create: vi.fn(),
+        },
         feedSnapshot: {
             count: vi.fn(),
         },
@@ -44,9 +66,14 @@ describe('API key management routes', () => {
     });
 
     it('creates an API key and stores only the hashed secret material', async () => {
+        vi.mocked(prisma.user.findUnique).mockResolvedValue({
+            id: 'user-1',
+            accessPackage: 'AGENCY_PILOT',
+        } as any);
         vi.mocked(prisma.apiKey.create).mockImplementation(async ({ data }: any) => ({
             id: 'api-key-1',
             name: data.name,
+            accessPackage: data.accessPackage,
             lookupId: data.lookupId,
             keyPrefix: data.keyPrefix,
             scopes: data.scopes,
@@ -68,8 +95,10 @@ describe('API key management routes', () => {
         expect(response.body.success).toBe(true);
         expect(response.body.data.secret).toMatch(/^resma_test\./);
         expect(response.body.data.apiKey.name).toBe('LLM CLI');
+        expect(response.body.data.apiKey.accessPackage).toBe('AGENCY_PILOT');
         expect(prisma.apiKey.create).toHaveBeenCalledWith(expect.objectContaining({
             data: expect.objectContaining({
+                accessPackage: 'AGENCY_PILOT',
                 keyHash: expect.any(String),
                 lookupId: expect.any(String),
                 scopes: ['analysis:read'],

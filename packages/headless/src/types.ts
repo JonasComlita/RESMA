@@ -56,6 +56,8 @@ export interface CaptureRuntimeOptions {
     headless?: boolean;
     outputDir: string;
     profileStorageDir: string;
+    profileTimeoutMs?: number;
+    resumeExisting?: boolean;
     upload?: boolean;
 }
 
@@ -109,6 +111,7 @@ export interface CaptureRunSummary {
     totalProfilesRequested: number;
     completedCount: number;
     failedCount: number;
+    resumedCount: number;
     uploadAttemptCount: number;
     uploadSuccessCount: number;
     lowRecommendationProfiles: string[];
@@ -119,6 +122,7 @@ export interface CaptureRunSummary {
 
 export interface CaptureRunResult {
     completed: PersistedCaptureArtifact[];
+    resumed: PersistedCaptureArtifact[];
     failed: Array<{ profileId: string; error: string }>;
     summary: CaptureRunSummary;
     summaryPath: string;

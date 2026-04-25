@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../src/middleware/authenticate.js';
 
 process.env.PREMIUM_CACHE_TTL_MS = '60000';
+process.env.PREMIUM_CACHE_MAX_ENTRIES = '2';
 
 vi.mock('../src/lib/prisma.js', () => ({
     prisma: {
@@ -62,6 +63,21 @@ describe('requirePremium', () => {
                 statusCode: 403,
             })
         );
+    });
+
+    it('evicts the oldest premium cache entry when the configured size is reached', async () => {
+        vi.mocked(prisma.user.findUnique).mockResolvedValue({
+            subscriptionTier: 'PREMIUM',
+        } as any);
+
+        const next = vi.fn();
+
+        await requirePremium({ userId: 'user-1' } as AuthRequest, {} as Response, next);
+        await requirePremium({ userId: 'user-2' } as AuthRequest, {} as Response, next);
+        await requirePremium({ userId: 'user-3' } as AuthRequest, {} as Response, next);
+        await requirePremium({ userId: 'user-1' } as AuthRequest, {} as Response, next);
+
+        expect(prisma.user.findUnique).toHaveBeenCalledTimes(4);
     });
 
     it('rejects unauthenticated requests before touching the database', async () => {

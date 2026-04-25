@@ -1,0 +1,688 @@
+{
+  "profile": {
+    "id": "yt-us-technology-engaged-sampler-v1",
+    "storageKey": "yt-us-technology-engaged-sampler-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "us",
+      "displayName": "United States",
+      "youtubeRegionCode": "US",
+      "locale": "en-US",
+      "timezoneId": "America/Los_Angeles",
+      "acceptLanguage": "en-US,en;q=0.9"
+    },
+    "category": {
+      "key": "technology",
+      "label": "Technology",
+      "description": "Consumer tech, developer-adjacent, and hardware/software recommendation signals.",
+      "querySeeds": [
+        "new gadget review",
+        "coding setup tour",
+        "ai tool comparison"
+      ],
+      "followUpQuerySeeds": [
+        "smartphone camera test",
+        "laptop buying guide"
+      ]
+    },
+    "behavior": {
+      "key": "engaged-sampler",
+      "label": "Engaged Sampler",
+      "description": "Clicks through several candidates and mixes quick sampling with one stronger watch signal.",
+      "watchDurationSeconds": {
+        "min": 16,
+        "max": 36
+      },
+      "watchDurationRatio": {
+        "min": 0.14,
+        "max": 0.35
+      },
+      "scrollCadenceMs": {
+        "min": 1700,
+        "max": 3200
+      },
+      "interactionRate": {
+        "min": 0.28,
+        "max": 0.5
+      },
+      "sessionLengthActions": {
+        "min": 6,
+        "max": 10
+      },
+      "detailOpenRate": {
+        "min": 0.55,
+        "max": 0.75
+      },
+      "revisitPattern": "adjacent-query",
+      "revisitProbability": 0.36
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 24,
+    "interactedVideoId": "h359LRmMZMU",
+    "query": "new gadget review",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "h359LRmMZMU",
+        "creatorHandle": "Mrwhosetheboss",
+        "creatorId": "Mrwhosetheboss",
+        "caption": "I tested the most VIRAL TikTok gadgets!",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 17.36,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ],
+        "engagementMetrics": {
+          "watchTime": 17.36,
+          "recommendationCount": 24,
+          "recommendations": [
+            {
+              "videoId": "X3UMA7DstGs",
+              "position": 1,
+              "title": "I traded all my tech for Wish products!",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "kMiy8ZywF88",
+              "position": 2,
+              "title": "I bought the most EXPENSIVE Tech on the internet.",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "hK3btXJRFaw",
+              "position": 3,
+              "title": "LEVEL 1 to 100 3D Prints...",
+              "channel": "The Plop and Stay Wild",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "4ltatqPjTy8",
+              "position": 4,
+              "title": "Infinite Craft Went Too Far Again..",
+              "channel": "Why Suda",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "piLRQGukXqc",
+              "position": 5,
+              "title": "I Tested the Most Ridiculous TikTok Life Hacks.",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "IChVRwbNLgI",
+              "position": 6,
+              "title": "I Tried Impossible Tasks on Airplanes",
+              "channel": "Hangtime",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "2Vuexl8rCNs",
+              "position": 7,
+              "title": "I Ate 100 Years Of McDonald's",
+              "channel": "Nick DiGiovanni",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "MBQBY9b6OAU",
+              "position": 8,
+              "title": "I Tested Every YouTuber Tech Product",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "_S2sqYXzOK4",
+              "position": 9,
+              "title": "Busting Secret Magic Tricks With Science",
+              "channel": "Make Waves",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "cZypFRdPS9M",
+              "position": 10,
+              "title": "I bought the Cheapest Tech on the internet.",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "z2SPBQMrye8",
+              "position": 11,
+              "title": "I Tried Every Room on the Most Expensive Cruise",
+              "channel": "Ryan Trahan",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "JY4eqp6skC0",
+              "position": 12,
+              "title": "I Ate Every Knock Off Snack",
+              "channel": "Nick DiGiovanni",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "doRosQ7uMGw",
+              "position": 13,
+              "title": "I Bought $1 vs $25,000 Unusual Home Gadgets",
+              "channel": "FrenchieFries",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "QF5YpZI1wnk",
+              "position": 14,
+              "title": "I Survived 100 Days in Skyblock",
+              "channel": "MrBeast Gaming",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "31VHogI00T0",
+              "position": 15,
+              "title": "I Took the Longest Train Ride in America",
+              "channel": "Ryan Trahan",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "W8Se66UZ6hY",
+              "position": 16,
+              "title": "My Luckiest / Unluckiest Dive Ever",
+              "channel": "Man + River",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "BiZcyJPoDy0",
+              "position": 17,
+              "title": "I bought the STRONGEST Tech Ever!",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "pcG8hjPfbIk",
+              "position": 18,
+              "title": "Childhood Stories (Compilation)",
+              "channel": "Haminations",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "zRtGL0-5rg4",
+              "position": 19,
+              "title": "Last To Leave Grocery Store, Wins $250,000",
+              "channel": "MrBeast",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "D6Zxr8-1A2I",
+              "position": 20,
+              "title": "I Cooked the World’s DEADLIEST Animals",
+              "channel": "Max the Meat Guy",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "iDdN5cOFB1g",
+              "position": 21,
+              "title": "I tested Viral TikTok Life Hacks - are they a SCAM!?",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "bCevmmgJzQc",
+              "position": 22,
+              "title": "I tested the CHEAPEST Gadgets on the Internet.",
+              "channel": "Mrwhosetheboss",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "jkiC66QV6vo",
+              "position": 23,
+              "title": "We Pitched Illegal Products To Strangers",
+              "channel": "Family Friendly",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "8hpG4tmxb6g",
+              "position": 24,
+              "title": "I Bought $100 vs $100,000 Weird Furniture",
+              "channel": "FrenchieFries",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "X3UMA7DstGs",
+            "position": 1,
+            "title": "I traded all my tech for Wish products!",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "kMiy8ZywF88",
+            "position": 2,
+            "title": "I bought the most EXPENSIVE Tech on the internet.",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "hK3btXJRFaw",
+            "position": 3,
+            "title": "LEVEL 1 to 100 3D Prints...",
+            "channel": "The Plop and Stay Wild",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "4ltatqPjTy8",
+            "position": 4,
+            "title": "Infinite Craft Went Too Far Again..",
+            "channel": "Why Suda",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "piLRQGukXqc",
+            "position": 5,
+            "title": "I Tested the Most Ridiculous TikTok Life Hacks.",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "IChVRwbNLgI",
+            "position": 6,
+            "title": "I Tried Impossible Tasks on Airplanes",
+            "channel": "Hangtime",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "2Vuexl8rCNs",
+            "position": 7,
+            "title": "I Ate 100 Years Of McDonald's",
+            "channel": "Nick DiGiovanni",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "MBQBY9b6OAU",
+            "position": 8,
+            "title": "I Tested Every YouTuber Tech Product",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "_S2sqYXzOK4",
+            "position": 9,
+            "title": "Busting Secret Magic Tricks With Science",
+            "channel": "Make Waves",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "cZypFRdPS9M",
+            "position": 10,
+            "title": "I bought the Cheapest Tech on the internet.",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "z2SPBQMrye8",
+            "position": 11,
+            "title": "I Tried Every Room on the Most Expensive Cruise",
+            "channel": "Ryan Trahan",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "JY4eqp6skC0",
+            "position": 12,
+            "title": "I Ate Every Knock Off Snack",
+            "channel": "Nick DiGiovanni",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "doRosQ7uMGw",
+            "position": 13,
+            "title": "I Bought $1 vs $25,000 Unusual Home Gadgets",
+            "channel": "FrenchieFries",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "QF5YpZI1wnk",
+            "position": 14,
+            "title": "I Survived 100 Days in Skyblock",
+            "channel": "MrBeast Gaming",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "31VHogI00T0",
+            "position": 15,
+            "title": "I Took the Longest Train Ride in America",
+            "channel": "Ryan Trahan",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "W8Se66UZ6hY",
+            "position": 16,
+            "title": "My Luckiest / Unluckiest Dive Ever",
+            "channel": "Man + River",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "BiZcyJPoDy0",
+            "position": 17,
+            "title": "I bought the STRONGEST Tech Ever!",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "pcG8hjPfbIk",
+            "position": 18,
+            "title": "Childhood Stories (Compilation)",
+            "channel": "Haminations",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "zRtGL0-5rg4",
+            "position": 19,
+            "title": "Last To Leave Grocery Store, Wins $250,000",
+            "channel": "MrBeast",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "D6Zxr8-1A2I",
+            "position": 20,
+            "title": "I Cooked the World’s DEADLIEST Animals",
+            "channel": "Max the Meat Guy",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "iDdN5cOFB1g",
+            "position": 21,
+            "title": "I tested Viral TikTok Life Hacks - are they a SCAM!?",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "bCevmmgJzQc",
+            "position": 22,
+            "title": "I tested the CHEAPEST Gadgets on the Internet.",
+            "channel": "Mrwhosetheboss",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "jkiC66QV6vo",
+            "position": 23,
+            "title": "We Pitched Illegal Products To Strangers",
+            "channel": "Family Friendly",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "8hpG4tmxb6g",
+            "position": 24,
+            "title": "I Bought $100 vs $100,000 Weird Furniture",
+            "channel": "FrenchieFries",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "nRwl0UYM3Gw",
+        "creatorHandle": "Chigz Tech Reviews",
+        "creatorId": "Chigz Tech Reviews",
+        "caption": "Coolest Tech of the Month April 2026  - EP#105 - Latest Gadgets You Must See!",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "PRgy1nnm3fg",
+        "creatorHandle": "DaveHax",
+        "creatorId": "DaveHax",
+        "caption": "Kitchen Gadgets - An Honest Review.",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "lo4bA4p3MBQ",
+        "creatorHandle": "Mrwhosetheboss",
+        "creatorId": "Mrwhosetheboss",
+        "caption": "I bought the LAZIEST Tech ever.",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "dVuF9oFxQvI",
+        "creatorHandle": "Fox Gadget",
+        "creatorId": "Fox Gadget",
+        "caption": "41 AMAZING Gadgets You Can Actually Buy",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "iiOi4rD83kM",
+        "creatorHandle": "Mrwhosetheboss",
+        "creatorId": "Mrwhosetheboss",
+        "caption": "I tested even CRAZIER Xiaomi Gadgets!",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-us-technology-engaged-sampler-v1-1777091022247",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T04:23:42.247Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-us-technology-engaged-sampler-v1",
+      "syntheticRegion": "United States",
+      "syntheticCategory": "Technology",
+      "syntheticBehavior": "engaged-sampler",
+      "searchQuery": "new gadget review",
+      "followUpQuery": null
+    }
+  }
+}

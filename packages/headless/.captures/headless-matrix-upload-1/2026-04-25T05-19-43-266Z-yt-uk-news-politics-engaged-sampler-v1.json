@@ -1,0 +1,698 @@
+{
+  "profile": {
+    "id": "yt-uk-news-politics-engaged-sampler-v1",
+    "storageKey": "yt-uk-news-politics-engaged-sampler-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "uk",
+      "displayName": "United Kingdom",
+      "youtubeRegionCode": "GB",
+      "locale": "en-GB",
+      "timezoneId": "Europe/London",
+      "acceptLanguage": "en-GB,en;q=0.9"
+    },
+    "category": {
+      "key": "news-politics",
+      "label": "News & Politics",
+      "description": "Topical news, explainers, and civic commentary recommendation behavior.",
+      "querySeeds": [
+        "daily news briefing",
+        "policy explainer",
+        "election analysis panel"
+      ],
+      "followUpQuerySeeds": [
+        "international news summary",
+        "fact check explainer"
+      ]
+    },
+    "behavior": {
+      "key": "engaged-sampler",
+      "label": "Engaged Sampler",
+      "description": "Clicks through several candidates and mixes quick sampling with one stronger watch signal.",
+      "watchDurationSeconds": {
+        "min": 16,
+        "max": 36
+      },
+      "watchDurationRatio": {
+        "min": 0.14,
+        "max": 0.35
+      },
+      "scrollCadenceMs": {
+        "min": 1700,
+        "max": 3200
+      },
+      "interactionRate": {
+        "min": 0.28,
+        "max": 0.5
+      },
+      "sessionLengthActions": {
+        "min": 6,
+        "max": 10
+      },
+      "detailOpenRate": {
+        "min": 0.55,
+        "max": 0.75
+      },
+      "revisitPattern": "adjacent-query",
+      "revisitProbability": 0.36
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 24,
+    "interactedVideoId": "i56UgP3oErg",
+    "query": "daily news briefing",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "i56UgP3oErg",
+        "creatorHandle": "The President's Daily Brief",
+        "creatorId": "The President's Daily Brief",
+        "caption": "Why Clearing The Strait Of Hormuz Could Take MONTHS",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 27.29,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ],
+        "engagementMetrics": {
+          "watchTime": 27.29,
+          "recommendationCount": 24,
+          "recommendations": [
+            {
+              "videoId": "tsDvoEj1xgY",
+              "position": 1,
+              "title": "Logistics in the Indian Ocean During Operation Epic Fury | Sealift & the US Merchant Marine",
+              "channel": "What's Going on With Shipping?",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "_Hoq9drLThE",
+              "position": 2,
+              "title": "One Asset To Double As Global System Risks Unraveling | Luke Gromen",
+              "channel": "David Lin",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "wfGfYP_AgWY",
+              "position": 3,
+              "title": "Clarity in Conflict: H.R. McMaster on the Iran War",
+              "channel": "U.S. Naval Institute",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "3l6YcCdYXIY",
+              "position": 4,
+              "title": "What The Iran War Revealed About Chinese Weapons",
+              "channel": "Task & Purpose",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "g47tcvDo5tU",
+              "position": 5,
+              "title": "BREAKING: U.S. Naval Blockade EXPOSES Iran's Fatal Strategic Error | TBN Israel",
+              "channel": "TBN Israel",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "1bCXCxrDsCs",
+              "position": 6,
+              "title": "SpaceX-Cursor Deal, SaaS Debt Bomb, New Apple CEO, SPLC Indictment, Colon Cancer Spike",
+              "channel": "All-In Podcast",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "cwDvD8fHdWQ",
+              "position": 7,
+              "title": "Iran's NIGHTMARE Just Came True As Third Aircraft Carrier Arrives",
+              "channel": "Max Afterburner",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "_Ea8mZNpCiI",
+              "position": 8,
+              "title": "TALKS BACK ON: U.S. and Iran Set Face-to-Face Meeting",
+              "channel": "The President's Daily Brief",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "7CRgQTIioCQ",
+              "position": 9,
+              "title": "How Iran and the US went from friends to bitter foes - BBC Africa",
+              "channel": "BBC News Africa",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "gPazPXAgfIY",
+              "position": 10,
+              "title": "Iran is afraid it won't 'SURVIVE the economic damage': Victor Davis Hanson",
+              "channel": "Fox Business",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "yXEzlPQgPHI",
+              "position": 11,
+              "title": "Gen Jack Keane: That is REALLY significant",
+              "channel": "Fox Business",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ZV6vE-V-uOs",
+              "position": 12,
+              "title": "Tensions In Hormuz Remain High As US Envoy Prepares For Fresh Talks",
+              "channel": "Times News",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "STUFO0GgH8E",
+              "position": 13,
+              "title": "Why Experts Say Iran Is Stalling as U.S. Pressure Strategy Hits a Critical Moment",
+              "channel": "Next Up with Mark Halperin",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ApWr_FpRBrk",
+              "position": 14,
+              "title": "Hidden leverage? What went into Lebanon's ceasefire announcement | MEE Live",
+              "channel": "Middle East Eye",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "LcW5_oW4Ztw",
+              "position": 15,
+              "title": "Trump Has ‘No Good Options Available’ With Iran | Sean Bell",
+              "channel": "Times News",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "6xdW0bdVkVU",
+              "position": 16,
+              "title": "How to Steal Thoughts Out of Anyone’s Head - Oz Pearlman",
+              "channel": "Chris Williamson",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "Dpu8VTnU4I8",
+              "position": 17,
+              "title": "Airplane (1980): 15 Weird Facts You Didn't Know!",
+              "channel": "Remember When",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "m_S_1Q5bxB4",
+              "position": 18,
+              "title": "A Message to the Europe: With or Without You, We Fight",
+              "channel": "Reza Pahlavi",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ZDyBqckqWnk",
+              "position": 19,
+              "title": "Ex-CIA Director David Petraeus: The Future of Warfare is Alarming, America Must Prepare",
+              "channel": "Pinnacle Digest",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "XGnHT0r49tk",
+              "position": 20,
+              "title": "The Tragic Story of How Mar-a-Lago Destroyed America's Greatest Heiress",
+              "channel": "Old Money Dynasty",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "-6PUtytVmYM",
+              "position": 21,
+              "title": "The Iran Wars: History, Ideology, and Prospects for Peace",
+              "channel": "Hoover Institution",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "PN5JtcyqxKI",
+              "position": 22,
+              "title": "The shady ships getting through the Strait",
+              "channel": "Search Party and Johnny Harris",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "JF0kLkfEo7A",
+              "position": 23,
+              "title": "You WON'T BELIEVE What The U.S. Military Is About To Do To Iran's Mine Boats",
+              "channel": "Max Afterburner",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "tS_fJJxMjn4",
+              "position": 24,
+              "title": "🚗 BYD : The biggest SCAM of the car industry ?",
+              "channel": "Statrys",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "tsDvoEj1xgY",
+            "position": 1,
+            "title": "Logistics in the Indian Ocean During Operation Epic Fury | Sealift & the US Merchant Marine",
+            "channel": "What's Going on With Shipping?",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "_Hoq9drLThE",
+            "position": 2,
+            "title": "One Asset To Double As Global System Risks Unraveling | Luke Gromen",
+            "channel": "David Lin",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "wfGfYP_AgWY",
+            "position": 3,
+            "title": "Clarity in Conflict: H.R. McMaster on the Iran War",
+            "channel": "U.S. Naval Institute",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "3l6YcCdYXIY",
+            "position": 4,
+            "title": "What The Iran War Revealed About Chinese Weapons",
+            "channel": "Task & Purpose",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "g47tcvDo5tU",
+            "position": 5,
+            "title": "BREAKING: U.S. Naval Blockade EXPOSES Iran's Fatal Strategic Error | TBN Israel",
+            "channel": "TBN Israel",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "1bCXCxrDsCs",
+            "position": 6,
+            "title": "SpaceX-Cursor Deal, SaaS Debt Bomb, New Apple CEO, SPLC Indictment, Colon Cancer Spike",
+            "channel": "All-In Podcast",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "cwDvD8fHdWQ",
+            "position": 7,
+            "title": "Iran's NIGHTMARE Just Came True As Third Aircraft Carrier Arrives",
+            "channel": "Max Afterburner",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "_Ea8mZNpCiI",
+            "position": 8,
+            "title": "TALKS BACK ON: U.S. and Iran Set Face-to-Face Meeting",
+            "channel": "The President's Daily Brief",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "7CRgQTIioCQ",
+            "position": 9,
+            "title": "How Iran and the US went from friends to bitter foes - BBC Africa",
+            "channel": "BBC News Africa",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "gPazPXAgfIY",
+            "position": 10,
+            "title": "Iran is afraid it won't 'SURVIVE the economic damage': Victor Davis Hanson",
+            "channel": "Fox Business",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "yXEzlPQgPHI",
+            "position": 11,
+            "title": "Gen Jack Keane: That is REALLY significant",
+            "channel": "Fox Business",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ZV6vE-V-uOs",
+            "position": 12,
+            "title": "Tensions In Hormuz Remain High As US Envoy Prepares For Fresh Talks",
+            "channel": "Times News",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "STUFO0GgH8E",
+            "position": 13,
+            "title": "Why Experts Say Iran Is Stalling as U.S. Pressure Strategy Hits a Critical Moment",
+            "channel": "Next Up with Mark Halperin",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ApWr_FpRBrk",
+            "position": 14,
+            "title": "Hidden leverage? What went into Lebanon's ceasefire announcement | MEE Live",
+            "channel": "Middle East Eye",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "LcW5_oW4Ztw",
+            "position": 15,
+            "title": "Trump Has ‘No Good Options Available’ With Iran | Sean Bell",
+            "channel": "Times News",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "6xdW0bdVkVU",
+            "position": 16,
+            "title": "How to Steal Thoughts Out of Anyone’s Head - Oz Pearlman",
+            "channel": "Chris Williamson",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "Dpu8VTnU4I8",
+            "position": 17,
+            "title": "Airplane (1980): 15 Weird Facts You Didn't Know!",
+            "channel": "Remember When",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "m_S_1Q5bxB4",
+            "position": 18,
+            "title": "A Message to the Europe: With or Without You, We Fight",
+            "channel": "Reza Pahlavi",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ZDyBqckqWnk",
+            "position": 19,
+            "title": "Ex-CIA Director David Petraeus: The Future of Warfare is Alarming, America Must Prepare",
+            "channel": "Pinnacle Digest",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "XGnHT0r49tk",
+            "position": 20,
+            "title": "The Tragic Story of How Mar-a-Lago Destroyed America's Greatest Heiress",
+            "channel": "Old Money Dynasty",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "-6PUtytVmYM",
+            "position": 21,
+            "title": "The Iran Wars: History, Ideology, and Prospects for Peace",
+            "channel": "Hoover Institution",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "PN5JtcyqxKI",
+            "position": 22,
+            "title": "The shady ships getting through the Strait",
+            "channel": "Search Party and Johnny Harris",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "JF0kLkfEo7A",
+            "position": 23,
+            "title": "You WON'T BELIEVE What The U.S. Military Is About To Do To Iran's Mine Boats",
+            "channel": "Max Afterburner",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "tS_fJJxMjn4",
+            "position": 24,
+            "title": "🚗 BYD : The biggest SCAM of the car industry ?",
+            "channel": "Statrys",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "3yLvNTYEUOU",
+        "creatorHandle": "Diario AS",
+        "creatorId": "Diario AS",
+        "caption": "Elon Musk's AWKWARD MOMENT on Air Force One: tries to AVOID LOOKING at Karoline Levitt",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "twaDSB8M9eQ",
+        "creatorHandle": "AFP News Agency",
+        "creatorId": "AFP News Agency",
+        "caption": "Pope breaks protocol and attends to fallen policewoman on horse",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "WHhN4sOvTD0",
+        "creatorHandle": "ABC News",
+        "creatorId": "ABC News",
+        "caption": "White House press briefing: LIVE",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "816iO_c2gBM",
+        "creatorHandle": "ABC News",
+        "creatorId": "ABC News",
+        "caption": "LIVE: White House press briefing",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "bTknrBvKZbk",
+        "creatorHandle": "NBC News",
+        "creatorId": "NBC News",
+        "caption": "LIVE: White House holds press briefing | NBC News",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-uk-news-politics-engaged-sampler-v1-1777094383266",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:19:43.266Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-uk-news-politics-engaged-sampler-v1",
+      "syntheticRegion": "United Kingdom",
+      "syntheticCategory": "News & Politics",
+      "syntheticBehavior": "engaged-sampler",
+      "searchQuery": "daily news briefing",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": true,
+    "status": 201,
+    "uploadId": "9c39b467-2ddd-4b55-b60e-8f2c6d2758fb",
+    "body": {
+      "success": true,
+      "snapshotId": "95c4b945-74fe-4b1a-a53d-517a0cf2c2bb"
+    }
+  }
+}

@@ -18,6 +18,63 @@ interface FeedInsights {
     similarTo: string[]; // Other videos this is similar to
 }
 
+interface FeedInsightItem {
+    videoId: string;
+    creatorHandle: string | null;
+    contentCategories: string[];
+}
+
+function buildVideoReasons(
+    item: FeedInsightItem,
+    categoryCounts: Record<string, number>,
+    previousViewsByCreator: Map<string, Map<string, number>>
+): InsightReason[] {
+    const reasons: InsightReason[] = [];
+
+    if (!item.creatorHandle) {
+        return [{ type: 'trending', description: 'Trending content', confidence: 0.5 }];
+    }
+
+    const creatorVideoCounts = previousViewsByCreator.get(item.creatorHandle);
+    const totalCreatorViews = creatorVideoCounts
+        ? [...creatorVideoCounts.values()].reduce((sum, count) => sum + count, 0)
+        : 0;
+    const sameVideoViews = creatorVideoCounts?.get(item.videoId) ?? 0;
+    const previousViews = totalCreatorViews - sameVideoViews;
+
+    if (previousViews > 0) {
+        reasons.push({
+            type: 'creator_affinity',
+            description: `You've seen ${previousViews} other videos from @${item.creatorHandle}`,
+            confidence: Math.min(0.9, 0.5 + previousViews * 0.1),
+            details: { previousViews, creatorHandle: item.creatorHandle },
+        });
+    }
+
+    const matchingCategories = item.contentCategories.filter(
+        (cat) => categoryCounts[cat] && categoryCounts[cat] > 3
+    );
+
+    if (matchingCategories.length > 0) {
+        reasons.push({
+            type: 'content_category',
+            description: `Based on your interest in ${matchingCategories.join(', ')} content`,
+            confidence: 0.7,
+            details: { categories: matchingCategories },
+        });
+    }
+
+    if (reasons.length === 0) {
+        reasons.push({
+            type: 'trending',
+            description: 'Recommended to help you discover new content',
+            confidence: 0.4,
+        });
+    }
+
+    return reasons;
+}
+
 /**
  * Detect content categories from caption and hashtags
  */
@@ -154,21 +211,58 @@ export async function generateFeedInsights(
         return [];
     }
 
-    const insights: FeedInsights[] = [];
+    const userCategories = await prisma.feedItem.findMany({
+        where: {
+            snapshot: { userId },
+            contentCategories: { isEmpty: false },
+        },
+        select: { contentCategories: true },
+        take: 100,
+    });
 
-    for (const item of snapshot.feedItems) {
-        const reasons = await generateVideoInsights(
-            userId,
-            item.videoId,
-            item.creatorHandle
-        );
-
-        insights.push({
-            videoId: item.videoId,
-            reasons,
-            similarTo: [], // Could be populated with similar videos
-        });
+    const categoryCounts: Record<string, number> = {};
+    for (const item of userCategories) {
+        for (const cat of item.contentCategories) {
+            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+        }
     }
 
-    return insights;
+    const creatorHandles = [
+        ...new Set(
+            snapshot.feedItems
+                .map((item) => item.creatorHandle)
+                .filter((creatorHandle): creatorHandle is string => Boolean(creatorHandle))
+        ),
+    ];
+
+    const previousViewsByCreator = new Map<string, Map<string, number>>();
+    if (creatorHandles.length > 0) {
+        const previousViews = await prisma.feedItem.findMany({
+            where: {
+                creatorHandle: { in: creatorHandles },
+                snapshot: { userId },
+            },
+            select: {
+                creatorHandle: true,
+                videoId: true,
+            },
+        });
+
+        for (const view of previousViews) {
+            if (!view.creatorHandle) {
+                continue;
+            }
+
+            const videoCounts =
+                previousViewsByCreator.get(view.creatorHandle) ?? new Map<string, number>();
+            videoCounts.set(view.videoId, (videoCounts.get(view.videoId) ?? 0) + 1);
+            previousViewsByCreator.set(view.creatorHandle, videoCounts);
+        }
+    }
+
+    return snapshot.feedItems.map((item) => ({
+        videoId: item.videoId,
+        reasons: buildVideoReasons(item, categoryCounts, previousViewsByCreator),
+        similarTo: [], // Could be populated with similar videos
+    }));
 }

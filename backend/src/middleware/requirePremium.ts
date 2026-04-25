@@ -11,6 +11,26 @@ interface PremiumCacheEntry {
 
 const premiumTierCache = new Map<string, PremiumCacheEntry>();
 
+function prunePremiumTierCache() {
+    const now = Date.now();
+
+    for (const [userId, entry] of premiumTierCache) {
+        if (entry.expiresAt <= now) {
+            premiumTierCache.delete(userId);
+        }
+    }
+
+    const maxEntries = Math.max(1, config.premium.cacheMaxEntries);
+    while (premiumTierCache.size >= maxEntries) {
+        const oldestUserId = premiumTierCache.keys().next().value as string | undefined;
+        if (!oldestUserId) {
+            return;
+        }
+
+        premiumTierCache.delete(oldestUserId);
+    }
+}
+
 function getCachedTier(userId: string): string | null {
     const cached = premiumTierCache.get(userId);
     if (!cached) {
@@ -26,6 +46,7 @@ function getCachedTier(userId: string): string | null {
 }
 
 function setCachedTier(userId: string, subscriptionTier: string) {
+    prunePremiumTierCache();
     premiumTierCache.set(userId, {
         subscriptionTier,
         expiresAt: Date.now() + config.premium.cacheTtlMs,

@@ -1,0 +1,698 @@
+{
+  "profile": {
+    "id": "yt-uk-sports-repeat-explorer-v1",
+    "storageKey": "yt-uk-sports-repeat-explorer-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "uk",
+      "displayName": "United Kingdom",
+      "youtubeRegionCode": "GB",
+      "locale": "en-GB",
+      "timezoneId": "Europe/London",
+      "acceptLanguage": "en-GB,en;q=0.9"
+    },
+    "category": {
+      "key": "sports",
+      "label": "Sports",
+      "description": "League highlights, analysis, fitness crossover, and event recommendations.",
+      "querySeeds": [
+        "match highlights today",
+        "player analysis breakdown",
+        "sports documentary clip"
+      ],
+      "followUpQuerySeeds": [
+        "post game interview",
+        "training drill highlights"
+      ]
+    },
+    "behavior": {
+      "key": "repeat-explorer",
+      "label": "Repeat Explorer",
+      "description": "Returns to prior clusters, follows channel adjacency, and is useful for recommendation drift checks.",
+      "watchDurationSeconds": {
+        "min": 18,
+        "max": 42
+      },
+      "watchDurationRatio": {
+        "min": 0.16,
+        "max": 0.4
+      },
+      "scrollCadenceMs": {
+        "min": 2100,
+        "max": 3600
+      },
+      "interactionRate": {
+        "min": 0.24,
+        "max": 0.42
+      },
+      "sessionLengthActions": {
+        "min": 5,
+        "max": 9
+      },
+      "detailOpenRate": {
+        "min": 0.48,
+        "max": 0.72
+      },
+      "revisitPattern": "channel-loop",
+      "revisitProbability": 0.51
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 24,
+    "interactedVideoId": "IHEFssG5ju4",
+    "query": "match highlights today",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "IHEFssG5ju4",
+        "creatorHandle": "Kabaddi MAX",
+        "creatorId": "Kabaddi MAX",
+        "caption": "Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | IPL T20 MATCH 2026 | RCB Vs GT",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 19.04,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ],
+        "engagementMetrics": {
+          "watchTime": 19.04,
+          "recommendationCount": 24,
+          "recommendations": [
+            {
+              "videoId": "cMf418NsKNk",
+              "position": 1,
+              "title": "Royal Challengers Bengaluru vs Gujarat Titans Full Highlights IPL 2026 Match 34 | RCB VS GT",
+              "channel": "Noor E Pakistan",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "yg8BMiwacnw",
+              "position": 2,
+              "title": "कुछ भी करना पर चुलबुल पांडे के चश्मे को हाथ मत लगाना - Salman Khan Dabangg 2 Movie Action Scene",
+              "channel": "Super Dialogues",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "m4gx3WIDgSc",
+              "position": 3,
+              "title": "Dawood Poisoning, IC-814 Zahoor Mistry & Real Jameel Jamali | Dhurandhar Researcher Aditya Raj Kaul",
+              "channel": "Prakhar Gupta",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "sl_CUsLPJ2g",
+              "position": 4,
+              "title": "Debate With Arnab: Raghav Chadha Dumps Kejriwal | Endgame AAP? | Biggest Political Coup Of 2026",
+              "channel": "Republic World",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "GUV1ccTNgcc",
+              "position": 5,
+              "title": "Sunil Grover’s Most LEGENDARY Performance Yet 🤯👏 Ft. Varun & David Dhawan | TGIKS | Netflix",
+              "channel": "Netflix India",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "Cotll_aPkV8",
+              "position": 6,
+              "title": "Atiq Ahmed ka Ant: Yogi ka Operation Clean | 2D Animation",
+              "channel": "AniDoc",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "cBJrHqA_XZU",
+              "position": 7,
+              "title": "Royal Challengers Bengaluru Vs Gujrat Titans IPL Match 34 Match Full Highlights 2026|RCB VS GT 2026",
+              "channel": "True Tales TV",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ue54scjEjxs",
+              "position": 8,
+              "title": "Bhuvi and Sharma's Test Best Figures as India Win at Lord's! | Classic Match | England v India 2014",
+              "channel": "Lord's Cricket Ground",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "BELiyff0K7Y",
+              "position": 9,
+              "title": "Lalit Modi On IPL, Fraud, Indian Cricket, Politics, Dawood & Billionaire Life | FO282 Raj Shamani",
+              "channel": "Raj Shamani",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "F08ovx3UEHU",
+              "position": 10,
+              "title": "Akshay Kumar कैसे साबित करेंगे कोर्ट में वकील को वो निर्दोष है -  Kareena Kapoor | Court Drama Movie",
+              "channel": "Holly - Bolly Cuts",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "URl9QdCwmmc",
+              "position": 11,
+              "title": "India VS Australia | Full Highlights | International Masters League | Colors Cineplex",
+              "channel": "Colors Cineplex",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "97itNVViSpg",
+              "position": 12,
+              "title": "IPL 2026 Match 34 Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | RCB vs GT",
+              "channel": "Mohsin Tv",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "8c3XH4PfHf0",
+              "position": 13,
+              "title": "SCAM INDIA - Akshay Kumar | Anupam Kher | Manoj Bajpayee | Kajal Aggarwal | Movie In Hindi",
+              "channel": "Bollywood Movie Palace",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "sc-p5nXDj-w",
+              "position": 14,
+              "title": "LATE-MATCH DRAMA 😱 Real Betis vs. Real Madrid | LALIGA Highlights | ESPN FC",
+              "channel": "ESPN FC",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "Jzk0g977Hns",
+              "position": 15,
+              "title": "Sunil Grover & Kapil Sharma EPIC Roast Comebacks 🔥 | TGIKS | Netflix India",
+              "channel": "Netflix India",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "QUgJPge7deI",
+              "position": 16,
+              "title": "500+ IQ Janitor Solved A Problem That Shocked ALL Scientists...",
+              "channel": "MrRecapFromYouTube",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "HhpCCgBGa4c",
+              "position": 17,
+              "title": "\"Yeh Raaten\" पर Asha जी को Pawandeep की आवाज़ लगी Effortless | Indian Idol 12 | Dhamakedaar Episode",
+              "channel": "SET India",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "j903ASEDWxc",
+              "position": 18,
+              "title": "Uri : The Surgical Strike - Hindi Patriotic Full Movie - Vicky Kaushal, Yami Gautam, Paresh Rawal",
+              "channel": "Zee Movies Hindi",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "pv7YuXIDfi4",
+              "position": 19,
+              "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK 2026 IPL",
+              "channel": "صندوق افلام",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "s6w074klwwk",
+              "position": 20,
+              "title": "#4 LAKERS at #5 ROCKETS | FULL GAME 3 HIGHLIGHTS | April 24, 2026",
+              "channel": "NBA",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "nznw79D-VG0",
+              "position": 21,
+              "title": "Royal Challengers Bengaluru VS Gujarat Titans IPL Match 34 Full Highlights 2026 | RCB VS GT",
+              "channel": "We Are Unique - Pakistan Kabaddi Channel",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "d7tqroV8fGs",
+              "position": 22,
+              "title": "1 दिन का CM बना और सबकी पोल खोल दी 😂 क्लर्क से लेकर पुलिस तक सबकी चड्डी उतार दी - NAYAK Comedy Scene",
+              "channel": "Haste Raho",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "yE-BUM4idMs",
+              "position": 23,
+              "title": "India RULES! They Did The IMPOSSIBLE On Got Talent!",
+              "channel": "Top 10 Talent",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "8b0ubLO2MUE",
+              "position": 24,
+              "title": "Yuvraj Singh slams six sixes off Stuart Broad | ENG v IND | T20 World Cup 2007",
+              "channel": "ICC",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "cMf418NsKNk",
+            "position": 1,
+            "title": "Royal Challengers Bengaluru vs Gujarat Titans Full Highlights IPL 2026 Match 34 | RCB VS GT",
+            "channel": "Noor E Pakistan",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "yg8BMiwacnw",
+            "position": 2,
+            "title": "कुछ भी करना पर चुलबुल पांडे के चश्मे को हाथ मत लगाना - Salman Khan Dabangg 2 Movie Action Scene",
+            "channel": "Super Dialogues",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "m4gx3WIDgSc",
+            "position": 3,
+            "title": "Dawood Poisoning, IC-814 Zahoor Mistry & Real Jameel Jamali | Dhurandhar Researcher Aditya Raj Kaul",
+            "channel": "Prakhar Gupta",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "sl_CUsLPJ2g",
+            "position": 4,
+            "title": "Debate With Arnab: Raghav Chadha Dumps Kejriwal | Endgame AAP? | Biggest Political Coup Of 2026",
+            "channel": "Republic World",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "GUV1ccTNgcc",
+            "position": 5,
+            "title": "Sunil Grover’s Most LEGENDARY Performance Yet 🤯👏 Ft. Varun & David Dhawan | TGIKS | Netflix",
+            "channel": "Netflix India",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "Cotll_aPkV8",
+            "position": 6,
+            "title": "Atiq Ahmed ka Ant: Yogi ka Operation Clean | 2D Animation",
+            "channel": "AniDoc",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "cBJrHqA_XZU",
+            "position": 7,
+            "title": "Royal Challengers Bengaluru Vs Gujrat Titans IPL Match 34 Match Full Highlights 2026|RCB VS GT 2026",
+            "channel": "True Tales TV",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ue54scjEjxs",
+            "position": 8,
+            "title": "Bhuvi and Sharma's Test Best Figures as India Win at Lord's! | Classic Match | England v India 2014",
+            "channel": "Lord's Cricket Ground",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "BELiyff0K7Y",
+            "position": 9,
+            "title": "Lalit Modi On IPL, Fraud, Indian Cricket, Politics, Dawood & Billionaire Life | FO282 Raj Shamani",
+            "channel": "Raj Shamani",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "F08ovx3UEHU",
+            "position": 10,
+            "title": "Akshay Kumar कैसे साबित करेंगे कोर्ट में वकील को वो निर्दोष है -  Kareena Kapoor | Court Drama Movie",
+            "channel": "Holly - Bolly Cuts",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "URl9QdCwmmc",
+            "position": 11,
+            "title": "India VS Australia | Full Highlights | International Masters League | Colors Cineplex",
+            "channel": "Colors Cineplex",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "97itNVViSpg",
+            "position": 12,
+            "title": "IPL 2026 Match 34 Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | RCB vs GT",
+            "channel": "Mohsin Tv",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "8c3XH4PfHf0",
+            "position": 13,
+            "title": "SCAM INDIA - Akshay Kumar | Anupam Kher | Manoj Bajpayee | Kajal Aggarwal | Movie In Hindi",
+            "channel": "Bollywood Movie Palace",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "sc-p5nXDj-w",
+            "position": 14,
+            "title": "LATE-MATCH DRAMA 😱 Real Betis vs. Real Madrid | LALIGA Highlights | ESPN FC",
+            "channel": "ESPN FC",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "Jzk0g977Hns",
+            "position": 15,
+            "title": "Sunil Grover & Kapil Sharma EPIC Roast Comebacks 🔥 | TGIKS | Netflix India",
+            "channel": "Netflix India",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "QUgJPge7deI",
+            "position": 16,
+            "title": "500+ IQ Janitor Solved A Problem That Shocked ALL Scientists...",
+            "channel": "MrRecapFromYouTube",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "HhpCCgBGa4c",
+            "position": 17,
+            "title": "\"Yeh Raaten\" पर Asha जी को Pawandeep की आवाज़ लगी Effortless | Indian Idol 12 | Dhamakedaar Episode",
+            "channel": "SET India",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "j903ASEDWxc",
+            "position": 18,
+            "title": "Uri : The Surgical Strike - Hindi Patriotic Full Movie - Vicky Kaushal, Yami Gautam, Paresh Rawal",
+            "channel": "Zee Movies Hindi",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "pv7YuXIDfi4",
+            "position": 19,
+            "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK 2026 IPL",
+            "channel": "صندوق افلام",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "s6w074klwwk",
+            "position": 20,
+            "title": "#4 LAKERS at #5 ROCKETS | FULL GAME 3 HIGHLIGHTS | April 24, 2026",
+            "channel": "NBA",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "nznw79D-VG0",
+            "position": 21,
+            "title": "Royal Challengers Bengaluru VS Gujarat Titans IPL Match 34 Full Highlights 2026 | RCB VS GT",
+            "channel": "We Are Unique - Pakistan Kabaddi Channel",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "d7tqroV8fGs",
+            "position": 22,
+            "title": "1 दिन का CM बना और सबकी पोल खोल दी 😂 क्लर्क से लेकर पुलिस तक सबकी चड्डी उतार दी - NAYAK Comedy Scene",
+            "channel": "Haste Raho",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "yE-BUM4idMs",
+            "position": 23,
+            "title": "India RULES! They Did The IMPOSSIBLE On Got Talent!",
+            "channel": "Top 10 Talent",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "8b0ubLO2MUE",
+            "position": 24,
+            "title": "Yuvraj Singh slams six sixes off Stuart Broad | ENG v IND | T20 World Cup 2007",
+            "channel": "ICC",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "ltaYmh8Vlis",
+        "creatorHandle": "All Open Kabaddi",
+        "creatorId": "All Open Kabaddi",
+        "caption": "Royal Challengers Bengaluru vs Gujarat Titans | Full Highlights IPL T20 Match 2026 | RCB Vs GT",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "CtMOJ6dW8j4",
+        "creatorHandle": "Kabaddi State",
+        "creatorId": "Kabaddi State",
+        "caption": "ROYAL CHALLENGERS BENGALURU VS GUJARAT TITANS FULL HIGHLIGHTS IPL 2026  | RCB VS GT IPL HIGHLIGHTS",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "sc-p5nXDj-w",
+        "creatorHandle": "ESPN FC",
+        "creatorId": "ESPN FC",
+        "caption": "LATE-MATCH DRAMA 😱 Real Betis vs. Real Madrid | LALIGA Highlights | ESPN FC",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "5E4T64aeWuo",
+        "creatorHandle": "Pakistan Super League",
+        "creatorId": "Pakistan Super League",
+        "caption": "Full Match Highlights | Hyderabad Kingsmen vs Islamabad United | Urdu | M 36 | HBL PSL 11 | MZB1H",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "oJhWsMOdnh0",
+        "creatorHandle": "Kabaddi State",
+        "creatorId": "Kabaddi State",
+        "caption": "ROYAL CHALLENGERS BENGALURU VS GUJARAT TITANS FULL HIGHLIGHTS IPL 2026  | RCB VS GT IPL HIGHLIGHTS",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-uk-sports-repeat-explorer-v1-1777094416956",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:20:16.956Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-uk-sports-repeat-explorer-v1",
+      "syntheticRegion": "United Kingdom",
+      "syntheticCategory": "Sports",
+      "syntheticBehavior": "repeat-explorer",
+      "searchQuery": "match highlights today",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": true,
+    "status": 201,
+    "uploadId": "b5734f7e-8e24-4a25-b18b-c1f2fb908438",
+    "body": {
+      "success": true,
+      "snapshotId": "bf4d70bf-bc8a-4474-8712-96a9c1bd324f"
+    }
+  }
+}

@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { ApiKey, Prisma } from '@prisma/client';
+import type { AccessPackage, ApiKey, Prisma } from '@prisma/client';
 import { config } from '../config.js';
 import { prisma } from '../lib/prisma.js';
+import { getPackageEntitlements } from './packageAccess.js';
 
 export const DEFAULT_API_KEY_SCOPES = ['analysis:read'] as const;
 export type ApiKeyScope = typeof DEFAULT_API_KEY_SCOPES[number];
@@ -26,6 +27,7 @@ export interface ApiKeyQuotaSnapshot {
 
 export interface CreateApiKeyInput {
     userId: string;
+    accessPackage: AccessPackage;
     name: string;
     scopes?: string[];
     dailyQuota?: number;
@@ -39,6 +41,7 @@ export interface CreatedApiKeyRecord {
     record: {
         id: string;
         name: string;
+        accessPackage: AccessPackage;
         lookupId: string;
         keyPrefix: string;
         scopes: string[];
@@ -69,9 +72,16 @@ function normalizeScope(scope: string) {
     return scope.trim().toLowerCase();
 }
 
-export function normalizeApiKeyScopes(scopes: string[] | undefined): string[] {
+export function normalizeApiKeyScopes(scopes: string[] | undefined, allowedScopes?: readonly string[]): string[] {
     const values = scopes && scopes.length > 0 ? scopes : Array.from(DEFAULT_API_KEY_SCOPES);
-    return Array.from(new Set(values.map(normalizeScope).filter(Boolean)));
+    const normalizedValues = Array.from(new Set(values.map(normalizeScope).filter(Boolean)));
+
+    if (!allowedScopes || allowedScopes.length === 0) {
+        return normalizedValues;
+    }
+
+    const allowed = new Set(allowedScopes.map(normalizeScope));
+    return normalizedValues.filter((scope) => allowed.has(scope));
 }
 
 export function buildApiKeyRawValue(lookupId: string, secret: string) {
@@ -140,26 +150,37 @@ export function hasApiKeyScopes(apiKey: Pick<ApiKey, 'scopes'>, requiredScopes: 
 }
 
 export async function createApiKey(input: CreateApiKeyInput): Promise<CreatedApiKeyRecord> {
+    const entitlements = getPackageEntitlements(input.accessPackage);
     const lookupId = randomBytes(6).toString('base64url');
     const secret = randomBytes(24).toString('base64url');
     const apiKey = buildApiKeyRawValue(lookupId, secret);
     const keyHash = hashApiKey(apiKey);
-    const scopes = normalizeApiKeyScopes(input.scopes);
+    const scopes = normalizeApiKeyScopes(input.scopes, entitlements.allowedScopes);
+    const dailyQuota = Math.min(
+        input.dailyQuota ?? entitlements.defaultDailyQuota,
+        entitlements.defaultDailyQuota,
+    );
+    const monthlyQuota = Math.min(
+        input.monthlyQuota ?? entitlements.defaultMonthlyQuota,
+        entitlements.defaultMonthlyQuota,
+    );
     const created = await prisma.apiKey.create({
         data: {
             userId: input.userId,
             name: input.name,
+            accessPackage: input.accessPackage,
             lookupId,
             keyPrefix: apiKey.slice(0, Math.min(apiKey.length, 18)),
             keyHash,
             scopes,
-            dailyQuota: input.dailyQuota ?? config.apiKeys.defaultDailyQuota,
-            monthlyQuota: input.monthlyQuota ?? config.apiKeys.defaultMonthlyQuota,
+            dailyQuota,
+            monthlyQuota,
             expiresAt: input.expiresAt ?? null,
         },
         select: {
             id: true,
             name: true,
+            accessPackage: true,
             lookupId: true,
             keyPrefix: true,
             scopes: true,
@@ -344,6 +365,7 @@ export type ApiKeyRecordForAuth = Prisma.ApiKeyGetPayload<{
         id: true;
         userId: true;
         name: true;
+        accessPackage: true;
         lookupId: true;
         keyHash: true;
         keyPrefix: true;

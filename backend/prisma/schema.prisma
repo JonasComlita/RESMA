@@ -17,9 +17,38 @@ enum SubscriptionTier {
   PREMIUM
 }
 
+enum AccessPackage {
+  CONTRIBUTOR_FREE
+  CREATOR_PRO
+  AGENCY_PILOT
+  ENTERPRISE
+}
+
 enum ApiKeyStatus {
   ACTIVE
   REVOKED
+}
+
+enum AgencyReportType {
+  AUDIENCE_OPPORTUNITY_BRIEF
+  COMPETITOR_REACH_SNAPSHOT
+  RECOMMENDATION_GAP_REPORT
+}
+
+enum AgencyReportShareStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AgencyReportAuditEventType {
+  PRESET_CREATED
+  PRESET_UPDATED
+  PRESET_ARCHIVED
+  RUN_GENERATED
+  EXPORT_ACCESSED
+  SHARE_CREATED
+  SHARE_VIEWED
+  SHARE_REVOKED
 }
 
 model User {
@@ -27,8 +56,10 @@ model User {
   anonymousId                String            @unique @default(uuid())
   passwordHash               String
   recoveryCodeHash           String?           @unique
+  recoveryCodeLookupHash     String?           @unique
   userType                   UserType          @default(VIEWER)
   subscriptionTier           SubscriptionTier  @default(FREE)
+  accessPackage              AccessPackage     @default(CONTRIBUTOR_FREE)
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
   preferences                Bytes?            // MessagePack + Zstandard compressed
@@ -40,6 +71,9 @@ model User {
   ingestEvents               IngestEvent[]
   creatorProfile             Creator?
   apiKeys                    ApiKey[]
+  reportPresets              AgencyReportPreset[]
+  reportRuns                 AgencyReportRun[]
+  reportAuditEvents          AgencyReportAuditEvent[]
 
   @@map("users")
 }
@@ -166,6 +200,7 @@ model ApiKey {
   id             String            @id @default(uuid())
   userId         String
   name           String
+  accessPackage  AccessPackage
   lookupId       String            @unique
   keyPrefix      String
   keyHash        String            @unique
@@ -183,6 +218,8 @@ model ApiKey {
 
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   usageDaily     ApiKeyUsageDaily[]
+  reportRuns     AgencyReportRun[]
+  reportAuditEvents AgencyReportAuditEvent[]
 
   @@index([userId, status])
   @@index([status, expiresAt])
@@ -206,4 +243,103 @@ model ApiKeyUsageDaily {
   @@unique([apiKeyId, usageDate, routeKey])
   @@index([apiKeyId, usageDate])
   @@map("api_key_usage_daily")
+}
+
+model AgencyReportPreset {
+  id                    String           @id @default(uuid())
+  userId                String
+  name                  String
+  reportType            AgencyReportType
+  accessPackage         AccessPackage
+  platform              String
+  reportConfig          Json
+  freshnessTier         String           @default("standard")
+  allowedExportFormats  String[]
+  lastRunAt             DateTime?
+  archivedAt            DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportRuns            AgencyReportRun[]
+  auditEvents           AgencyReportAuditEvent[]
+
+  @@index([userId, archivedAt])
+  @@index([reportType, platform])
+  @@map("agency_report_presets")
+}
+
+model AgencyReportRun {
+  id                    String           @id @default(uuid())
+  presetId              String?
+  userId                String
+  apiKeyId              String?
+  reportType            AgencyReportType
+  accessPackage         AccessPackage
+  platform              String
+  reportTitle           String
+  reportConfig          Json
+  resultPayload         Json
+  freshnessTier         String           @default("standard")
+  availableExportFormats String[]
+  watermarkKey          String?
+  latestDataAt          DateTime?
+  qualityGateStatus     String?
+  generatedAt           DateTime         @default(now())
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  preset                AgencyReportPreset? @relation(fields: [presetId], references: [id], onDelete: SetNull)
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKey                ApiKey?          @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  shares                AgencyReportShare[]
+  auditEvents           AgencyReportAuditEvent[]
+
+  @@index([userId, generatedAt])
+  @@index([presetId, generatedAt])
+  @@index([reportType, platform])
+  @@map("agency_report_runs")
+}
+
+model AgencyReportShare {
+  id                    String                 @id @default(uuid())
+  reportRunId           String
+  tokenHash             String                 @unique
+  tokenPrefix           String
+  status                AgencyReportShareStatus @default(ACTIVE)
+  description           String?
+  expiresAt             DateTime?
+  lastAccessedAt        DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  revokedAt             DateTime?
+
+  reportRun             AgencyReportRun        @relation(fields: [reportRunId], references: [id], onDelete: Cascade)
+  auditEvents           AgencyReportAuditEvent[]
+
+  @@index([reportRunId, status])
+  @@map("agency_report_shares")
+}
+
+model AgencyReportAuditEvent {
+  id                    String                  @id @default(uuid())
+  eventType             AgencyReportAuditEventType
+  presetId              String?
+  reportRunId           String?
+  reportShareId         String?
+  userId                String?
+  apiKeyId              String?
+  metadata              Json?
+  createdAt             DateTime                @default(now())
+
+  preset                AgencyReportPreset?     @relation(fields: [presetId], references: [id], onDelete: SetNull)
+  reportRun             AgencyReportRun?        @relation(fields: [reportRunId], references: [id], onDelete: SetNull)
+  reportShare           AgencyReportShare?      @relation(fields: [reportShareId], references: [id], onDelete: SetNull)
+  user                  User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiKey                ApiKey?                 @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt, eventType])
+  @@index([reportRunId, createdAt])
+  @@index([presetId, createdAt])
+  @@map("agency_report_audit_events")
 }

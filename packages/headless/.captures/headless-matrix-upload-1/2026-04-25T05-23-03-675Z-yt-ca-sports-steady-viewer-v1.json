@@ -1,0 +1,618 @@
+{
+  "profile": {
+    "id": "yt-ca-sports-steady-viewer-v1",
+    "storageKey": "yt-ca-sports-steady-viewer-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "ca",
+      "displayName": "Canada",
+      "youtubeRegionCode": "CA",
+      "locale": "en-CA",
+      "timezoneId": "America/Toronto",
+      "acceptLanguage": "en-CA,en;q=0.9"
+    },
+    "category": {
+      "key": "sports",
+      "label": "Sports",
+      "description": "League highlights, analysis, fitness crossover, and event recommendations.",
+      "querySeeds": [
+        "match highlights today",
+        "player analysis breakdown",
+        "sports documentary clip"
+      ],
+      "followUpQuerySeeds": [
+        "post game interview",
+        "training drill highlights"
+      ]
+    },
+    "behavior": {
+      "key": "steady-viewer",
+      "label": "Steady Viewer",
+      "description": "Watches longer, scrolls less aggressively, and follows a stable interest lane.",
+      "watchDurationSeconds": {
+        "min": 22,
+        "max": 48
+      },
+      "watchDurationRatio": {
+        "min": 0.2,
+        "max": 0.45
+      },
+      "scrollCadenceMs": {
+        "min": 2500,
+        "max": 4200
+      },
+      "interactionRate": {
+        "min": 0.18,
+        "max": 0.32
+      },
+      "sessionLengthActions": {
+        "min": 4,
+        "max": 7
+      },
+      "detailOpenRate": {
+        "min": 0.45,
+        "max": 0.7
+      },
+      "revisitPattern": "same-query",
+      "revisitProbability": 0.42
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 20,
+    "interactedVideoId": "IHEFssG5ju4",
+    "query": "match highlights today",
+    "followUpQuery": "post game interview",
+    "revisitPatternApplied": "same-query"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "IHEFssG5ju4",
+        "creatorHandle": "Kabaddi MAX",
+        "creatorId": "Kabaddi MAX",
+        "caption": "Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | IPL T20 MATCH 2026 | RCB Vs GT",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 29.69,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ],
+        "engagementMetrics": {
+          "watchTime": 29.69,
+          "recommendationCount": 20,
+          "recommendations": [
+            {
+              "videoId": "cMf418NsKNk",
+              "position": 1,
+              "title": "Royal Challengers Bengaluru vs Gujarat Titans Full Highlights IPL 2026 Match 34 | RCB VS GT",
+              "channel": "Noor E Pakistan",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "c3LPBQCPxCY",
+              "position": 2,
+              "title": "She Flew to America on a Fiancée Visa — What She Found in His House Got Her Murdered",
+              "channel": "Crime Mile",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ifRYc0RIUy4",
+              "position": 3,
+              "title": "Punjab vs Lucknow match highlight Punjab wins ❤️❤️",
+              "channel": "Ai time",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "F08ovx3UEHU",
+              "position": 4,
+              "title": "Akshay Kumar कैसे साबित करेंगे कोर्ट में वकील को वो निर्दोष है -  Kareena Kapoor | Court Drama Movie",
+              "channel": "Holly - Bolly Cuts",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "QsLw0c1SiFQ",
+              "position": 5,
+              "title": "When Tyson Faced the Smash Machine",
+              "channel": "VS+",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "WwSyB8yo2XI",
+              "position": 6,
+              "title": "Match 6 | India vs Pakistan | Match Highlights | DP World Asia Cup 2025",
+              "channel": "Asian Cricket Council",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "5t537QFwI4M",
+              "position": 7,
+              "title": "Insane INDIAN Contestants Who Left Everyone Speechless on AGT! 🇮🇳 Watch THIS!",
+              "channel": "Top Talent",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "tS_fJJxMjn4",
+              "position": 8,
+              "title": "🚗 Is BYD the biggest SCAM of the car industry ?",
+              "channel": "Statrys",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "nqLccPj9JU8",
+              "position": 9,
+              "title": "Islamabad Under Lockdown | PSL Drama Explained | Majorly Right | Major Gaurav Arya",
+              "channel": "MAJORLY RIGHT",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "97itNVViSpg",
+              "position": 10,
+              "title": "IPL 2026 Match 34 Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | RCB vs GT",
+              "channel": "Mohsin Tv",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "GRjKhsJc95o",
+              "position": 11,
+              "title": "Jimmy Kimmel Roasts Trump & His MAGA Minions at Our Alternative White House Correspondents’ Dinner",
+              "channel": "Jimmy Kimmel Live",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "URl9QdCwmmc",
+              "position": 12,
+              "title": "India VS Australia | Full Highlights | International Masters League | Colors Cineplex",
+              "channel": "Colors Cineplex",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "pv7YuXIDfi4",
+              "position": 13,
+              "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK 2026 IPL",
+              "channel": "صندوق افلام",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "8c3XH4PfHf0",
+              "position": 14,
+              "title": "SCAM INDIA - Akshay Kumar | Anupam Kher | Manoj Bajpayee | Kajal Aggarwal | Movie In Hindi",
+              "channel": "Bollywood Movie Palace",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "LZHMNJa4L7s",
+              "position": 15,
+              "title": "When Stupid Cops Mess With FBI Agent",
+              "channel": "PolicecamStory",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "GUV1ccTNgcc",
+              "position": 16,
+              "title": "Sunil Grover’s Most LEGENDARY Performance Yet 🤯👏 Ft. Varun & David Dhawan | TGIKS | Netflix",
+              "channel": "Netflix India",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "mnr4UL20H6s",
+              "position": 17,
+              "title": "Iran War is Out of CONTROL | Trump gives Final Warning | Dhruv Rathee",
+              "channel": "Dhruv Rathee",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "-IqgY_ymtvY",
+              "position": 18,
+              "title": "Heated Exchanges That Made History So Far in #HBLPSL",
+              "channel": "Pakistan Super League",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "9QnEdj_3H2s",
+              "position": 19,
+              "title": "They Tried to Humiliate an Old Man Unaware He Was Their Mafia Boss",
+              "channel": "TheCutFrame",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "JR5iTCDJMxo",
+              "position": 20,
+              "title": "HIGHLIGHTS | Proteas W vs India W - 3rd T20I",
+              "channel": "Cricket South Africa",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "cMf418NsKNk",
+            "position": 1,
+            "title": "Royal Challengers Bengaluru vs Gujarat Titans Full Highlights IPL 2026 Match 34 | RCB VS GT",
+            "channel": "Noor E Pakistan",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "c3LPBQCPxCY",
+            "position": 2,
+            "title": "She Flew to America on a Fiancée Visa — What She Found in His House Got Her Murdered",
+            "channel": "Crime Mile",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ifRYc0RIUy4",
+            "position": 3,
+            "title": "Punjab vs Lucknow match highlight Punjab wins ❤️❤️",
+            "channel": "Ai time",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "F08ovx3UEHU",
+            "position": 4,
+            "title": "Akshay Kumar कैसे साबित करेंगे कोर्ट में वकील को वो निर्दोष है -  Kareena Kapoor | Court Drama Movie",
+            "channel": "Holly - Bolly Cuts",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "QsLw0c1SiFQ",
+            "position": 5,
+            "title": "When Tyson Faced the Smash Machine",
+            "channel": "VS+",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "WwSyB8yo2XI",
+            "position": 6,
+            "title": "Match 6 | India vs Pakistan | Match Highlights | DP World Asia Cup 2025",
+            "channel": "Asian Cricket Council",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "5t537QFwI4M",
+            "position": 7,
+            "title": "Insane INDIAN Contestants Who Left Everyone Speechless on AGT! 🇮🇳 Watch THIS!",
+            "channel": "Top Talent",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "tS_fJJxMjn4",
+            "position": 8,
+            "title": "🚗 Is BYD the biggest SCAM of the car industry ?",
+            "channel": "Statrys",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "nqLccPj9JU8",
+            "position": 9,
+            "title": "Islamabad Under Lockdown | PSL Drama Explained | Majorly Right | Major Gaurav Arya",
+            "channel": "MAJORLY RIGHT",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "97itNVViSpg",
+            "position": 10,
+            "title": "IPL 2026 Match 34 Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | RCB vs GT",
+            "channel": "Mohsin Tv",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "GRjKhsJc95o",
+            "position": 11,
+            "title": "Jimmy Kimmel Roasts Trump & His MAGA Minions at Our Alternative White House Correspondents’ Dinner",
+            "channel": "Jimmy Kimmel Live",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "URl9QdCwmmc",
+            "position": 12,
+            "title": "India VS Australia | Full Highlights | International Masters League | Colors Cineplex",
+            "channel": "Colors Cineplex",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "pv7YuXIDfi4",
+            "position": 13,
+            "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK 2026 IPL",
+            "channel": "صندوق افلام",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "8c3XH4PfHf0",
+            "position": 14,
+            "title": "SCAM INDIA - Akshay Kumar | Anupam Kher | Manoj Bajpayee | Kajal Aggarwal | Movie In Hindi",
+            "channel": "Bollywood Movie Palace",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "LZHMNJa4L7s",
+            "position": 15,
+            "title": "When Stupid Cops Mess With FBI Agent",
+            "channel": "PolicecamStory",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "GUV1ccTNgcc",
+            "position": 16,
+            "title": "Sunil Grover’s Most LEGENDARY Performance Yet 🤯👏 Ft. Varun & David Dhawan | TGIKS | Netflix",
+            "channel": "Netflix India",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "mnr4UL20H6s",
+            "position": 17,
+            "title": "Iran War is Out of CONTROL | Trump gives Final Warning | Dhruv Rathee",
+            "channel": "Dhruv Rathee",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "-IqgY_ymtvY",
+            "position": 18,
+            "title": "Heated Exchanges That Made History So Far in #HBLPSL",
+            "channel": "Pakistan Super League",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "9QnEdj_3H2s",
+            "position": 19,
+            "title": "They Tried to Humiliate an Old Man Unaware He Was Their Mafia Boss",
+            "channel": "TheCutFrame",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "JR5iTCDJMxo",
+            "position": 20,
+            "title": "HIGHLIGHTS | Proteas W vs India W - 3rd T20I",
+            "channel": "Cricket South Africa",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "ltaYmh8Vlis",
+        "creatorHandle": "All Open Kabaddi",
+        "creatorId": "All Open Kabaddi",
+        "caption": "Royal Challengers Bengaluru vs Gujarat Titans | Full Highlights IPL T20 Match 2026 | RCB Vs GT",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "sc-p5nXDj-w",
+        "creatorHandle": "ESPN FC",
+        "creatorId": "ESPN FC",
+        "caption": "LATE-MATCH DRAMA 😱 Real Betis vs. Real Madrid | LALIGA Highlights | ESPN FC",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "CtMOJ6dW8j4",
+        "creatorHandle": "Kabaddi State",
+        "creatorId": "Kabaddi State",
+        "caption": "ROYAL CHALLENGERS BENGALURU VS GUJARAT TITANS FULL HIGHLIGHTS IPL 2026  | RCB VS GT IPL HIGHLIGHTS",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "5E4T64aeWuo",
+        "creatorHandle": "Pakistan Super League",
+        "creatorId": "Pakistan Super League",
+        "caption": "Full Match Highlights | Hyderabad Kingsmen vs Islamabad United | Urdu | M 36 | HBL PSL 11 | MZB1H",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "oJhWsMOdnh0",
+        "creatorHandle": "Kabaddi State",
+        "creatorId": "Kabaddi State",
+        "caption": "ROYAL CHALLENGERS BENGALURU VS GUJARAT TITANS FULL HIGHLIGHTS IPL 2026  | RCB VS GT IPL HIGHLIGHTS",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-ca-sports-steady-viewer-v1-1777094583675",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:23:03.675Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-ca-sports-steady-viewer-v1",
+      "syntheticRegion": "Canada",
+      "syntheticCategory": "Sports",
+      "syntheticBehavior": "steady-viewer",
+      "searchQuery": "match highlights today",
+      "followUpQuery": "post game interview"
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": true,
+    "status": 201,
+    "uploadId": "b777cc3a-f466-403c-bf0f-20626a65e6a9",
+    "body": {
+      "success": true,
+      "snapshotId": "a25d8f0c-0e27-4cfb-9ac9-acd65d9a53c6"
+    }
+  }
+}

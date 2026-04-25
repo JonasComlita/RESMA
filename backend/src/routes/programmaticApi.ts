@@ -1,5 +1,5 @@
 import { Router, type Response } from 'express';
-import { query } from 'express-validator';
+import { param, query } from 'express-validator';
 import type { ApiKeyRequest } from '../middleware/requireApiKey.js';
 import { requireApiKey } from '../middleware/requireApiKey.js';
 import { validateRequest } from '../middleware/validateRequest.js';
@@ -8,6 +8,13 @@ import {
     generateAudienceForecast,
     getCohortUserIds,
 } from '../services/audienceForecast.js';
+import {
+    AgencyReportInputError,
+    ensureStoredPayload,
+    loadAgencyReportRunForUser,
+    markAgencyReportExportAccess,
+    serializeStoredAgencyReport,
+} from '../services/agencyReports.js';
 import {
     generateRecommendationMap,
     generateRecommendationMapForUsers,
@@ -19,12 +26,43 @@ import {
     DataQualityInputError,
     generateDataQualityDiagnostics,
 } from '../services/dataQuality.js';
+import {
+    REPORT_FORMATS,
+    normalizeReportFormat,
+    packageMetadata,
+    isExportFormatAllowed,
+    isFormatAllowed,
+    type ReportFormat,
+} from '../services/packageAccess.js';
 
 export const programmaticApiRouter: Router = Router();
 
 const SUPPORTED_ANALYSIS_PLATFORMS = ['youtube', 'instagram', 'twitter', 'tiktok'] as const;
 
-type ResponseFormat = 'json' | 'llm';
+interface LlmPayload {
+    title: string;
+    bullets: string[];
+    markdown: string;
+    followUpQuestions?: string[];
+    caveats?: string[];
+}
+
+interface ClientReportPayload {
+    title: string;
+    subtitle: string;
+    deliverable: string;
+    generatedAt: string;
+    latestDataAt?: string | null;
+    freshnessTier?: string;
+    privacyMode: 'aggregate-only';
+    summaryPoints: string[];
+    caveats: string[];
+    sections: Array<{
+        title: string;
+        bodyMarkdown?: string;
+        bullets?: string[];
+    }>;
+}
 
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -38,10 +76,6 @@ function toPercent(value: number | null | undefined) {
     return `${Math.round(value * 100)}%`;
 }
 
-function parseFormat(rawValue: unknown): ResponseFormat {
-    return rawValue === 'llm' ? 'llm' : 'json';
-}
-
 const platformQueryValidation = query('platform')
     .optional()
     .trim()
@@ -50,8 +84,32 @@ const platformQueryValidation = query('platform')
 
 const formatQueryValidation = query('format')
     .optional()
-    .isIn(['json', 'llm'])
-    .withMessage('format must be either json or llm');
+    .isIn(Array.from(REPORT_FORMATS))
+    .withMessage(`format must be one of ${REPORT_FORMATS.join(', ')}`);
+
+function buildClientReportFromLlm(input: {
+    kind: string;
+    llm: LlmPayload;
+    meta?: Record<string, unknown>;
+}): ClientReportPayload {
+    return {
+        title: input.llm.title,
+        subtitle: String(input.meta?.reportSubtitle ?? 'Independent aggregate observatory intelligence.'),
+        deliverable: String(input.meta?.deliverable ?? input.kind),
+        generatedAt: new Date().toISOString(),
+        latestDataAt: (typeof input.meta?.latestDataAt === 'string' ? input.meta.latestDataAt : null) ?? null,
+        freshnessTier: typeof input.meta?.freshnessTier === 'string' ? input.meta.freshnessTier : 'standard',
+        privacyMode: 'aggregate-only',
+        summaryPoints: input.llm.bullets,
+        caveats: input.llm.caveats ?? [],
+        sections: [
+            {
+                title: 'Narrative Summary',
+                bodyMarkdown: input.llm.markdown,
+            },
+        ],
+    };
+}
 
 function sendProgrammaticResponse(
     req: ApiKeyRequest,
@@ -60,43 +118,70 @@ function sendProgrammaticResponse(
         kind: string;
         data: Record<string, unknown>;
         meta?: Record<string, unknown>;
-        llm: {
-            title: string;
-            bullets: string[];
-            markdown: string;
-            followUpQuestions?: string[];
-            caveats?: string[];
-        };
+        llm: LlmPayload;
+        clientReport?: ClientReportPayload;
     },
 ) {
-    const format = parseFormat(req.query.format);
+    const format = normalizeReportFormat(req.query.format);
+    if (!req.apiKey || !isFormatAllowed(req.apiKey.accessPackage, format)) {
+        return res.status(403).json({
+            success: false,
+            error: `Package ${req.apiKey?.accessPackage ?? 'unknown'} does not allow ${format} responses`,
+        });
+    }
+
+    const packageAccess = packageMetadata(req.apiKey.accessPackage);
     const baseResponse = {
         success: true,
         data: payload.data,
         meta: {
             authMode: req.authMode ?? 'api_key',
-            authSubject: req.apiKey?.lookupId ?? null,
+            authSubject: req.apiKey.lookupId,
             privacyMode: 'aggregate-only',
+            packageAccess,
             ...(payload.meta ?? {}),
         },
     };
 
-    if (format !== 'llm') {
-        return res.json(baseResponse);
+    if (format === 'llm') {
+        return res.json({
+            ...baseResponse,
+            format: 'llm',
+            llm: {
+                kind: payload.kind,
+                title: payload.llm.title,
+                bullets: payload.llm.bullets,
+                markdown: payload.llm.markdown,
+                followUpQuestions: payload.llm.followUpQuestions ?? [],
+                caveats: payload.llm.caveats ?? [],
+            },
+        });
     }
 
-    return res.json({
-        ...baseResponse,
-        format: 'llm',
-        llm: {
-            kind: payload.kind,
-            title: payload.llm.title,
-            bullets: payload.llm.bullets,
-            markdown: payload.llm.markdown,
-            followUpQuestions: payload.llm.followUpQuestions ?? [],
-            caveats: payload.llm.caveats ?? [],
-        },
-    });
+    if (format === 'markdown') {
+        return res.json({
+            ...baseResponse,
+            format: 'markdown',
+            export: {
+                format: 'markdown',
+                content: payload.llm.markdown,
+                caveats: payload.llm.caveats ?? [],
+            },
+        });
+    }
+
+    if (format === 'client-report') {
+        return res.json({
+            ...baseResponse,
+            format: 'client-report',
+            export: {
+                format: 'client-report',
+                content: payload.clientReport ?? buildClientReportFromLlm(payload),
+            },
+        });
+    }
+
+    return res.json(baseResponse);
 }
 
 programmaticApiRouter.get(
@@ -147,6 +232,9 @@ programmaticApiRouter.get(
                 data: { forecast },
                 meta: {
                     source: 'observatory-cohorts',
+                    deliverable: 'audience_forecast',
+                    reportSubtitle: `Aggregate audience forecast for ${targetVideoId} on ${platform}.`,
+                    freshnessTier: 'standard',
                 },
                 llm: {
                     title: `Audience forecast for ${targetVideoId}`,
@@ -158,7 +246,7 @@ programmaticApiRouter.get(
                         `Quality gate: ${forecast.qualityGate.status}, parse coverage ${toPercent(forecast.qualityGate.parseCoverage) ?? 'unknown'}, cohort stability ${forecast.qualityGate.cohortStabilityScore.toFixed(2)}.`,
                     ],
                     markdown: [
-                        `# Audience Forecast`,
+                        '# Audience Forecast',
                         '',
                         `- Target video: \`${forecast.targetVideoId}\``,
                         `- Platform: ${forecast.platform}`,
@@ -250,6 +338,9 @@ programmaticApiRouter.get(
                 data: { map },
                 meta: {
                     source: 'observatory-cohorts',
+                    deliverable: 'recommendation_map',
+                    reportSubtitle: `Aggregate recommendation-path observatory map for ${seedVideoId} on ${platform}.`,
+                    freshnessTier: 'standard',
                 },
                 llm: {
                     title: `Recommendation map for ${seedVideoId}`,
@@ -261,7 +352,7 @@ programmaticApiRouter.get(
                             : 'Scope: personal observatory view.',
                     ],
                     markdown: [
-                        `# Recommendation Map`,
+                        '# Recommendation Map',
                         '',
                         `- Seed video: \`${map.seedVideoId}\``,
                         `- Platform: ${map.platform}`,
@@ -352,6 +443,9 @@ programmaticApiRouter.get(
                 data: { brief },
                 meta: {
                     source: 'observatory-cohorts',
+                    deliverable: 'go_to_market_brief',
+                    reportSubtitle: `Aggregate go-to-market brief for ${targetVideoId} on ${platform}.`,
+                    freshnessTier: 'standard',
                 },
                 llm: {
                     title: `Go-to-market brief for ${targetVideoId}`,
@@ -403,6 +497,11 @@ programmaticApiRouter.get(
             return sendProgrammaticResponse(req, res, {
                 kind: 'data_quality',
                 data: { diagnostics },
+                meta: {
+                    deliverable: 'data_quality',
+                    reportSubtitle: `Aggregate data-quality diagnostics for ${platform}.`,
+                    freshnessTier: 'standard',
+                },
                 llm: {
                     title: `Data-quality diagnostics for ${platform}`,
                     bullets: [
@@ -411,7 +510,7 @@ programmaticApiRouter.get(
                         `Quality gate: ${diagnostics.qualityGate.status}, cohort stability ${diagnostics.cohorts.stabilityScore.toFixed(2)}.`,
                     ],
                     markdown: [
-                        `# Data Quality`,
+                        '# Data Quality',
                         '',
                         `- Platform: ${diagnostics.platform}`,
                         `- Window: ${diagnostics.windowHours} hours`,
@@ -478,6 +577,11 @@ programmaticApiRouter.get(
                         recentSnapshots,
                     },
                 },
+                meta: {
+                    deliverable: 'observatory_stats',
+                    reportSubtitle: 'Top-level aggregate observatory counts and freshness indicators.',
+                    freshnessTier: 'standard',
+                },
                 llm: {
                     title: 'RESMA observatory stats',
                     bullets: [
@@ -486,7 +590,7 @@ programmaticApiRouter.get(
                         `${recentSnapshots} snapshots were captured in the last 24 hours.`,
                     ],
                     markdown: [
-                        `# Observatory Stats`,
+                        '# Observatory Stats',
                         '',
                         `- Contributors: ${totalUsers}`,
                         `- Snapshots: ${totalSnapshots}`,
@@ -501,6 +605,69 @@ programmaticApiRouter.get(
                 },
             });
         } catch (error) {
+            next(error);
+        }
+    },
+);
+
+programmaticApiRouter.get(
+    '/reports/runs/:reportRunId/export',
+    requireApiKey({ routeKey: 'reports.exports.read', requiredScopes: ['reports:read'] }),
+    ...validateRequest([
+        param('reportRunId')
+            .isUUID()
+            .withMessage('reportRunId must be a valid UUID'),
+        formatQueryValidation,
+    ]),
+    async (req: ApiKeyRequest, res, next) => {
+        try {
+            const run = await loadAgencyReportRunForUser(req.params.reportRunId, req.userId!);
+
+            if (!run) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Report run not found',
+                });
+            }
+
+            const format = normalizeReportFormat(req.query.format ?? 'json');
+            if (!run.availableExportFormats.includes(format) || !isExportFormatAllowed(req.apiKey!.accessPackage, format)) {
+                return res.status(403).json({
+                    success: false,
+                    error: `Package ${req.apiKey!.accessPackage} does not allow ${format} export`,
+                });
+            }
+
+            const payload = ensureStoredPayload(run.resultPayload);
+            await markAgencyReportExportAccess({
+                userId: req.userId,
+                apiKeyId: req.apiKey?.id ?? null,
+                reportRunId: run.id,
+                format,
+            });
+
+            return res.json({
+                success: true,
+                data: {
+                    reportRunId: run.id,
+                    export: serializeStoredAgencyReport(payload, format),
+                },
+                meta: {
+                    authMode: req.authMode ?? 'api_key',
+                    authSubject: req.apiKey?.lookupId ?? null,
+                    privacyMode: 'aggregate-only',
+                    packageAccess: req.apiKey ? packageMetadata(req.apiKey.accessPackage) : null,
+                },
+            });
+        } catch (error) {
+            if (error instanceof AgencyReportInputError) {
+                return res.status(error.statusCode).json({
+                    success: false,
+                    error: error.message,
+                    details: error.details,
+                });
+            }
+
             next(error);
         }
     },

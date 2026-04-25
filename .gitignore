@@ -2,7 +2,13 @@ node_modules/
 dist/
 build/
 .env
+.env.*
+!.env.example
 *.log
 .DS_Store
 coverage/
 .turbo/
+
+# Headless synthetic capture artifacts
+packages/headless/.captures/
+.captures/

@@ -1,11 +1,12 @@
 import { ErrorBoundary } from '../ErrorBoundary';
 import { RecommendationGraphCanvas } from '../RecommendationGraphCanvas';
-import { Loader2, Network } from 'lucide-react';
+import { Download, Loader2, Network } from 'lucide-react';
 import type {
     RecommendationMapResult,
     TraversalSummary,
     TraversalVisitStep,
 } from '../../types/recommendationMap';
+import { exportGexf } from '../../utils/exportGexf';
 
 interface RecommendationMapSectionProps {
     platform: string;
@@ -46,6 +47,23 @@ export function RecommendationMapSection({
     onLoadRecommendationMap,
     onResetToContributorScope,
 }: RecommendationMapSectionProps) {
+    const handleGexfDownload = () => {
+        if (!mapResult) return;
+
+        const gexfString = exportGexf(mapResult);
+        const objectUrl = URL.createObjectURL(new Blob([gexfString], { type: 'application/gexf+xml' }));
+        const anchor = document.createElement('a');
+        const safeSeed = mapResult.seedVideoId.replace(/[^a-zA-Z0-9_-]/g, '-');
+        const safePlatform = mapResult.platform.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+        anchor.href = objectUrl;
+        anchor.download = `resma-recommendation-map-${safeSeed}-${safePlatform}.gexf`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+    };
+
     return (
         <ErrorBoundary
             title="The recommendation observatory map failed to render."
@@ -68,15 +86,29 @@ export function RecommendationMapSection({
                                 : 'Your contributor feed'}
                         </p>
                     </div>
-                    {selectedCohortId && (
+                    <div className="flex flex-col gap-2 md:items-end">
+                        {selectedCohortId && (
+                            <button
+                                type="button"
+                                className="self-start rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 md:self-auto"
+                                onClick={onResetToContributorScope}
+                            >
+                                Use Contributor Scope
+                            </button>
+                        )}
                         <button
                             type="button"
-                            className="self-start rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                            onClick={onResetToContributorScope}
+                            onClick={handleGexfDownload}
+                            disabled={!mapResult}
+                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            Use Contributor Scope
+                            <Download className="h-3.5 w-3.5" />
+                            Export GEXF
                         </button>
-                    )}
+                        <p className="max-w-xs text-xs text-gray-500 md:text-right">
+                            Opens in Gephi desktop or Gephi Lite for community detection and advanced layout.
+                        </p>
+                    </div>
                 </div>
 
                 <form

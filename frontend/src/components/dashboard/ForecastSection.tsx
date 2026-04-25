@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Loader2, Sigma, Target } from 'lucide-react';
 import type { AudienceForecastResult, CohortAudienceForecast } from '../../types/audienceForecast';
 import type { ForecastEvaluationResult } from '../../types/forecastEvaluation';
+import { SandDanceExplorer } from './SandDanceExplorer';
 
 interface ForecastSectionProps {
     platform: string;
@@ -42,6 +44,20 @@ export function ForecastSection({
     onExportBrief,
     onViewCohortMap,
 }: ForecastSectionProps) {
+    const [showCohortExplorer, setShowCohortExplorer] = useState(false);
+    const cohortExplorerRows = useMemo<Record<string, unknown>[]>(() => (
+        forecast?.cohorts.map((cohort) => ({
+            cohortId: cohort.cohortId,
+            cohortLabel: cohort.cohortLabel,
+            users: cohort.users,
+            fitScore: cohort.fitScore,
+            targetExposureRate: cohort.targetExposureRate,
+            reachProbabilityFromSeed: cohort.reachProbabilityFromSeed,
+            relativeLiftVsGlobalExposure: cohort.relativeLiftVsGlobalExposure,
+            score: cohort.score,
+        })) ?? []
+    ), [forecast]);
+
     return (
         <>
             <div className="mt-8 mb-4">
@@ -238,6 +254,26 @@ export function ForecastSection({
                                     </table>
                                 </div>
                             </div>
+
+                            {forecast.cohorts.length > 0 && (
+                                <div className="rounded-xl border border-gray-200 p-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCohortExplorer((current) => !current)}
+                                        className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                        {showCohortExplorer ? 'Hide SandDance Explorer' : 'Explore in SandDance'}
+                                    </button>
+                                    {showCohortExplorer && (
+                                        <div className="mt-3">
+                                            <SandDanceExplorer
+                                                title="Cohort Distribution Explorer"
+                                                data={cohortExplorerRows}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

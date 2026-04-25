@@ -24,6 +24,7 @@ import type {
 
 const YOUTUBE_HOME_URL = 'https://www.youtube.com/';
 const PAGE_TIMEOUT_MS = 30_000;
+const DEFAULT_PROFILE_TIMEOUT_MS = 180_000;
 const DEFAULT_VIEWPORT = { width: 1440, height: 960 };
 const RECOMMENDATION_WAIT_MS = 7_500;
 const RECOMMENDATION_POLL_MS = 500;
@@ -480,118 +481,136 @@ export async function captureYouTubeProfile(
     const query = pickSeedQuery(profile);
     const applyRevisit = shouldApplyRevisit(profile);
     const followUpQuery = applyRevisit ? pickFollowUpQuery(profile) : null;
+    const profileTimeoutMs = options.profileTimeoutMs ?? DEFAULT_PROFILE_TIMEOUT_MS;
+    let timedOut = false;
+    const timeoutHandle = setTimeout(() => {
+        timedOut = true;
+        void context.close().catch(() => {
+            // Best-effort close to break stuck browser work.
+        });
+    }, profileTimeoutMs);
 
     try {
-        await page.goto(buildLocalizedYouTubeUrl('/', profile), {
-            waitUntil: 'domcontentloaded',
-            timeout: PAGE_TIMEOUT_MS,
-        });
-        await dismissYouTubeConsent(page);
-        await page.waitForTimeout(2_000);
+        try {
+            await page.goto(buildLocalizedYouTubeUrl('/', profile), {
+                waitUntil: 'domcontentloaded',
+                timeout: PAGE_TIMEOUT_MS,
+            });
+            await dismissYouTubeConsent(page);
+            await page.waitForTimeout(2_000);
 
-        const homepageItems = await collectHomeFeed(page);
+            const homepageItems = await collectHomeFeed(page);
 
-        await gotoSearchResults(page, query, profile);
-        const searchItems = await collectSearchResults(page);
-        if (searchItems.length === 0) {
-            warnings.push('No YouTube search results were collected for the seed query.');
-        }
-
-        const interactionRate = pickInRange(profile.behavior.interactionRate, `${profile.id}:interaction-rate`);
-        const detailOpenRate = pickInRange(profile.behavior.detailOpenRate, `${profile.id}:detail-open-rate`);
-        const shouldOpenDetail = searchItems.length > 0 && (interactionRate > 0.15 || detailOpenRate > 0.4);
-        const watchedCandidate = shouldOpenDetail ? searchItems[0] : null;
-
-        let watchedItem: CapturedFeedItem | null = null;
-        let recommendationCount = 0;
-
-        if (watchedCandidate) {
-            await openCandidate(page, watchedCandidate, profile);
-            await applyScrollCadence(page, profile);
-            const watchDuration = await waitForWatchSignal(page, profile);
-            const recommendations = await collectRecommendationsWithWait(page);
-            recommendationCount = recommendations.length;
-            if (recommendations.length === 0) {
-                warnings.push('Watch-page recommendations were empty after retry/polling.');
+            await gotoSearchResults(page, query, profile);
+            const searchItems = await collectSearchResults(page);
+            if (searchItems.length === 0) {
+                warnings.push('No YouTube search results were collected for the seed query.');
             }
 
-            watchedItem = toCapturedFeedItem(watchedCandidate, profile, query, {
-                watchDuration,
-                interacted: true,
-                interactionType: 'opened-watch-page',
-                captureSurface: 'watch',
-                recommendations,
-                engagementMetrics: {
-                    watchTime: watchDuration,
-                    recommendationCount: recommendations.length,
+            const interactionRate = pickInRange(profile.behavior.interactionRate, `${profile.id}:interaction-rate`);
+            const detailOpenRate = pickInRange(profile.behavior.detailOpenRate, `${profile.id}:detail-open-rate`);
+            const shouldOpenDetail = searchItems.length > 0 && (interactionRate > 0.15 || detailOpenRate > 0.4);
+            const watchedCandidate = shouldOpenDetail ? searchItems[0] : null;
+
+            let watchedItem: CapturedFeedItem | null = null;
+            let recommendationCount = 0;
+
+            if (watchedCandidate) {
+                await openCandidate(page, watchedCandidate, profile);
+                await applyScrollCadence(page, profile);
+                const watchDuration = await waitForWatchSignal(page, profile);
+                const recommendations = await collectRecommendationsWithWait(page);
+                recommendationCount = recommendations.length;
+                if (recommendations.length === 0) {
+                    warnings.push('Watch-page recommendations were empty after retry/polling.');
+                }
+
+                watchedItem = toCapturedFeedItem(watchedCandidate, profile, query, {
+                    watchDuration,
+                    interacted: true,
+                    interactionType: 'opened-watch-page',
+                    captureSurface: 'watch',
                     recommendations,
+                    engagementMetrics: {
+                        watchTime: watchDuration,
+                        recommendationCount: recommendations.length,
+                        recommendations,
+                    },
+                });
+            }
+
+            if (followUpQuery) {
+                await gotoSearchResults(page, followUpQuery, profile);
+                await page.waitForTimeout(1_000);
+            }
+
+            const feed = dedupeFeedItems([
+                ...homepageItems.slice(0, 6).map((item) => toCapturedFeedItem(item, profile, query)),
+                ...searchItems.slice(0, 6).map((item) => toCapturedFeedItem(item, profile, query)),
+                ...(watchedItem ? [watchedItem] : []),
+            ]);
+
+            if (feed.length === 0) {
+                throw new Error(`Profile ${profile.id} produced no valid YouTube feed items.`);
+            }
+
+            const payload = coercePlatformFeedPayload(
+                {
+                    platform: 'youtube',
+                    feed,
+                    sessionMetadata: {
+                        type: watchedItem ? 'VIDEO_WATCH' : 'HOMEPAGE_SNAPSHOT',
+                        captureSurface: watchedItem ? 'watch' : 'search-results',
+                        observerVersion: CURRENT_OBSERVER_VERSIONS.youtube,
+                        ingestVersion: CURRENT_INGEST_VERSION,
+                        clientSessionId: `${profile.id}-${Date.now()}`,
+                        capturedAt: new Date().toISOString(),
+                        uploadEvent: 'SYNTHETIC_YOUTUBE_SESSION',
+                        researchMode: profile.researchMode,
+                        syntheticProfileId: profile.id,
+                        syntheticRegion: profile.region.displayName,
+                        syntheticCategory: profile.category.label,
+                        syntheticBehavior: profile.behavior.key,
+                        searchQuery: query,
+                        followUpQuery,
+                    },
                 },
-            });
-        }
-
-        if (followUpQuery) {
-            await gotoSearchResults(page, followUpQuery, profile);
-            await page.waitForTimeout(1_000);
-        }
-
-        const feed = dedupeFeedItems([
-            ...homepageItems.slice(0, 6).map((item) => toCapturedFeedItem(item, profile, query)),
-            ...searchItems.slice(0, 6).map((item) => toCapturedFeedItem(item, profile, query)),
-            ...(watchedItem ? [watchedItem] : []),
-        ]);
-
-        if (feed.length === 0) {
-            throw new Error(`Profile ${profile.id} produced no valid YouTube feed items.`);
-        }
-
-        const payload = coercePlatformFeedPayload(
-            {
-                platform: 'youtube',
-                feed,
-                sessionMetadata: {
-                    type: watchedItem ? 'VIDEO_WATCH' : 'HOMEPAGE_SNAPSHOT',
-                    captureSurface: watchedItem ? 'watch' : 'search-results',
-                    observerVersion: CURRENT_OBSERVER_VERSIONS.youtube,
-                    ingestVersion: CURRENT_INGEST_VERSION,
-                    clientSessionId: `${profile.id}-${Date.now()}`,
-                    capturedAt: new Date().toISOString(),
-                    uploadEvent: 'SYNTHETIC_YOUTUBE_SESSION',
-                    researchMode: profile.researchMode,
-                    syntheticProfileId: profile.id,
-                    syntheticRegion: profile.region.displayName,
-                    syntheticCategory: profile.category.label,
-                    syntheticBehavior: profile.behavior.key,
-                    searchQuery: query,
-                    followUpQuery,
+                {
+                    expectedPlatform: 'youtube',
+                    requireFullFeedValidity: true,
                 },
-            },
-            {
-                expectedPlatform: 'youtube',
-                requireFullFeedValidity: true,
-            },
-        ) as PlatformFeedPayload | null;
+            ) as PlatformFeedPayload | null;
 
-        if (!payload) {
-            throw new Error(`Profile ${profile.id} produced a payload that failed shared contract coercion.`);
+            if (!payload) {
+                throw new Error(`Profile ${profile.id} produced a payload that failed shared contract coercion.`);
+            }
+
+            const summary: ProfileCaptureSummary = {
+                homeItemCount: homepageItems.length,
+                searchItemCount: searchItems.length,
+                recommendationCount,
+                interactedVideoId: watchedCandidate?.videoId ?? null,
+                query,
+                followUpQuery,
+                revisitPatternApplied: followUpQuery ? profile.behavior.revisitPattern : 'skipped',
+            };
+
+            return {
+                profile,
+                payload,
+                summary,
+                warnings,
+            };
+        } catch (error) {
+            if (timedOut) {
+                throw new Error(`Profile ${profile.id} timed out after ${profileTimeoutMs}ms.`);
+            }
+            throw error;
         }
-
-        const summary: ProfileCaptureSummary = {
-            homeItemCount: homepageItems.length,
-            searchItemCount: searchItems.length,
-            recommendationCount,
-            interactedVideoId: watchedCandidate?.videoId ?? null,
-            query,
-            followUpQuery,
-            revisitPatternApplied: followUpQuery ? profile.behavior.revisitPattern : 'skipped',
-        };
-
-        return {
-            profile,
-            payload,
-            summary,
-            warnings,
-        };
     } finally {
-        await context.close();
+        clearTimeout(timeoutHandle);
+        await context.close().catch(() => {
+            // Context may already be closed by the timeout watchdog.
+        });
     }
 }

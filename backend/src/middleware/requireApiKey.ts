@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import type { AccessPackage } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { createError } from './errorHandler.js';
 import type { AuthRequest } from './authenticate.js';
@@ -9,11 +10,14 @@ import {
     recordApiKeyUsage,
     verifyApiKeyHash,
 } from '../services/apiKeys.js';
+import type { AccessRouteKey } from '../services/packageAccess.js';
+import { isAccessRouteAllowed, packageMetadata } from '../services/packageAccess.js';
 
 export interface ApiKeyAuthContext {
     id: string;
     userId: string;
     name: string;
+    accessPackage: AccessPackage;
     lookupId: string;
     keyPrefix: string;
     scopes: string[];
@@ -27,7 +31,7 @@ export interface ApiKeyRequest extends AuthRequest {
 }
 
 export interface RequireApiKeyOptions {
-    routeKey: string;
+    routeKey: AccessRouteKey;
     requiredScopes?: string[];
 }
 
@@ -66,6 +70,7 @@ export function requireApiKey(options: RequireApiKeyOptions) {
                     id: true,
                     userId: true,
                     name: true,
+                    accessPackage: true,
                     lookupId: true,
                     keyHash: true,
                     keyPrefix: true,
@@ -95,6 +100,10 @@ export function requireApiKey(options: RequireApiKeyOptions) {
                 return next(createError('API key does not include the required scope', 403));
             }
 
+            if (!isAccessRouteAllowed(apiKey.accessPackage, options.routeKey)) {
+                return next(createError(`Package ${apiKey.accessPackage} does not allow this route`, 403));
+            }
+
             const quota = await getApiKeyQuotaSnapshot(apiKey.id, apiKey, now);
             if (quota.daily.remaining <= 0) {
                 return res.status(429).json({
@@ -116,6 +125,7 @@ export function requireApiKey(options: RequireApiKeyOptions) {
                 id: apiKey.id,
                 userId: apiKey.userId,
                 name: apiKey.name,
+                accessPackage: apiKey.accessPackage,
                 lookupId: apiKey.lookupId,
                 keyPrefix: apiKey.keyPrefix,
                 scopes: apiKey.scopes,
@@ -124,6 +134,7 @@ export function requireApiKey(options: RequireApiKeyOptions) {
             };
             req.userId = apiKey.userId;
             req.authMode = 'api_key';
+            res.locals.packageAccess = packageMetadata(apiKey.accessPackage);
 
             res.on('finish', () => {
                 void recordApiKeyUsage({

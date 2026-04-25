@@ -21,6 +21,7 @@ import insightsRouter from './routes/insights.js';
 import twitterRouter from './routes/twitter.js';
 import { apiKeysRouter } from './routes/apiKeys.js';
 import { programmaticApiRouter } from './routes/programmaticApi.js';
+import { reportsRouter, sharedReportsRouter } from './routes/reports.js';
 import { buildOpenApiDocument } from './openapi.js';
 
 const app: express.Express = express();
@@ -150,6 +151,8 @@ app.use('/feeds', createIngestRateLimiter(), feedsRouter);
 app.use('/analysis', analysisRouter);
 app.use('/api/v1', programmaticApiRouter);
 app.use('/api-keys', apiKeysRouter);
+app.use('/reports', reportsRouter);
+app.use('/shared-reports', sharedReportsRouter);
 app.use('/creators', creatorsRouter);
 app.use('/youtube/feed', createIngestRateLimiter());
 app.use('/youtube', youtubeRouter);
@@ -168,11 +171,13 @@ app.get('/docs', (_req, res) => {
         '<head><meta charset="utf-8"><title>RESMA API Docs</title></head>',
         '<body>',
         '<h1>RESMA Programmatic API</h1>',
-        '<p>Aggregate-only machine endpoints live under <code>/api/v1/analysis/*</code>.</p>',
+        '<p>Aggregate-only machine endpoints live under <code>/api/v1/analysis/*</code> and agency report delivery lives under <code>/reports/*</code>.</p>',
         '<ul>',
         '<li><a href="/docs/openapi.json">OpenAPI JSON</a></li>',
         '<li>Repository guide: <code>docs/api/README.md</code></li>',
         '<li>JWT key management routes: <code>/api-keys</code></li>',
+        '<li>JWT agency report routes: <code>/reports</code></li>',
+        '<li>Read-only share routes: <code>/shared-reports/:shareToken</code></li>',
         '</ul>',
         '</body>',
         '</html>',

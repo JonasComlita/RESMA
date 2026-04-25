@@ -23,6 +23,9 @@ vi.mock('../src/lib/prisma.js', () => ({
         creator: {
             count: vi.fn(),
         },
+        agencyReportRun: {
+            findFirst: vi.fn(),
+        },
         $transaction: vi.fn(async (operations: unknown[]) => Promise.all(operations as Promise<unknown>[])),
         $queryRaw: vi.fn(),
     },
@@ -37,9 +40,24 @@ vi.mock('../src/services/audienceForecast.js', async () => {
     };
 });
 
+vi.mock('../src/services/agencyReports.js', async () => {
+    const actual = await vi.importActual<typeof import('../src/services/agencyReports.js')>('../src/services/agencyReports.js');
+    return {
+        ...actual,
+        loadAgencyReportRunForUser: vi.fn(),
+        markAgencyReportExportAccess: vi.fn(),
+        serializeStoredAgencyReport: vi.fn(),
+    };
+});
+
 const { prisma } = await import('../src/lib/prisma.js');
 const { hashApiKey } = await import('../src/services/apiKeys.js');
 const { generateAudienceForecast } = await import('../src/services/audienceForecast.js');
+const {
+    loadAgencyReportRunForUser,
+    markAgencyReportExportAccess,
+    serializeStoredAgencyReport,
+} = await import('../src/services/agencyReports.js');
 const { default: app } = await import('../src/index');
 
 const rawApiKey = 'resma_test.lookup123.secret456';
@@ -51,11 +69,12 @@ describe('Programmatic API routes', () => {
             id: 'api-key-1',
             userId: 'user-1',
             name: 'Agent key',
+            accessPackage: 'AGENCY_PILOT',
             lookupId: 'lookup123',
             keyHash: hashApiKey(rawApiKey),
             keyPrefix: 'resma_test.lookup',
             status: 'ACTIVE',
-            scopes: ['analysis:read'],
+            scopes: ['analysis:read', 'reports:read'],
             dailyQuota: 500,
             monthlyQuota: 10000,
             expiresAt: null,
@@ -187,5 +206,65 @@ describe('Programmatic API routes', () => {
         expect(response.body.llm.kind).toBe('audience_forecast');
         expect(response.body.llm.markdown).toContain('Audience Forecast');
         expect(response.body.data.forecast.targetVideoId).toBe('target-001');
+    });
+
+    it('blocks premium analysis routes for contributor free keys', async () => {
+        vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
+            id: 'api-key-1',
+            userId: 'user-1',
+            name: 'Free key',
+            accessPackage: 'CONTRIBUTOR_FREE',
+            lookupId: 'lookup123',
+            keyHash: hashApiKey(rawApiKey),
+            keyPrefix: 'resma_test.lookup',
+            status: 'ACTIVE',
+            scopes: ['analysis:read'],
+            dailyQuota: 100,
+            monthlyQuota: 1000,
+            expiresAt: null,
+            revokedAt: null,
+        } as any);
+
+        const response = await request(app)
+            .get('/api/v1/analysis/audience-forecast?targetVideoId=target-001')
+            .set('x-api-key', rawApiKey);
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toContain('does not allow this route');
+    });
+
+    it('serves saved report exports over the programmatic API', async () => {
+        vi.mocked(loadAgencyReportRunForUser).mockResolvedValue({
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            userId: 'user-1',
+            availableExportFormats: ['json', 'client-report'],
+            resultPayload: {
+                exports: {
+                    clientReport: {
+                        title: 'Audience Opportunity Brief',
+                    },
+                },
+            },
+        } as any);
+        vi.mocked(serializeStoredAgencyReport).mockReturnValue({
+            format: 'client-report',
+            content: {
+                title: 'Audience Opportunity Brief',
+                privacyMode: 'aggregate-only',
+            },
+        } as any);
+
+        const response = await request(app)
+            .get('/api/v1/reports/runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/export?format=client-report')
+            .set('x-api-key', rawApiKey);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.export.format).toBe('client-report');
+        expect(response.body.data.export.content.privacyMode).toBe('aggregate-only');
+        expect(markAgencyReportExportAccess).toHaveBeenCalledWith(expect.objectContaining({
+            apiKeyId: 'api-key-1',
+            reportRunId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            format: 'client-report',
+        }));
     });
 });

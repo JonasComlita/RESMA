@@ -1,0 +1,698 @@
+{
+  "profile": {
+    "id": "yt-br-news-politics-engaged-sampler-v1",
+    "storageKey": "yt-br-news-politics-engaged-sampler-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "br",
+      "displayName": "Brazil",
+      "youtubeRegionCode": "BR",
+      "locale": "pt-BR",
+      "timezoneId": "America/Sao_Paulo",
+      "acceptLanguage": "pt-BR,pt;q=0.9,en;q=0.6"
+    },
+    "category": {
+      "key": "news-politics",
+      "label": "News & Politics",
+      "description": "Topical news, explainers, and civic commentary recommendation behavior.",
+      "querySeeds": [
+        "daily news briefing",
+        "policy explainer",
+        "election analysis panel"
+      ],
+      "followUpQuerySeeds": [
+        "international news summary",
+        "fact check explainer"
+      ]
+    },
+    "behavior": {
+      "key": "engaged-sampler",
+      "label": "Engaged Sampler",
+      "description": "Clicks through several candidates and mixes quick sampling with one stronger watch signal.",
+      "watchDurationSeconds": {
+        "min": 16,
+        "max": 36
+      },
+      "watchDurationRatio": {
+        "min": 0.14,
+        "max": 0.35
+      },
+      "scrollCadenceMs": {
+        "min": 1700,
+        "max": 3200
+      },
+      "interactionRate": {
+        "min": 0.28,
+        "max": 0.5
+      },
+      "sessionLengthActions": {
+        "min": 6,
+        "max": 10
+      },
+      "detailOpenRate": {
+        "min": 0.55,
+        "max": 0.75
+      },
+      "revisitPattern": "adjacent-query",
+      "revisitProbability": 0.36
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 7,
+    "recommendationCount": 24,
+    "interactedVideoId": "3885hDS5gio",
+    "query": "daily news briefing",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "3885hDS5gio",
+        "creatorHandle": "DWS News",
+        "creatorId": "DWS News",
+        "caption": "BREAKING NEWS: General Dan Caine Holds Explosive Military Briefing on Iran War in Washington | AC1Z",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 21.81,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ],
+        "engagementMetrics": {
+          "watchTime": 21.81,
+          "recommendationCount": 24,
+          "recommendations": [
+            {
+              "videoId": "CDuJn_TdgU0",
+              "position": 1,
+              "title": "O FBI entrou no jogo: O Escândalo Ramagem subiu de nível!",
+              "channel": "O Antagonista",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "GYYgqCprgbM",
+              "position": 2,
+              "title": "Pete Hegseth e o general Dan Caine realizam coletiva de imprensa no Pentágono",
+              "channel": "Fox Business",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "PwH04-nFSDw",
+              "position": 3,
+              "title": "Exército da Morte de Hitler: Das Reich - SEM CENSURA",
+              "channel": "Best Documentary",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "sP3Ha3zi-EA",
+              "position": 4,
+              "title": "Balikatan: China Fury as Japan, New Zealand Join US-Philippines Drills | Taiwan Talks EP 817",
+              "channel": "Taiwan Talks",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "4IskJzivfT8",
+              "position": 5,
+              "title": "Análise: O desgaste político de Trump com a guerra contra o Irã | WW",
+              "channel": "CNN Brasil",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "wIlG7KDyYd0",
+              "position": 6,
+              "title": "Trump Plans Revenge On The Press | No Negotiations | Spirit Bailout? | Bobby's Heavy Breathing",
+              "channel": "The Late Show with Stephen Colbert",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "eohcU-2XRus",
+              "position": 7,
+              "title": "Não existe ‘MODERADO’ com quem se possa negociar na liderança iraniana: Dra. Mahsa Tehrani",
+              "channel": "Fox News Clips",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "yi8WVAChhjw",
+              "position": 8,
+              "title": "O FIM DA MAIOR ALIANÇA MILITAR DA HISTÓRIA I Professor HOC",
+              "channel": "Professor HOC",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "UwQ9r3ZFePU",
+              "position": 9,
+              "title": "Gilmar x Zema: Ministro se esmera em atirar contra próprio pé e atinge a estátua da Justiça | Josias",
+              "channel": "UOL",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "b7tMJeff_B4",
+              "position": 10,
+              "title": "O que a Polícia descobriu nos computadores da Legacy (Vítimas em Risco)",
+              "channel": "Canal Perguntas",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "feK9Zzd9fkg",
+              "position": 11,
+              "title": "Live: Trump Orders ‘Shoot and Kill’ Action on Iranian Boats in Strait of Hormuz | IRAN WAR | N18G",
+              "channel": "CNN-News18",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ZW11aqtZqlQ",
+              "position": 12,
+              "title": "‘Urgent meeting with the back of his eyelids’: Nicolle on Trump DOZING OFF in public appearances",
+              "channel": "MS NOW",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "Rg_GcSEZ9lA",
+              "position": 13,
+              "title": "The Secret Weapon That Finally Stopped the Mongols - Battle of Kili 1299.",
+              "channel": "History Explained",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "BBzmNXMjGk4",
+              "position": 14,
+              "title": "Especialista alerta para escalada e guerra por posição de força",
+              "channel": "Rede TVT",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "TmE5rf-wvZ4",
+              "position": 15,
+              "title": "‘His sleepiness is getting sleepier’: Miles Taylor discusses Trump's erratic behavior",
+              "channel": "MS NOW",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "q4szPBDnqKw",
+              "position": 16,
+              "title": "Iran's new Supreme Leader 'gravely injured'. Who's really leading Iran now?",
+              "channel": "CNN",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "GQJVO1XOTm0",
+              "position": 17,
+              "title": "Most Americans think Trump is NOT mentally fit for office, Fox News poll says",
+              "channel": "MS NOW",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "UdY_0hUM1iw",
+              "position": 18,
+              "title": "NOTICIAS DEL DÍA: Araghchi viaja a Pakistán, bloqueo absoluto en Ormuz y Netanyahu amenaza a Líbano",
+              "channel": "Negocios TV",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "bK-ErF86OnY",
+              "position": 19,
+              "title": "WW ESPECIAL - AS LIÇÕES DE ESTRATÉGIA NA GUERRA CONTRA O IRÃ - 19/04/2026",
+              "channel": "CNN Brasil",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "Xs72A6XeRzM",
+              "position": 20,
+              "title": "STRAIT-UP CONFUSED: Iran denies talks with US as both sides claim control of same waterway",
+              "channel": "Fox News",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ZvypQZjadrQ",
+              "position": 21,
+              "title": "LIVE: Pete Hegseth holds Pentagon briefing on the Iran war",
+              "channel": "Associated Press",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "i8FyzRwvI3c",
+              "position": 22,
+              "title": "Gen. Keane: This is QUITE significant",
+              "channel": "Fox News Clips",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "WAUqj_9CPuU",
+              "position": 23,
+              "title": "Admiral McRaven on Iran, Military Power & U.S. Strategy",
+              "channel": "Katie Couric",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "dKSiBhH9AQI",
+              "position": 24,
+              "title": "Live: PENTAGON JUST CALLED EMERGENCY BRIEFING – Hegseth & Gen. Caine's WORDS Will SHAKE NATION",
+              "channel": "ET Now",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "CDuJn_TdgU0",
+            "position": 1,
+            "title": "O FBI entrou no jogo: O Escândalo Ramagem subiu de nível!",
+            "channel": "O Antagonista",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "GYYgqCprgbM",
+            "position": 2,
+            "title": "Pete Hegseth e o general Dan Caine realizam coletiva de imprensa no Pentágono",
+            "channel": "Fox Business",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "PwH04-nFSDw",
+            "position": 3,
+            "title": "Exército da Morte de Hitler: Das Reich - SEM CENSURA",
+            "channel": "Best Documentary",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "sP3Ha3zi-EA",
+            "position": 4,
+            "title": "Balikatan: China Fury as Japan, New Zealand Join US-Philippines Drills | Taiwan Talks EP 817",
+            "channel": "Taiwan Talks",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "4IskJzivfT8",
+            "position": 5,
+            "title": "Análise: O desgaste político de Trump com a guerra contra o Irã | WW",
+            "channel": "CNN Brasil",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "wIlG7KDyYd0",
+            "position": 6,
+            "title": "Trump Plans Revenge On The Press | No Negotiations | Spirit Bailout? | Bobby's Heavy Breathing",
+            "channel": "The Late Show with Stephen Colbert",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "eohcU-2XRus",
+            "position": 7,
+            "title": "Não existe ‘MODERADO’ com quem se possa negociar na liderança iraniana: Dra. Mahsa Tehrani",
+            "channel": "Fox News Clips",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "yi8WVAChhjw",
+            "position": 8,
+            "title": "O FIM DA MAIOR ALIANÇA MILITAR DA HISTÓRIA I Professor HOC",
+            "channel": "Professor HOC",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "UwQ9r3ZFePU",
+            "position": 9,
+            "title": "Gilmar x Zema: Ministro se esmera em atirar contra próprio pé e atinge a estátua da Justiça | Josias",
+            "channel": "UOL",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "b7tMJeff_B4",
+            "position": 10,
+            "title": "O que a Polícia descobriu nos computadores da Legacy (Vítimas em Risco)",
+            "channel": "Canal Perguntas",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "feK9Zzd9fkg",
+            "position": 11,
+            "title": "Live: Trump Orders ‘Shoot and Kill’ Action on Iranian Boats in Strait of Hormuz | IRAN WAR | N18G",
+            "channel": "CNN-News18",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ZW11aqtZqlQ",
+            "position": 12,
+            "title": "‘Urgent meeting with the back of his eyelids’: Nicolle on Trump DOZING OFF in public appearances",
+            "channel": "MS NOW",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "Rg_GcSEZ9lA",
+            "position": 13,
+            "title": "The Secret Weapon That Finally Stopped the Mongols - Battle of Kili 1299.",
+            "channel": "History Explained",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "BBzmNXMjGk4",
+            "position": 14,
+            "title": "Especialista alerta para escalada e guerra por posição de força",
+            "channel": "Rede TVT",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "TmE5rf-wvZ4",
+            "position": 15,
+            "title": "‘His sleepiness is getting sleepier’: Miles Taylor discusses Trump's erratic behavior",
+            "channel": "MS NOW",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "q4szPBDnqKw",
+            "position": 16,
+            "title": "Iran's new Supreme Leader 'gravely injured'. Who's really leading Iran now?",
+            "channel": "CNN",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "GQJVO1XOTm0",
+            "position": 17,
+            "title": "Most Americans think Trump is NOT mentally fit for office, Fox News poll says",
+            "channel": "MS NOW",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "UdY_0hUM1iw",
+            "position": 18,
+            "title": "NOTICIAS DEL DÍA: Araghchi viaja a Pakistán, bloqueo absoluto en Ormuz y Netanyahu amenaza a Líbano",
+            "channel": "Negocios TV",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "bK-ErF86OnY",
+            "position": 19,
+            "title": "WW ESPECIAL - AS LIÇÕES DE ESTRATÉGIA NA GUERRA CONTRA O IRÃ - 19/04/2026",
+            "channel": "CNN Brasil",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "Xs72A6XeRzM",
+            "position": 20,
+            "title": "STRAIT-UP CONFUSED: Iran denies talks with US as both sides claim control of same waterway",
+            "channel": "Fox News",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ZvypQZjadrQ",
+            "position": 21,
+            "title": "LIVE: Pete Hegseth holds Pentagon briefing on the Iran war",
+            "channel": "Associated Press",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "i8FyzRwvI3c",
+            "position": 22,
+            "title": "Gen. Keane: This is QUITE significant",
+            "channel": "Fox News Clips",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "WAUqj_9CPuU",
+            "position": 23,
+            "title": "Admiral McRaven on Iran, Military Power & U.S. Strategy",
+            "channel": "Katie Couric",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "dKSiBhH9AQI",
+            "position": 24,
+            "title": "Live: PENTAGON JUST CALLED EMERGENCY BRIEFING – Hegseth & Gen. Caine's WORDS Will SHAKE NATION",
+            "channel": "ET Now",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "v40Bnkh3yQw",
+        "creatorHandle": "PennLive.com",
+        "creatorId": "PennLive.com",
+        "caption": "April 24, 2026 | Today in PA | A PennLive daily news briefing with Claudia Dimuro",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "GYYgqCprgbM",
+        "creatorHandle": "Fox Business",
+        "creatorId": "Fox Business",
+        "caption": "Pete Hegseth e o general Dan Caine realizam coletiva de imprensa no Pentágono",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "i56UgP3oErg",
+        "creatorHandle": "The President's Daily Brief",
+        "creatorId": "The President's Daily Brief",
+        "caption": "Why Clearing The Strait Of Hormuz Could Take MONTHS",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "Iw0iffzD_Ew",
+        "creatorHandle": "PennLive.com",
+        "creatorId": "PennLive.com",
+        "caption": "April 23, 2026 | Today in PA | A PennLive daily news briefing with Claudia Dimuro",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "Hj0fKPXLKIk",
+        "creatorHandle": "DWS News",
+        "creatorId": "DWS News",
+        "caption": "Pentagon FULL Urgent Briefing: Pete Hegseth Vows Strong Action Amid Iran Tensions Escalate | AH15",
+        "positionInFeed": 9,
+        "position": 9,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-br-news-politics-engaged-sampler-v1-1777094634235",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:23:54.235Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-br-news-politics-engaged-sampler-v1",
+      "syntheticRegion": "Brazil",
+      "syntheticCategory": "News & Politics",
+      "syntheticBehavior": "engaged-sampler",
+      "searchQuery": "daily news briefing",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": true,
+    "status": 201,
+    "uploadId": "926dfc25-5dc0-4fda-9d95-c011fbfe1cba",
+    "body": {
+      "success": true,
+      "snapshotId": "b3a5a7aa-37a0-442a-baaa-da4e4a4c23c6"
+    }
+  }
+}

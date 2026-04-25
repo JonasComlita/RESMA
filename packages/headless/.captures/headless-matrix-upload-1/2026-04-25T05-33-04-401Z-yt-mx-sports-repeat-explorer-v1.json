@@ -1,0 +1,618 @@
+{
+  "profile": {
+    "id": "yt-mx-sports-repeat-explorer-v1",
+    "storageKey": "yt-mx-sports-repeat-explorer-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "mx",
+      "displayName": "Mexico",
+      "youtubeRegionCode": "MX",
+      "locale": "es-MX",
+      "timezoneId": "America/Mexico_City",
+      "acceptLanguage": "es-MX,es;q=0.9,en;q=0.6"
+    },
+    "category": {
+      "key": "sports",
+      "label": "Sports",
+      "description": "League highlights, analysis, fitness crossover, and event recommendations.",
+      "querySeeds": [
+        "match highlights today",
+        "player analysis breakdown",
+        "sports documentary clip"
+      ],
+      "followUpQuerySeeds": [
+        "post game interview",
+        "training drill highlights"
+      ]
+    },
+    "behavior": {
+      "key": "repeat-explorer",
+      "label": "Repeat Explorer",
+      "description": "Returns to prior clusters, follows channel adjacency, and is useful for recommendation drift checks.",
+      "watchDurationSeconds": {
+        "min": 18,
+        "max": 42
+      },
+      "watchDurationRatio": {
+        "min": 0.16,
+        "max": 0.4
+      },
+      "scrollCadenceMs": {
+        "min": 2100,
+        "max": 3600
+      },
+      "interactionRate": {
+        "min": 0.24,
+        "max": 0.42
+      },
+      "sessionLengthActions": {
+        "min": 5,
+        "max": 9
+      },
+      "detailOpenRate": {
+        "min": 0.48,
+        "max": 0.72
+      },
+      "revisitPattern": "channel-loop",
+      "revisitProbability": 0.51
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 20,
+    "interactedVideoId": "IHEFssG5ju4",
+    "query": "match highlights today",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "IHEFssG5ju4",
+        "creatorHandle": "Kabaddi MAX",
+        "creatorId": "Kabaddi MAX",
+        "caption": "Full Highlights | Royal Challengers Bengaluru vs Gujarat Titans | IPL T20 MATCH 2026 | RCB Vs GT",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 20.93,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ],
+        "engagementMetrics": {
+          "watchTime": 20.93,
+          "recommendationCount": 20,
+          "recommendations": [
+            {
+              "videoId": "cMf418NsKNk",
+              "position": 1,
+              "title": "Royal Challengers Bengaluru vs Gujarat Titans Full Highlights IPL 2026 Match 34 | RCB VS GT",
+              "channel": "Noor E Pakistan",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "pv7YuXIDfi4",
+              "position": 2,
+              "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK 2026 IPL",
+              "channel": "صندوق افلام",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "QsLw0c1SiFQ",
+              "position": 3,
+              "title": "Cuando Tyson se enfrentó a la máquina de destrozar",
+              "channel": "VS+",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "JIWARBvn8qU",
+              "position": 4,
+              "title": "Jason Statham Is THE OPERATOR - Fast Action Free English Movie | Hollywood Blockbuster English Movie",
+              "channel": "Hollywood Action",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "O5DrnKq7hG4",
+              "position": 5,
+              "title": "Male lion attacks over 20 hyenas",
+              "channel": "Maasai Sightings",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "8b0ubLO2MUE",
+              "position": 6,
+              "title": "Yuvraj Singh slams six sixes off Stuart Broad | ENG v IND | T20 World Cup 2007",
+              "channel": "ICC",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "yE-BUM4idMs",
+              "position": 7,
+              "title": "India RULES! They Did The IMPOSSIBLE On Got Talent!",
+              "channel": "Top 10 Talent",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ltaYmh8Vlis",
+              "position": 8,
+              "title": "Royal Challengers Bengaluru vs Gujarat Titans | Full Highlights IPL T20 Match 2026 | RCB Vs GT",
+              "channel": "All Open Kabaddi",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "1UyRt04e25o",
+              "position": 9,
+              "title": "Él se casó con ella para obtener la tarjeta de residencia permanente; ella no sabía que él tenía ...",
+              "channel": "Crime Mile",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "xDdBZL_ToE0",
+              "position": 10,
+              "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK IPL Highlights",
+              "channel": "True Tales TV",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "sc-p5nXDj-w",
+              "position": 11,
+              "title": "DRAMA EN LOS ÚLTIMOS DÍAS DEL PARTIDO 😱 Real Betis vs. Real Madrid | Resumen de LALIGA | ESPN FC",
+              "channel": "ESPN FC",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "LyoFSeVtJJk",
+              "position": 12,
+              "title": "Drishyam 2 Hindi Full Movie | Ajay Devgn | Tabu | Shriya Saran | Blockbuster Movie 2026",
+              "channel": "FilmAxis Global",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "o8puXSF9d2Y",
+              "position": 13,
+              "title": "Resumen completo del tercer partido entre Los Angeles Lakers y Houston Rockets - 24 de abril de 2...",
+              "channel": "GAMETIME HIGHLIGHTS",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "UiR8zweh-OY",
+              "position": 14,
+              "title": "The New Air Force One: Flying Fortress (Full Episode) | SPECIAL | National Geographic",
+              "channel": "National Geographic",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "irtiiBsaLG0",
+              "position": 15,
+              "title": "Cristiano Ronaldo SCORES a HAT-TRICK in FRONT of HIS SON! 🥹🔥",
+              "channel": "AlfonsoR10",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "oQU3UQ4WLnQ",
+              "position": 16,
+              "title": "8 Times SHELDON Went TOO FAR!!! - The Big Bang Theory",
+              "channel": "Shelly&Penny",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "MAm0RLQpYas",
+              "position": 17,
+              "title": "Final | India vs Pakistan | DP World Asia Cup 2025",
+              "channel": "Asian Cricket Council",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "-yL9B3w_FHU",
+              "position": 18,
+              "title": "THE TAJ STORY (Full Movie) Paresh Rawal, Zakir Hussain, Amruta Khanvilkar | New Bollywood Movie",
+              "channel": "Lionsgate Play - Hindi",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "09JYAZEoOOk",
+              "position": 19,
+              "title": "India Win On Final Day | England v India 2021 Test At Lord's",
+              "channel": "Lord's Cricket Ground",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "KzfeiYSA5G4",
+              "position": 20,
+              "title": "Impossible Places: The Most Extreme Corners of Planet Earth | 4K Travel Documentary",
+              "channel": "New Travel Insight",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "cMf418NsKNk",
+            "position": 1,
+            "title": "Royal Challengers Bengaluru vs Gujarat Titans Full Highlights IPL 2026 Match 34 | RCB VS GT",
+            "channel": "Noor E Pakistan",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "pv7YuXIDfi4",
+            "position": 2,
+            "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK 2026 IPL",
+            "channel": "صندوق افلام",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "QsLw0c1SiFQ",
+            "position": 3,
+            "title": "Cuando Tyson se enfrentó a la máquina de destrozar",
+            "channel": "VS+",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "JIWARBvn8qU",
+            "position": 4,
+            "title": "Jason Statham Is THE OPERATOR - Fast Action Free English Movie | Hollywood Blockbuster English Movie",
+            "channel": "Hollywood Action",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "O5DrnKq7hG4",
+            "position": 5,
+            "title": "Male lion attacks over 20 hyenas",
+            "channel": "Maasai Sightings",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "8b0ubLO2MUE",
+            "position": 6,
+            "title": "Yuvraj Singh slams six sixes off Stuart Broad | ENG v IND | T20 World Cup 2007",
+            "channel": "ICC",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "yE-BUM4idMs",
+            "position": 7,
+            "title": "India RULES! They Did The IMPOSSIBLE On Got Talent!",
+            "channel": "Top 10 Talent",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ltaYmh8Vlis",
+            "position": 8,
+            "title": "Royal Challengers Bengaluru vs Gujarat Titans | Full Highlights IPL T20 Match 2026 | RCB Vs GT",
+            "channel": "All Open Kabaddi",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "1UyRt04e25o",
+            "position": 9,
+            "title": "Él se casó con ella para obtener la tarjeta de residencia permanente; ella no sabía que él tenía ...",
+            "channel": "Crime Mile",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "xDdBZL_ToE0",
+            "position": 10,
+            "title": "Mumbai Indians Vs Chennai Super Kings IPL Match 33 Full Highlights 2026 | MI VS CSK IPL Highlights",
+            "channel": "True Tales TV",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "sc-p5nXDj-w",
+            "position": 11,
+            "title": "DRAMA EN LOS ÚLTIMOS DÍAS DEL PARTIDO 😱 Real Betis vs. Real Madrid | Resumen de LALIGA | ESPN FC",
+            "channel": "ESPN FC",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "LyoFSeVtJJk",
+            "position": 12,
+            "title": "Drishyam 2 Hindi Full Movie | Ajay Devgn | Tabu | Shriya Saran | Blockbuster Movie 2026",
+            "channel": "FilmAxis Global",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "o8puXSF9d2Y",
+            "position": 13,
+            "title": "Resumen completo del tercer partido entre Los Angeles Lakers y Houston Rockets - 24 de abril de 2...",
+            "channel": "GAMETIME HIGHLIGHTS",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "UiR8zweh-OY",
+            "position": 14,
+            "title": "The New Air Force One: Flying Fortress (Full Episode) | SPECIAL | National Geographic",
+            "channel": "National Geographic",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "irtiiBsaLG0",
+            "position": 15,
+            "title": "Cristiano Ronaldo SCORES a HAT-TRICK in FRONT of HIS SON! 🥹🔥",
+            "channel": "AlfonsoR10",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "oQU3UQ4WLnQ",
+            "position": 16,
+            "title": "8 Times SHELDON Went TOO FAR!!! - The Big Bang Theory",
+            "channel": "Shelly&Penny",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "MAm0RLQpYas",
+            "position": 17,
+            "title": "Final | India vs Pakistan | DP World Asia Cup 2025",
+            "channel": "Asian Cricket Council",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "-yL9B3w_FHU",
+            "position": 18,
+            "title": "THE TAJ STORY (Full Movie) Paresh Rawal, Zakir Hussain, Amruta Khanvilkar | New Bollywood Movie",
+            "channel": "Lionsgate Play - Hindi",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "09JYAZEoOOk",
+            "position": 19,
+            "title": "India Win On Final Day | England v India 2021 Test At Lord's",
+            "channel": "Lord's Cricket Ground",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "KzfeiYSA5G4",
+            "position": 20,
+            "title": "Impossible Places: The Most Extreme Corners of Planet Earth | 4K Travel Documentary",
+            "channel": "New Travel Insight",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "ltaYmh8Vlis",
+        "creatorHandle": "All Open Kabaddi",
+        "creatorId": "All Open Kabaddi",
+        "caption": "Royal Challengers Bengaluru vs Gujarat Titans | Full Highlights IPL T20 Match 2026 | RCB Vs GT",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "sc-p5nXDj-w",
+        "creatorHandle": "ESPN FC",
+        "creatorId": "ESPN FC",
+        "caption": "LATE-MATCH DRAMA 😱 Real Betis vs. Real Madrid | LALIGA Highlights | ESPN FC",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "5E4T64aeWuo",
+        "creatorHandle": "Pakistan Super League",
+        "creatorId": "Pakistan Super League",
+        "caption": "Resumen completo del partido | Hyderabad Kingsmen vs Islamabad United | Urdu | M 36 | HBL PSL 11 ...",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "CtMOJ6dW8j4",
+        "creatorHandle": "Kabaddi State",
+        "creatorId": "Kabaddi State",
+        "caption": "ROYAL CHALLENGERS BENGALURU VS GUJARAT TITANS FULL HIGHLIGHTS IPL 2026  | RCB VS GT IPL HIGHLIGHTS",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      },
+      {
+        "videoId": "oJhWsMOdnh0",
+        "creatorHandle": "Kabaddi State",
+        "creatorId": "Kabaddi State",
+        "caption": "ROYAL CHALLENGERS BENGALURU VS GUJARAT TITANS FULL HIGHLIGHTS IPL 2026  | RCB VS GT IPL HIGHLIGHTS",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "sports",
+          "match highlights today"
+        ],
+        "contentCategories": [
+          "Sports"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-mx-sports-repeat-explorer-v1-1777095184401",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:33:04.401Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-mx-sports-repeat-explorer-v1",
+      "syntheticRegion": "Mexico",
+      "syntheticCategory": "Sports",
+      "syntheticBehavior": "repeat-explorer",
+      "searchQuery": "match highlights today",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": false,
+    "status": 429,
+    "uploadId": "4bc693ac-9e0f-4b41-889f-24bf15aefeb5",
+    "body": {
+      "success": false,
+      "error": "Too many requests, please try again later."
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { AlertTriangle, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
     CartesianGrid,
@@ -24,6 +24,7 @@ import type {
     DataQualityDiagnosticsResult,
     DataQualityTrendResult,
 } from '../../types/dataQuality';
+import { SandDanceExplorer } from './SandDanceExplorer';
 
 interface DataQualitySectionProps {
     platform: string;
@@ -325,6 +326,19 @@ export function DataQualitySection({
     surfaceTrendLeaders,
     surfaceTrendSeries,
 }: DataQualitySectionProps) {
+    const [showSurfaceExplorer, setShowSurfaceExplorer] = useState(false);
+    const surfaceExplorerRows = useMemo<Record<string, unknown>[]>(() => (
+        dataQuality?.recommendations.bySurface.map((surface) => ({
+            surface: surface.surface,
+            rawRows: surface.rawRows,
+            strictRows: surface.strictRows,
+            parseCoverage: surface.parseCoverage,
+            parserDropRate: surface.parserDropRate,
+            uniqueTransitions: surface.uniqueTransitions,
+            transitionStabilityScore: surface.transitionStabilityScore,
+        })) ?? []
+    ), [dataQuality]);
+
     return (
         <ErrorBoundary
             title="Cross-user data quality failed to render."
@@ -517,6 +531,23 @@ export function DataQualitySection({
                                 <p className="mt-2 text-[11px] text-gray-500">
                                     Surface stability is transition repeat strength within each recommendation surface after strict parsing.
                                 </p>
+                                <div className="mt-4 border-t border-gray-200 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSurfaceExplorer((current) => !current)}
+                                        className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                        {showSurfaceExplorer ? 'Hide SandDance Explorer' : 'Explore in SandDance'}
+                                    </button>
+                                    {showSurfaceExplorer && (
+                                        <div className="mt-3">
+                                            <SandDanceExplorer
+                                                title="Surface Quality Explorer"
+                                                data={surfaceExplorerRows}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
 

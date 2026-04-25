@@ -1,0 +1,209 @@
+{
+  "profile": {
+    "id": "yt-jp-news-politics-scanner-v1",
+    "storageKey": "yt-jp-news-politics-scanner-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "jp",
+      "displayName": "Japan",
+      "youtubeRegionCode": "JP",
+      "locale": "ja-JP",
+      "timezoneId": "Asia/Tokyo",
+      "acceptLanguage": "ja-JP,ja;q=0.9,en;q=0.5"
+    },
+    "category": {
+      "key": "news-politics",
+      "label": "News & Politics",
+      "description": "Topical news, explainers, and civic commentary recommendation behavior.",
+      "querySeeds": [
+        "daily news briefing",
+        "policy explainer",
+        "election analysis panel"
+      ],
+      "followUpQuerySeeds": [
+        "international news summary",
+        "fact check explainer"
+      ]
+    },
+    "behavior": {
+      "key": "scanner",
+      "label": "Scanner",
+      "description": "Moves quickly, samples lightly, and opens detail pages only when a result stands out.",
+      "watchDurationSeconds": {
+        "min": 8,
+        "max": 22
+      },
+      "watchDurationRatio": {
+        "min": 0.08,
+        "max": 0.2
+      },
+      "scrollCadenceMs": {
+        "min": 1200,
+        "max": 2600
+      },
+      "interactionRate": {
+        "min": 0.08,
+        "max": 0.18
+      },
+      "sessionLengthActions": {
+        "min": 5,
+        "max": 8
+      },
+      "detailOpenRate": {
+        "min": 0.25,
+        "max": 0.45
+      },
+      "revisitPattern": "none",
+      "revisitProbability": 0.05
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 0,
+    "interactedVideoId": null,
+    "query": "daily news briefing",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "i56UgP3oErg",
+        "creatorHandle": "The President's Daily Brief",
+        "creatorId": "The President's Daily Brief",
+        "caption": "Why Clearing The Strait Of Hormuz Could Take MONTHS",
+        "positionInFeed": 1,
+        "position": 1,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "WHhN4sOvTD0",
+        "creatorHandle": "ABC News",
+        "creatorId": "ABC News",
+        "caption": "ホワイトハウス記者会見：生中継",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "816iO_c2gBM",
+        "creatorHandle": "ABC News",
+        "creatorId": "ABC News",
+        "caption": "LIVE: White House press briefing",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "3885hDS5gio",
+        "creatorHandle": "DWS News",
+        "creatorId": "DWS News",
+        "caption": "BREAKING NEWS: General Dan Caine Holds Explosive Military Briefing on Iran War in Washington | AC1Z",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "zQGxE_10pS4",
+        "creatorHandle": "Sky News",
+        "creatorId": "Sky News",
+        "caption": "分析：イラン戦争に投入される新型機｜日報10日目",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      },
+      {
+        "videoId": "vitEYBrwWHM",
+        "creatorHandle": "KMPH FOX26 NEWS",
+        "creatorId": "KMPH FOX26 NEWS",
+        "caption": "ホワイトハウス報道官のカロライン・リービット氏は、ホワイトハウスの外で短い記者会見を開いた。",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "news-politics",
+          "daily news briefing"
+        ],
+        "contentCategories": [
+          "News & Politics"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "HOMEPAGE_SNAPSHOT",
+      "captureSurface": "search-results",
+      "clientSessionId": "yt-jp-news-politics-scanner-v1-1777095049354",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:30:49.354Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-jp-news-politics-scanner-v1",
+      "syntheticRegion": "Japan",
+      "syntheticCategory": "News & Politics",
+      "syntheticBehavior": "scanner",
+      "searchQuery": "daily news briefing",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": false,
+    "status": 429,
+    "uploadId": "35fe80b1-025c-4923-8551-7fba3cab65fe",
+    "body": {
+      "success": false,
+      "error": "Too many requests, please try again later."
+    }
+  }
+}

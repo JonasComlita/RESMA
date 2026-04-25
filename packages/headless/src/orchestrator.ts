@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { captureYouTubeProfile } from './youtube.js';
 import { uploadCapturePayload } from './uploader.js';
 import {
@@ -21,6 +21,10 @@ function artifactFilename(profileId: string, capturedAt: string): string {
     return `${safeTimestamp}-${profileId}.json`;
 }
 
+function summaryPathFor(outputDir: string): string {
+    return path.join(outputDir, 'run-summary.json');
+}
+
 async function persistCaptureArtifact(
     artifact: CaptureArtifact,
     options: CaptureRuntimeOptions,
@@ -30,6 +34,14 @@ async function persistCaptureArtifact(
     const capturedAt = artifact.payload.sessionMetadata.capturedAt ?? new Date().toISOString();
     const artifactPath = path.join(options.outputDir, artifactFilename(artifact.profile.id, capturedAt));
 
+    let upload = null;
+    if (options.upload && options.apiBaseUrl && options.authToken) {
+        upload = await uploadCapturePayload(artifact.payload, {
+            apiBaseUrl: options.apiBaseUrl,
+            authToken: options.authToken,
+        });
+    }
+
     await writeFile(
         artifactPath,
         JSON.stringify(
@@ -38,20 +50,13 @@ async function persistCaptureArtifact(
                 summary: artifact.summary,
                 warnings: artifact.warnings,
                 payload: artifact.payload,
+                upload,
             },
             null,
             2,
         ),
         'utf8',
     );
-
-    let upload = null;
-    if (options.upload && options.apiBaseUrl && options.authToken) {
-        upload = await uploadCapturePayload(artifact.payload, {
-            apiBaseUrl: options.apiBaseUrl,
-            authToken: options.authToken,
-        });
-    }
 
     return {
         ...artifact,
@@ -83,8 +88,8 @@ function buildCoverageCells(completed: PersistedCaptureArtifact[]): CoverageCell
     });
 }
 
-function buildMissingCoverageCells(completed: PersistedCaptureArtifact[]): CoverageCellSummary[] {
-    const coverage = new Set(completed.map((artifact) => `${artifact.profile.region.key}:${artifact.profile.category.key}`));
+function buildMissingCoverageCells(successfulArtifacts: PersistedCaptureArtifact[]): CoverageCellSummary[] {
+    const coverage = new Set(successfulArtifacts.map((artifact) => `${artifact.profile.region.key}:${artifact.profile.category.key}`));
     const missing: CoverageCellSummary[] = [];
 
     for (const region of RESEARCH_REGIONS) {
@@ -105,55 +110,146 @@ function buildMissingCoverageCells(completed: PersistedCaptureArtifact[]): Cover
 
 export function summarizeCaptureRun(
     requestedProfiles: SyntheticResearchProfile[],
-    completed: PersistedCaptureArtifact[],
+    successfulArtifacts: PersistedCaptureArtifact[],
     failed: Array<{ profileId: string; error: string }>,
+    resumedCount = 0,
 ): CaptureRunSummary {
-    const uploadAttemptCount = completed.filter((artifact) => artifact.upload !== null).length;
-    const uploadSuccessCount = completed.filter((artifact) => artifact.upload?.ok).length;
+    const uploadAttemptCount = successfulArtifacts.filter((artifact) => artifact.upload !== null).length;
+    const uploadSuccessCount = successfulArtifacts.filter((artifact) => artifact.upload?.ok).length;
 
     return {
         totalProfilesRequested: requestedProfiles.length,
-        completedCount: completed.length,
+        completedCount: successfulArtifacts.length,
         failedCount: failed.length,
+        resumedCount,
         uploadAttemptCount,
         uploadSuccessCount,
-        lowRecommendationProfiles: completed
+        lowRecommendationProfiles: successfulArtifacts
             .filter((artifact) => artifact.summary.recommendationCount < 3)
             .map((artifact) => artifact.profile.id),
-        lowSearchResultProfiles: completed
+        lowSearchResultProfiles: successfulArtifacts
             .filter((artifact) => artifact.summary.searchItemCount < 5)
             .map((artifact) => artifact.profile.id),
-        coverageCells: buildCoverageCells(completed),
-        missingCoverageCells: buildMissingCoverageCells(completed),
+        coverageCells: buildCoverageCells(successfulArtifacts),
+        missingCoverageCells: buildMissingCoverageCells(successfulArtifacts),
     };
+}
+
+async function loadPersistedArtifact(artifactPath: string): Promise<PersistedCaptureArtifact | null> {
+    try {
+        const raw = JSON.parse(await readFile(artifactPath, 'utf8')) as Partial<PersistedCaptureArtifact>;
+        if (!raw || typeof raw !== 'object' || !raw.profile || !raw.payload || !raw.summary) {
+            return null;
+        }
+
+        return {
+            profile: raw.profile as PersistedCaptureArtifact['profile'],
+            payload: raw.payload as PersistedCaptureArtifact['payload'],
+            summary: raw.summary as PersistedCaptureArtifact['summary'],
+            warnings: Array.isArray(raw.warnings) ? raw.warnings : [],
+            artifactPath,
+            upload: (raw.upload ?? null) as PersistedCaptureArtifact['upload'],
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function loadExistingArtifacts(
+    profiles: SyntheticResearchProfile[],
+    outputDir: string,
+): Promise<PersistedCaptureArtifact[]> {
+    const requestedIds = new Set(profiles.map((profile) => profile.id));
+
+    let entries: string[] = [];
+    try {
+        entries = await readdir(outputDir);
+    } catch {
+        return [];
+    }
+
+    const candidates = entries
+        .filter((entry) => entry.endsWith('.json') && entry !== 'run-summary.json')
+        .map((entry) => path.join(outputDir, entry));
+
+    const latestByProfile = new Map<string, { artifact: PersistedCaptureArtifact; mtimeMs: number }>();
+
+    for (const artifactPath of candidates) {
+        const artifact = await loadPersistedArtifact(artifactPath);
+        if (!artifact || !requestedIds.has(artifact.profile.id)) {
+            continue;
+        }
+
+        const artifactStat = await stat(artifactPath).catch(() => null);
+        const mtimeMs = artifactStat?.mtimeMs ?? 0;
+        const existing = latestByProfile.get(artifact.profile.id);
+        if (!existing || mtimeMs >= existing.mtimeMs) {
+            latestByProfile.set(artifact.profile.id, { artifact, mtimeMs });
+        }
+    }
+
+    return profiles
+        .map((profile) => latestByProfile.get(profile.id)?.artifact ?? null)
+        .filter((artifact): artifact is PersistedCaptureArtifact => Boolean(artifact));
+}
+
+async function writeRunSummary(
+    requestedProfiles: SyntheticResearchProfile[],
+    successfulArtifacts: PersistedCaptureArtifact[],
+    failed: Array<{ profileId: string; error: string }>,
+    summaryPath: string,
+    resumedCount = 0,
+): Promise<CaptureRunSummary> {
+    const summary = summarizeCaptureRun(requestedProfiles, successfulArtifacts, failed, resumedCount);
+    await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8');
+    return summary;
 }
 
 export async function runSyntheticCaptureMatrix(
     profiles: SyntheticResearchProfile[],
     options: CaptureRuntimeOptions,
 ): Promise<CaptureRunResult> {
-    const completed: PersistedCaptureArtifact[] = [];
-    const failed: Array<{ profileId: string; error: string }> = [];
+    await mkdir(options.outputDir, { recursive: true });
 
-    for (const profile of profiles) {
+    const completed: PersistedCaptureArtifact[] = [];
+    const resumed = options.resumeExisting === false
+        ? []
+        : await loadExistingArtifacts(profiles, options.outputDir);
+    const failed: Array<{ profileId: string; error: string }> = [];
+    const summaryPath = summaryPathFor(options.outputDir);
+    const resumedIds = new Set(resumed.map((artifact) => artifact.profile.id));
+    const remainingProfiles = profiles.filter((profile) => !resumedIds.has(profile.id));
+
+    if (resumed.length > 0) {
+        console.log(`Resuming run with ${resumed.length} existing artifact(s) already present.`);
+    }
+
+    await writeRunSummary(profiles, [...resumed], failed, summaryPath, resumed.length);
+
+    for (const profile of remainingProfiles) {
+        const started = resumed.length + completed.length + failed.length + 1;
+        console.log(`[${started}/${profiles.length}] Capturing ${profile.id}...`);
         try {
             const artifact = await captureYouTubeProfile(profile, options);
-            completed.push(await persistCaptureArtifact(artifact, options));
+            const persisted = await persistCaptureArtifact(artifact, options);
+            completed.push(persisted);
+            console.log(`[${resumed.length + completed.length}/${profiles.length}] Finished ${profile.id}.`);
         } catch (error) {
             failed.push({
                 profileId: profile.id,
                 error: error instanceof Error ? error.message : 'unknown-error',
             });
+            console.error(`[${resumed.length + completed.length + failed.length}/${profiles.length}] Failed ${profile.id}.`);
         }
+
+        await writeRunSummary(profiles, [...resumed, ...completed], failed, summaryPath, resumed.length);
     }
 
-    await mkdir(options.outputDir, { recursive: true });
-    const summary = summarizeCaptureRun(profiles, completed, failed);
-    const summaryPath = path.join(options.outputDir, 'run-summary.json');
-    await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8');
+    const summary = await writeRunSummary(profiles, [...resumed, ...completed], failed, summaryPath, resumed.length);
 
     return {
         completed,
+        resumed,
         failed,
         summary,
         summaryPath,

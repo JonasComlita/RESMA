@@ -9,6 +9,7 @@ import {
     loadApiKeyUsageSummaries,
     normalizeApiKeyScopes,
 } from '../services/apiKeys.js';
+import { getPackageEntitlements } from '../services/packageAccess.js';
 
 export const apiKeysRouter: Router = Router();
 
@@ -26,6 +27,7 @@ apiKeysRouter.get('/', async (req: AuthRequest, res, next) => {
             select: {
                 id: true,
                 name: true,
+                accessPackage: true,
                 lookupId: true,
                 keyPrefix: true,
                 status: true,
@@ -49,6 +51,7 @@ apiKeysRouter.get('/', async (req: AuthRequest, res, next) => {
                 apiKeys: apiKeys.map((apiKey) => ({
                     ...apiKey,
                     usage: usageById.get(apiKey.id) ?? null,
+                    entitlements: getPackageEntitlements(apiKey.accessPackage),
                 })),
             },
         });
@@ -92,10 +95,29 @@ apiKeysRouter.post(
                 return next(createError('expiresAt must be in the future', 400));
             }
 
+            const user = await prisma.user.findUnique({
+                where: { id: req.userId },
+                select: {
+                    id: true,
+                    accessPackage: true,
+                },
+            });
+
+            if (!user) {
+                return next(createError('User not found', 404));
+            }
+
+            const entitlements = getPackageEntitlements(user.accessPackage);
+            const requestedScopes = normalizeApiKeyScopes(req.body.scopes, entitlements.allowedScopes);
+            if (requestedScopes.length === 0) {
+                return next(createError(`Package ${user.accessPackage} does not allow the requested scopes`, 403));
+            }
+
             const created = await createApiKey({
                 userId: req.userId!,
+                accessPackage: user.accessPackage,
                 name: String(req.body.name).trim(),
-                scopes: normalizeApiKeyScopes(req.body.scopes),
+                scopes: requestedScopes,
                 dailyQuota: req.body.dailyQuota ? Number(req.body.dailyQuota) : undefined,
                 monthlyQuota: req.body.monthlyQuota ? Number(req.body.monthlyQuota) : undefined,
                 expiresAt,
@@ -107,6 +129,7 @@ apiKeysRouter.post(
                     apiKey: created.record,
                     secret: created.apiKey,
                     preview: created.preview,
+                    entitlements: getPackageEntitlements(created.record.accessPackage),
                     note: 'This secret is only returned once. Store it now.',
                 },
             });

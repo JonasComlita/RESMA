@@ -1,0 +1,209 @@
+{
+  "profile": {
+    "id": "yt-br-music-scanner-v1",
+    "storageKey": "yt-br-music-scanner-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "br",
+      "displayName": "Brazil",
+      "youtubeRegionCode": "BR",
+      "locale": "pt-BR",
+      "timezoneId": "America/Sao_Paulo",
+      "acceptLanguage": "pt-BR,pt;q=0.9,en;q=0.6"
+    },
+    "category": {
+      "key": "music",
+      "label": "Music",
+      "description": "Music video, live performance, and genre-adjacent recommendation paths.",
+      "querySeeds": [
+        "live studio performance",
+        "official music video",
+        "acoustic cover session"
+      ],
+      "followUpQuerySeeds": [
+        "festival live set",
+        "artist interview performance"
+      ]
+    },
+    "behavior": {
+      "key": "scanner",
+      "label": "Scanner",
+      "description": "Moves quickly, samples lightly, and opens detail pages only when a result stands out.",
+      "watchDurationSeconds": {
+        "min": 8,
+        "max": 22
+      },
+      "watchDurationRatio": {
+        "min": 0.08,
+        "max": 0.2
+      },
+      "scrollCadenceMs": {
+        "min": 1200,
+        "max": 2600
+      },
+      "interactionRate": {
+        "min": 0.08,
+        "max": 0.18
+      },
+      "sessionLengthActions": {
+        "min": 5,
+        "max": 8
+      },
+      "detailOpenRate": {
+        "min": 0.25,
+        "max": 0.45
+      },
+      "revisitPattern": "none",
+      "revisitProbability": 0.05
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 0,
+    "interactedVideoId": null,
+    "query": "live studio performance",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "hM_8AlSqncI",
+        "creatorHandle": "Feng Suave",
+        "creatorId": "Feng Suave",
+        "caption": "Feng Suave - Live from Studio Helmbreker, Haarlem",
+        "positionInFeed": 1,
+        "position": 1,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "85YXjCU0pmc",
+        "creatorHandle": "Spotify e Kehlani",
+        "creatorId": "Spotify e Kehlani",
+        "caption": "Kehlani - Folded (Live) | Spotify Live Room",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "KOQIQfZhQC8",
+        "creatorHandle": "LITTLE BIG BEAT STUDIOS",
+        "creatorId": "LITTLE BIG BEAT STUDIOS",
+        "caption": "INCOGNITO - FULL STUDIO LIVE SESSION - LITTLE BIG BEAT STUDIOS",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "H2I6V0NlaHg",
+        "creatorHandle": "Fred again . .",
+        "creatorId": "Fred again . .",
+        "caption": "Fred again.. - Studio Live (London, April 2021)",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "O3OrcOr67sM",
+        "creatorHandle": "Fred again . .",
+        "creatorId": "Fred again . .",
+        "caption": "Fred again.. - Studio Live 3 (London, 9 November 2022)",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "Lk0sZwXTwnc",
+        "creatorHandle": "Post Malone",
+        "creatorId": "Post Malone",
+        "caption": "Post Malone, Swae Lee - Sunflower (F-1Trillion Album Livestream)",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "HOMEPAGE_SNAPSHOT",
+      "captureSurface": "search-results",
+      "clientSessionId": "yt-br-music-scanner-v1-1777094592285",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:23:12.285Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-br-music-scanner-v1",
+      "syntheticRegion": "Brazil",
+      "syntheticCategory": "Music",
+      "syntheticBehavior": "scanner",
+      "searchQuery": "live studio performance",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": true,
+    "status": 201,
+    "uploadId": "83ec9cfb-59ad-4f96-9cd7-df29c37c06c2",
+    "body": {
+      "success": true,
+      "snapshotId": "2c989bc9-e31c-466c-a406-14edf9081d34"
+    }
+  }
+}

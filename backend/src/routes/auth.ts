@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -26,8 +26,30 @@ function normalizeRecoveryCode(value: unknown): string | null {
     return normalized.length >= 12 ? normalized : null;
 }
 
-function hashRecoveryCode(recoveryCode: string) {
+function hashLegacyRecoveryCode(recoveryCode: string) {
     return createHash('sha256').update(recoveryCode).digest('hex');
+}
+
+function getRecoveryCodeLookupHash(recoveryCode: string) {
+    return createHmac('sha256', config.recoveryCodes.pepper)
+        .update(recoveryCode)
+        .digest('hex');
+}
+
+async function hashRecoveryCode(recoveryCode: string) {
+    return bcrypt.hash(recoveryCode, config.recoveryCodes.bcryptCost);
+}
+
+async function verifyRecoveryCode(recoveryCode: string, storedHash: string | null) {
+    if (!storedHash) {
+        return false;
+    }
+
+    if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+        return bcrypt.compare(recoveryCode, storedHash);
+    }
+
+    return storedHash === hashLegacyRecoveryCode(recoveryCode);
 }
 
 function generateRecoveryCode() {
@@ -59,10 +81,12 @@ authRouter.post(
             const { password } = req.body;
             const passwordHash = await bcrypt.hash(password, 12);
             const recoveryCode = generateRecoveryCode();
-            const recoveryCodeHash = hashRecoveryCode(normalizeRecoveryCode(recoveryCode)!);
+            const normalizedRecoveryCode = normalizeRecoveryCode(recoveryCode)!;
+            const recoveryCodeHash = await hashRecoveryCode(normalizedRecoveryCode);
             const userData: Prisma.UserCreateInput = {
                 passwordHash,
                 recoveryCodeHash,
+                recoveryCodeLookupHash: getRecoveryCodeLookupHash(normalizedRecoveryCode),
             };
 
             const user = await prisma.user.create({
@@ -157,22 +181,28 @@ authRouter.post(
                 return next(createError('Invalid recovery code', 401));
             }
 
-            const userLookup: Prisma.UserWhereUniqueInput = {
-                recoveryCodeHash: hashRecoveryCode(normalizedRecoveryCode),
-            };
-            const user = await prisma.user.findUnique({
-                where: userLookup,
+            const recoveryCodeLookupHash = getRecoveryCodeLookupHash(normalizedRecoveryCode);
+            let user = await prisma.user.findUnique({
+                where: { recoveryCodeLookupHash },
             });
 
             if (!user) {
+                user = await prisma.user.findUnique({
+                    where: { recoveryCodeHash: hashLegacyRecoveryCode(normalizedRecoveryCode) },
+                });
+            }
+
+            if (!user || !(await verifyRecoveryCode(normalizedRecoveryCode, user.recoveryCodeHash))) {
                 return next(createError('Invalid recovery code', 401));
             }
 
             const passwordHash = await bcrypt.hash(req.body.newPassword, 12);
             const nextRecoveryCode = generateRecoveryCode();
+            const normalizedNextRecoveryCode = normalizeRecoveryCode(nextRecoveryCode)!;
             const updatedUserData: Prisma.UserUpdateInput = {
                 passwordHash,
-                recoveryCodeHash: hashRecoveryCode(normalizeRecoveryCode(nextRecoveryCode)!),
+                recoveryCodeHash: await hashRecoveryCode(normalizedNextRecoveryCode),
+                recoveryCodeLookupHash: getRecoveryCodeLookupHash(normalizedNextRecoveryCode),
             };
             const updatedUser = await prisma.user.update({
                 where: { id: user.id },

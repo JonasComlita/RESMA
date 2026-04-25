@@ -1,0 +1,209 @@
+{
+  "profile": {
+    "id": "yt-mx-technology-scanner-v1",
+    "storageKey": "yt-mx-technology-scanner-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "mx",
+      "displayName": "Mexico",
+      "youtubeRegionCode": "MX",
+      "locale": "es-MX",
+      "timezoneId": "America/Mexico_City",
+      "acceptLanguage": "es-MX,es;q=0.9,en;q=0.6"
+    },
+    "category": {
+      "key": "technology",
+      "label": "Technology",
+      "description": "Consumer tech, developer-adjacent, and hardware/software recommendation signals.",
+      "querySeeds": [
+        "new gadget review",
+        "coding setup tour",
+        "ai tool comparison"
+      ],
+      "followUpQuerySeeds": [
+        "smartphone camera test",
+        "laptop buying guide"
+      ]
+    },
+    "behavior": {
+      "key": "scanner",
+      "label": "Scanner",
+      "description": "Moves quickly, samples lightly, and opens detail pages only when a result stands out.",
+      "watchDurationSeconds": {
+        "min": 8,
+        "max": 22
+      },
+      "watchDurationRatio": {
+        "min": 0.08,
+        "max": 0.2
+      },
+      "scrollCadenceMs": {
+        "min": 1200,
+        "max": 2600
+      },
+      "interactionRate": {
+        "min": 0.08,
+        "max": 0.18
+      },
+      "sessionLengthActions": {
+        "min": 5,
+        "max": 8
+      },
+      "detailOpenRate": {
+        "min": 0.25,
+        "max": 0.45
+      },
+      "revisitPattern": "none",
+      "revisitProbability": 0.05
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 0,
+    "interactedVideoId": null,
+    "query": "new gadget review",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "h359LRmMZMU",
+        "creatorHandle": "Mrwhosetheboss",
+        "creatorId": "Mrwhosetheboss",
+        "caption": "I tested the most VIRAL TikTok gadgets!",
+        "positionInFeed": 1,
+        "position": 1,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "nRwl0UYM3Gw",
+        "creatorHandle": "Chigz Tech Reviews",
+        "creatorId": "Chigz Tech Reviews",
+        "caption": "Coolest Tech of the Month April 2026  - EP#105 - Latest Gadgets You Must See!",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "PRgy1nnm3fg",
+        "creatorHandle": "DaveHax",
+        "creatorId": "DaveHax",
+        "caption": "Kitchen Gadgets - An Honest Review.",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "iiOi4rD83kM",
+        "creatorHandle": "Mrwhosetheboss",
+        "creatorId": "Mrwhosetheboss",
+        "caption": "I tested even CRAZIER Xiaomi Gadgets!",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "lo4bA4p3MBQ",
+        "creatorHandle": "Mrwhosetheboss",
+        "creatorId": "Mrwhosetheboss",
+        "caption": "I bought the LAZIEST Tech ever.",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      },
+      {
+        "videoId": "dVuF9oFxQvI",
+        "creatorHandle": "Fox Gadget",
+        "creatorId": "Fox Gadget",
+        "caption": "41 AMAZING Gadgets You Can Actually Buy",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "technology",
+          "new gadget review"
+        ],
+        "contentCategories": [
+          "Technology"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "HOMEPAGE_SNAPSHOT",
+      "captureSurface": "search-results",
+      "clientSessionId": "yt-mx-technology-scanner-v1-1777095102479",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:31:42.479Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-mx-technology-scanner-v1",
+      "syntheticRegion": "Mexico",
+      "syntheticCategory": "Technology",
+      "syntheticBehavior": "scanner",
+      "searchQuery": "new gadget review",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": false,
+    "status": 429,
+    "uploadId": "ca2aaade-634a-4e98-8f98-9d71a86a26ff",
+    "body": {
+      "success": false,
+      "error": "Too many requests, please try again later."
+    }
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "profile": {
+    "id": "yt-mx-music-scanner-v1",
+    "storageKey": "yt-mx-music-scanner-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "mx",
+      "displayName": "Mexico",
+      "youtubeRegionCode": "MX",
+      "locale": "es-MX",
+      "timezoneId": "America/Mexico_City",
+      "acceptLanguage": "es-MX,es;q=0.9,en;q=0.6"
+    },
+    "category": {
+      "key": "music",
+      "label": "Music",
+      "description": "Music video, live performance, and genre-adjacent recommendation paths.",
+      "querySeeds": [
+        "live studio performance",
+        "official music video",
+        "acoustic cover session"
+      ],
+      "followUpQuerySeeds": [
+        "festival live set",
+        "artist interview performance"
+      ]
+    },
+    "behavior": {
+      "key": "scanner",
+      "label": "Scanner",
+      "description": "Moves quickly, samples lightly, and opens detail pages only when a result stands out.",
+      "watchDurationSeconds": {
+        "min": 8,
+        "max": 22
+      },
+      "watchDurationRatio": {
+        "min": 0.08,
+        "max": 0.2
+      },
+      "scrollCadenceMs": {
+        "min": 1200,
+        "max": 2600
+      },
+      "interactionRate": {
+        "min": 0.08,
+        "max": 0.18
+      },
+      "sessionLengthActions": {
+        "min": 5,
+        "max": 8
+      },
+      "detailOpenRate": {
+        "min": 0.25,
+        "max": 0.45
+      },
+      "revisitPattern": "none",
+      "revisitProbability": 0.05
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 0,
+    "interactedVideoId": null,
+    "query": "live studio performance",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "hM_8AlSqncI",
+        "creatorHandle": "Feng Suave",
+        "creatorId": "Feng Suave",
+        "caption": "Feng Suave - Live from Studio Helmbreker, Haarlem",
+        "positionInFeed": 1,
+        "position": 1,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "85YXjCU0pmc",
+        "creatorHandle": "Spotify y Kehlani",
+        "creatorId": "Spotify y Kehlani",
+        "caption": "Kehlani - Folded (Live) | Spotify Live Room",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "KOQIQfZhQC8",
+        "creatorHandle": "LITTLE BIG BEAT STUDIOS",
+        "creatorId": "LITTLE BIG BEAT STUDIOS",
+        "caption": "INCOGNITO - FULL STUDIO LIVE SESSION - LITTLE BIG BEAT STUDIOS",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "H2I6V0NlaHg",
+        "creatorHandle": "Fred again . .",
+        "creatorId": "Fred again . .",
+        "caption": "Fred again.. - Studio Live (London, April 2021)",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "xAWDqdpOlu8",
+        "creatorHandle": "Billie Eilish",
+        "creatorId": "Billie Eilish",
+        "caption": "Billie Eilish – WILDFLOWER (Live Performance from Amazon Music’s Songline)",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "Lk0sZwXTwnc",
+        "creatorHandle": "Post Malone",
+        "creatorId": "Post Malone",
+        "caption": "Post Malone, Swae Lee - Sunflower (F-1Trillion Album Livestream)",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "HOMEPAGE_SNAPSHOT",
+      "captureSurface": "search-results",
+      "clientSessionId": "yt-mx-music-scanner-v1-1777095094128",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:31:34.128Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-mx-music-scanner-v1",
+      "syntheticRegion": "Mexico",
+      "syntheticCategory": "Music",
+      "syntheticBehavior": "scanner",
+      "searchQuery": "live studio performance",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": false,
+    "status": 429,
+    "uploadId": "edac60c9-7c6e-4022-abca-a0ad4ba4ebd5",
+    "body": {
+      "success": false,
+      "error": "Too many requests, please try again later."
+    }
+  }
+}

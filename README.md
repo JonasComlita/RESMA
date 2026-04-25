@@ -4,7 +4,7 @@
 
 > Open-source platform for pseudonymous recommendation capture, collective algorithm transparency, and aggregate-only insight generation across TikTok, YouTube, Twitter, Instagram, and other feeds.
 
-## 🎯 Vision
+## Vision
 
 Social media algorithms are black boxes that shape what billions of people see daily. RESMA is built around two connected goals:
 
@@ -26,19 +26,20 @@ RESMA is designed so contributors can participate in recommendation research wit
 
 This keeps the project aligned with its original observatory goal: privacy-preserving contribution first, aggregate research and creator insights second.
 
-## 🏗️ Project Structure
+## Project Structure
 
-```
+```text
 resma/
-├── extension/         # Chrome browser extension (TikTok, YouTube, Twitter & Instagram)
-├── backend/           # Node.js + Express API + Prisma
-├── frontend/          # React dashboard and analytics UI
-└── packages/shared/   # Shared Zod schemas and TS contracts
+|-- extension/         # Chrome browser extension (TikTok, YouTube, Twitter & Instagram)
+|-- backend/           # Node.js + Express API + Prisma
+|-- frontend/          # React dashboard and analytics UI
+`-- packages/shared/   # Shared Zod schemas and TS contracts
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
+
 - Node.js 20+
 - pnpm 8+
 - PostgreSQL 15+
@@ -76,7 +77,7 @@ pnpm dev
 5. Export aggregate-only insight briefs if you want cohort-level creator analysis.
 6. Delete your account from the dashboard at any time if you want your observatory data removed.
 
-## 📦 Packages
+## Packages
 
 | Package | Description |
 |---------|-------------|
@@ -85,44 +86,47 @@ pnpm dev
 | `frontend` | React observatory dashboard for contributors plus aggregate insight tooling |
 | `@resma/shared` | Shared schemas/types for capture payloads and analytics contracts |
 
+## License
 
-## 📄 License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## ⚠️ Disclaimer
+## Disclaimer
 
 This project is for research and educational purposes. Users are responsible for ensuring their use complies with applicable terms of service and laws. All data collection requires explicit user consent.
 
-## 🐦 Twitter Support
+## Twitter Support
 
 RESMA now supports capturing, analyzing, and comparing Twitter feeds in addition to TikTok, YouTube, and Instagram. All features are opt-in and privacy-focused.
 
-## ⚡ Performance & Storage Optimizations
+## Performance & Storage Optimizations
 
-RESMA uses **MessagePack + Brotli** binary serialization for efficient data storage and transmission (with legacy Zstandard-compatible read fallback):
+RESMA uses **MessagePack + Brotli** binary serialization for efficient data storage and transmission, with legacy Zstandard-compatible read fallback.
 
 ### Storage Efficiency
+
 - **~90% smaller** database storage compared to JSON
 - **~80% smaller** network payloads from browser extension
 - Optimized for TB-scale data collection
 
 ### How It Works
-1. **Browser Extension** → Sends data using MessagePack binary format
-2. **Backend API** → Stores data compressed with MessagePack + Brotli
-3. **Database** → PostgreSQL `BYTEA` fields instead of `JSONB`
+
+1. **Browser Extension** -> sends data using MessagePack binary format
+2. **Backend API** -> stores data compressed with MessagePack + Brotli
+3. **Database** -> PostgreSQL `BYTEA` fields instead of `JSONB`
 
 ### Migration
+
 If you have existing data, run the migration script:
+
 ```bash
 cd backend && npx tsx src/scripts/migrate-to-msgpack.ts
 ```
 
 This optimization enables RESMA to efficiently handle massive amounts of feed data while minimizing storage costs and bandwidth usage.
 
-## 🧱 Architecture Enhancements (April 2026)
+## Architecture Enhancements (April 2026)
 
-This release adds platform-agnostic schema design and shared contracts across extension/frontend/backend.
+This release adds platform-agnostic schema design and shared contracts across extension, frontend, and backend.
 
 ### Shared Workspace Package
 
@@ -175,30 +179,42 @@ If you want to run RESMA as a multi-agent workflow, start here:
 - `docs/agents/STARTER_STACK_PROMPTS.md`
 - `docs/operations/STARTER_STACK_NEXT_STEPS.md`
 
-## 🧭 Recent Updates (April 2026)
+## Recent Updates (April 2026)
 
-RESMA now includes a stronger aggregate insight workflow built on observatory-wide, cross-user comparison quality.
+RESMA now includes a broader aggregate-only observatory workflow spanning machine access, agency-style report delivery, synthetic data supply, and richer graph exploration.
 
 ### Programmatic API + MCP Access
 
-- Added API key infrastructure with hashed storage, scopes, quotas, and per-route usage counting.
+- Added API key infrastructure with hashed storage, scopes, quotas, per-route usage counting, and package-aware access control.
 - Added a versioned machine-facing surface under `GET /api/v1/analysis/*` for aggregate-only analysis outputs.
-- Added optional `format=llm` envelopes so AI clients can consume structured data plus concise markdown summaries.
-- Added OpenAPI discovery at `GET /docs/openapi.json` with supporting notes in `docs/api/README.md`.
-- Added `packages/mcp`, a read-only MCP server that wraps the highest-value aggregate analysis endpoints.
+- Added richer machine-consumption formats such as `format=llm`, `markdown`, and `client-report` where supported.
+- Added OpenAPI discovery at `GET /docs/openapi.json` with checked-in docs under `docs/api/`.
+- Added `packages/mcp`, a read-only MCP server for aggregate observatory access and agency-ready report export.
 
-### Aggregate Insight Brief Export
+### Agency-Style Aggregate Reports
 
-- New API route: `GET /analysis/go-to-market-brief`
-- New dashboard action: **Export Aggregate Brief** from the aggregate forecast section
-- Export output includes:
-  - Top audience cohorts
-  - Lift vs global baseline
-  - Predicted reach paths from an optional seed video
-  - Confidence bands for exposure estimates
-  - Key takeaways and markdown-formatted brief output for sharing
+- Added package-aware access tiers: `CONTRIBUTOR_FREE`, `CREATOR_PRO`, `AGENCY_PILOT`, and `ENTERPRISE`.
+- Added saved report presets, reproducible report runs, curated export formats, and aggregate-only share delivery.
+- Added JWT-authenticated routes under `/reports/*` for report management workflows.
+- Added a public read-only share surface at `GET /shared-reports/:shareToken`.
+- Added a programmatic saved-report export route at `GET /api/v1/reports/runs/:reportRunId/export`.
 
-All creator-facing outputs are intended to remain aggregate-only. They are derived from cohort-level observatory patterns rather than raw contributor feed access.
+All report and creator-facing outputs remain aggregate-only. They are derived from cohort-level observatory patterns rather than raw contributor feed access.
+
+### Headless Synthetic Capture
+
+- Added `packages/headless`, a YouTube-first synthetic observatory capture layer built on Playwright.
+- Added an 8-region x 10-category profile matrix with reusable synthetic behavior traits for cold-start observatory seeding.
+- Normalized headless captures into the existing `@resma/shared` ingest contract and uploaded them through the existing `/youtube/feed` pipeline without backend-only code paths.
+- Added resumable orchestration, per-cell limiting, timeouts, incremental `run-summary.json` output, and local upload smoke validation.
+- Added operating docs in `packages/headless/README.md` and `docs/operations/HEADLESS_SYNTHETIC_CAPTURE.md`.
+
+### Visualization and Exploration Upgrades
+
+- Replaced the custom graph layout worker with a D3-force layout running inside the Web Worker.
+- Updated graph pan/zoom and edge rendering with D3 while preserving React-rendered nodes and current interaction behavior.
+- Added lazy-loaded SandDance exploration for aggregate rows in data quality and audience forecast surfaces.
+- Added Gephi-compatible `GEXF 1.3` export for recommendation maps.
 
 ### Cross-User Comparison Data Quality Improvements
 
@@ -217,7 +233,7 @@ All creator-facing outputs are intended to remain aggregate-only. They are deriv
   - Calibration
   - Reliability scoring
 
-These updates reinforce the core thesis of RESMA: pseudonymous cross-user feed comparisons improve observatory quality over time, making recommendation-path modeling more useful for research, accountability work, and aggregate creator strategy.
+These updates reinforce the core thesis of RESMA: pseudonymous cross-user feed comparisons improve observatory quality over time, making recommendation-path modeling more useful for research, accountability work, AI-assisted analysis, and aggregate creator strategy.
 
 ## April 2026 Engineering Update
 
@@ -256,10 +272,18 @@ This work session focused on making the observatory path safer to operate, easie
 - Targeted backend tests now cover request hardening, premium caching, upgraded similarity behavior, and analytics caching/materialization paths.
 - Frontend builds passed after the dashboard decomposition and graph worker migration.
 
-## 🔭 Future Goals
+## Future Goals
 
-### Web-Enabled Research Agents
+### Research Agent Roadmap
 
-- Add optional web-enabled agents that can gather current external context (platform UI/policy changes, creator trend signals, and market benchmarks) faster than manual research.
-- Use this as an augmentation layer for forecasting and go-to-market briefs, while keeping RESMA's first-party cross-user feed data as the source of truth for core modeling.
-- Require source-linked outputs from web research agents to improve transparency and reduce noisy inputs.
+RESMA now ships the foundation for agent-assisted workflows:
+
+- a machine-facing MCP server for aggregate observatory access
+- LLM-friendly programmatic API responses for analysis and report export
+- a YouTube-first synthetic headless capture layer for cold-start observatory seeding
+
+The next step is a source-linked external research layer on top of that foundation:
+
+- add optional web-enabled agents that gather current external context such as platform UI or policy changes, creator trend signals, and market benchmarks
+- use that external context as an augmentation layer for forecasting and report generation, while keeping RESMA's first-party observatory data as the source of truth for core modeling
+- require source-linked outputs from external research agents so human users and downstream AI tools can audit where claims came from

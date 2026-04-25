@@ -47,7 +47,22 @@ export async function withDurableIngestIdempotency<T>({
             const existingSnapshotId = existingRows[0]?.snapshotId ?? null;
 
             if (!existingSnapshotId) {
-                throw new Error(`Ingest event exists without snapshotId for upload ${uploadId}`);
+                const created = await createSnapshot(tx);
+
+                await tx.$executeRaw`
+                    UPDATE "ingest_events"
+                    SET "snapshotId" = ${created.snapshotId},
+                        "updatedAt" = CURRENT_TIMESTAMP
+                    WHERE "userId" = ${userId}
+                      AND "uploadId" = ${uploadId}
+                      AND "snapshotId" IS NULL
+                `;
+
+                return {
+                    replayed: false,
+                    snapshotId: created.snapshotId,
+                    value: created.value,
+                };
             }
 
             return {

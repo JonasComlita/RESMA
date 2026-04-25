@@ -1,0 +1,698 @@
+{
+  "profile": {
+    "id": "yt-ca-music-engaged-sampler-v1",
+    "storageKey": "yt-ca-music-engaged-sampler-v1",
+    "platform": "youtube",
+    "researchMode": "synthetic-logged-out",
+    "region": {
+      "key": "ca",
+      "displayName": "Canada",
+      "youtubeRegionCode": "CA",
+      "locale": "en-CA",
+      "timezoneId": "America/Toronto",
+      "acceptLanguage": "en-CA,en;q=0.9"
+    },
+    "category": {
+      "key": "music",
+      "label": "Music",
+      "description": "Music video, live performance, and genre-adjacent recommendation paths.",
+      "querySeeds": [
+        "live studio performance",
+        "official music video",
+        "acoustic cover session"
+      ],
+      "followUpQuerySeeds": [
+        "festival live set",
+        "artist interview performance"
+      ]
+    },
+    "behavior": {
+      "key": "engaged-sampler",
+      "label": "Engaged Sampler",
+      "description": "Clicks through several candidates and mixes quick sampling with one stronger watch signal.",
+      "watchDurationSeconds": {
+        "min": 16,
+        "max": 36
+      },
+      "watchDurationRatio": {
+        "min": 0.14,
+        "max": 0.35
+      },
+      "scrollCadenceMs": {
+        "min": 1700,
+        "max": 3200
+      },
+      "interactionRate": {
+        "min": 0.28,
+        "max": 0.5
+      },
+      "sessionLengthActions": {
+        "min": 6,
+        "max": 10
+      },
+      "detailOpenRate": {
+        "min": 0.55,
+        "max": 0.75
+      },
+      "revisitPattern": "adjacent-query",
+      "revisitProbability": 0.36
+    },
+    "notes": [
+      "Synthetic research profile with no real-person identity linkage.",
+      "Uses the same core category matrix across all target regions.",
+      "Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts."
+    ]
+  },
+  "summary": {
+    "homeItemCount": 0,
+    "searchItemCount": 10,
+    "recommendationCount": 24,
+    "interactedVideoId": "hM_8AlSqncI",
+    "query": "live studio performance",
+    "followUpQuery": null,
+    "revisitPatternApplied": "skipped"
+  },
+  "warnings": [],
+  "payload": {
+    "platform": "youtube",
+    "feed": [
+      {
+        "videoId": "hM_8AlSqncI",
+        "creatorHandle": "Feng Suave",
+        "creatorId": "Feng Suave",
+        "caption": "Feng Suave - Live from Studio Helmbreker, Haarlem",
+        "positionInFeed": 1,
+        "position": 1,
+        "watchDuration": 31.3,
+        "interacted": true,
+        "interactionType": "opened-watch-page",
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ],
+        "engagementMetrics": {
+          "watchTime": 31.3,
+          "recommendationCount": 24,
+          "recommendations": [
+            {
+              "videoId": "xuPczEG8ds4",
+              "position": 1,
+              "title": "Bowvee - Live at Park Street Studio (Full Performance)",
+              "channel": "Park Street Studio",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "TKfRm6uNx7I",
+              "position": 2,
+              "title": "Black Pumas: Tiny Desk (Home) Concert",
+              "channel": "NPR Music",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "R90kVBcVgE8",
+              "position": 3,
+              "title": "Feng Suave - session at Into The Great Wide Open 2018",
+              "channel": "3voor12",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "fcrH4vE6jZU",
+              "position": 4,
+              "title": "FENG SUAVE: 5 songs live on 2 Meter Sessions (2022)",
+              "channel": "2 Meter Sessions",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "pCsgnUt4chU",
+              "position": 5,
+              "title": "Feng Suave - Warping Youth (Full EP)",
+              "channel": "Nice Guys",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "eUjQkMma-Is",
+              "position": 6,
+              "title": "Parcels: Tiny Desk Concert",
+              "channel": "NPR Music and Parcels",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "W2mmWlytISE",
+              "position": 7,
+              "title": "Feng Suave - Maybe Another Time @Ekko Utrecht 27.10.2022",
+              "channel": "Tjerk Jelier",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "BnEgnrUCXPY",
+              "position": 8,
+              "title": "The Yussef Dayes Experience - Live From Malibu",
+              "channel": "Yussef Dayes",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "0PsOJ_fRckg",
+              "position": 9,
+              "title": "Khruangbin - Full Performance (Live on KEXP)",
+              "channel": "KEXP and Khruangbin",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "bMCiAKNUpTY",
+              "position": 10,
+              "title": "Ólafur Arnalds live from Hafursey, in Iceland for Cercle",
+              "channel": "Cercle",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "pfU0QORkRpY",
+              "position": 11,
+              "title": "FKJ  |  Ylang Ylang EP (Live Session)",
+              "channel": "Fkj",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "qPDJK8tHlCo",
+              "position": 12,
+              "title": "Feng Suave - People Wither (Official Audio)",
+              "channel": "Feng Suave",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "WjoL8Pw3oDg",
+              "position": 13,
+              "title": "Toshiki Soejima : \"Sunset\" Jam Session at POMPOSO / Neo-Soul Guitar",
+              "channel": "Toshiki Soejima",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "dmPMaxVmWv8",
+              "position": 14,
+              "title": "Parcels - Live From My Den [FULL SET]",
+              "channel": "PFP",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "O5XgrGiGZ3s",
+              "position": 15,
+              "title": "Feng Suave - Feng Suave EP (2017 - Full EP Stream)",
+              "channel": "Feng Suave",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "9Tcy_V8jjf8",
+              "position": 16,
+              "title": "Yuuf - In The Sun - Live in Surrey Hills",
+              "channel": "Yuuf",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "21mv8A6sJk4",
+              "position": 17,
+              "title": "Feng Suave - Live at 3voor12 Radio",
+              "channel": "3voor12",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "jhicDUgXyNg",
+              "position": 18,
+              "title": "Delvon Lamarr Organ Trio - Warm-up Set (Live on KEXP)",
+              "channel": "KEXP",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "ca_cKWWzZgs",
+              "position": 19,
+              "title": "TWO LANES - Live Performance (Piano Set)",
+              "channel": "TWO LANES",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "-4J-f5lkCLo",
+              "position": 20,
+              "title": "Thee Sacred Souls: Tiny Desk Concert",
+              "channel": "NPR Music",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "zWAafIkSrJw",
+              "position": 21,
+              "title": "Feng Suave - live at 3voor12 Radio",
+              "channel": "3voor12",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "A9Tp5fl18Ho",
+              "position": 22,
+              "title": "Bon Iver at AIR Studios (4AD/Jagjaguwar Session)",
+              "channel": "Bon Iver",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "aUgAlqRmwWU",
+              "position": 23,
+              "title": "Feng Suave - Venus Flytrap & Noche Oscura at Best Kept Secret 2019",
+              "channel": "3voor12",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            },
+            {
+              "videoId": "d33C8IE7WnQ",
+              "position": 24,
+              "title": "Tame Impala - InnerSpeaker (Live From Wave House)",
+              "channel": "Tame Impala",
+              "surface": "watch-next-sidebar",
+              "surfaces": [
+                "watch-next-sidebar"
+              ]
+            }
+          ]
+        },
+        "recommendations": [
+          {
+            "videoId": "xuPczEG8ds4",
+            "position": 1,
+            "title": "Bowvee - Live at Park Street Studio (Full Performance)",
+            "channel": "Park Street Studio",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "TKfRm6uNx7I",
+            "position": 2,
+            "title": "Black Pumas: Tiny Desk (Home) Concert",
+            "channel": "NPR Music",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "R90kVBcVgE8",
+            "position": 3,
+            "title": "Feng Suave - session at Into The Great Wide Open 2018",
+            "channel": "3voor12",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "fcrH4vE6jZU",
+            "position": 4,
+            "title": "FENG SUAVE: 5 songs live on 2 Meter Sessions (2022)",
+            "channel": "2 Meter Sessions",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "pCsgnUt4chU",
+            "position": 5,
+            "title": "Feng Suave - Warping Youth (Full EP)",
+            "channel": "Nice Guys",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "eUjQkMma-Is",
+            "position": 6,
+            "title": "Parcels: Tiny Desk Concert",
+            "channel": "NPR Music and Parcels",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "W2mmWlytISE",
+            "position": 7,
+            "title": "Feng Suave - Maybe Another Time @Ekko Utrecht 27.10.2022",
+            "channel": "Tjerk Jelier",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "BnEgnrUCXPY",
+            "position": 8,
+            "title": "The Yussef Dayes Experience - Live From Malibu",
+            "channel": "Yussef Dayes",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "0PsOJ_fRckg",
+            "position": 9,
+            "title": "Khruangbin - Full Performance (Live on KEXP)",
+            "channel": "KEXP and Khruangbin",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "bMCiAKNUpTY",
+            "position": 10,
+            "title": "Ólafur Arnalds live from Hafursey, in Iceland for Cercle",
+            "channel": "Cercle",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "pfU0QORkRpY",
+            "position": 11,
+            "title": "FKJ  |  Ylang Ylang EP (Live Session)",
+            "channel": "Fkj",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "qPDJK8tHlCo",
+            "position": 12,
+            "title": "Feng Suave - People Wither (Official Audio)",
+            "channel": "Feng Suave",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "WjoL8Pw3oDg",
+            "position": 13,
+            "title": "Toshiki Soejima : \"Sunset\" Jam Session at POMPOSO / Neo-Soul Guitar",
+            "channel": "Toshiki Soejima",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "dmPMaxVmWv8",
+            "position": 14,
+            "title": "Parcels - Live From My Den [FULL SET]",
+            "channel": "PFP",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "O5XgrGiGZ3s",
+            "position": 15,
+            "title": "Feng Suave - Feng Suave EP (2017 - Full EP Stream)",
+            "channel": "Feng Suave",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "9Tcy_V8jjf8",
+            "position": 16,
+            "title": "Yuuf - In The Sun - Live in Surrey Hills",
+            "channel": "Yuuf",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "21mv8A6sJk4",
+            "position": 17,
+            "title": "Feng Suave - Live at 3voor12 Radio",
+            "channel": "3voor12",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "jhicDUgXyNg",
+            "position": 18,
+            "title": "Delvon Lamarr Organ Trio - Warm-up Set (Live on KEXP)",
+            "channel": "KEXP",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "ca_cKWWzZgs",
+            "position": 19,
+            "title": "TWO LANES - Live Performance (Piano Set)",
+            "channel": "TWO LANES",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "-4J-f5lkCLo",
+            "position": 20,
+            "title": "Thee Sacred Souls: Tiny Desk Concert",
+            "channel": "NPR Music",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "zWAafIkSrJw",
+            "position": 21,
+            "title": "Feng Suave - live at 3voor12 Radio",
+            "channel": "3voor12",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "A9Tp5fl18Ho",
+            "position": 22,
+            "title": "Bon Iver at AIR Studios (4AD/Jagjaguwar Session)",
+            "channel": "Bon Iver",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "aUgAlqRmwWU",
+            "position": 23,
+            "title": "Feng Suave - Venus Flytrap & Noche Oscura at Best Kept Secret 2019",
+            "channel": "3voor12",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          },
+          {
+            "videoId": "d33C8IE7WnQ",
+            "position": 24,
+            "title": "Tame Impala - InnerSpeaker (Live From Wave House)",
+            "channel": "Tame Impala",
+            "surface": "watch-next-sidebar",
+            "surfaces": [
+              "watch-next-sidebar"
+            ]
+          }
+        ]
+      },
+      {
+        "videoId": "xAWDqdpOlu8",
+        "creatorHandle": "Billie Eilish",
+        "creatorId": "Billie Eilish",
+        "caption": "Billie Eilish – WILDFLOWER (Live Performance from Amazon Music’s Songline)",
+        "positionInFeed": 2,
+        "position": 2,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "H2I6V0NlaHg",
+        "creatorHandle": "Fred again . .",
+        "creatorId": "Fred again . .",
+        "caption": "Fred again.. - Studio Live (London, April 2021)",
+        "positionInFeed": 3,
+        "position": 3,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "KOQIQfZhQC8",
+        "creatorHandle": "LITTLE BIG BEAT STUDIOS",
+        "creatorId": "LITTLE BIG BEAT STUDIOS",
+        "caption": "INCOGNITO - FULL STUDIO LIVE SESSION - LITTLE BIG BEAT STUDIOS",
+        "positionInFeed": 4,
+        "position": 4,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "85YXjCU0pmc",
+        "creatorHandle": "Spotify and Kehlani",
+        "creatorId": "Spotify and Kehlani",
+        "caption": "Kehlani - Folded (Live) | Spotify Live Room",
+        "positionInFeed": 5,
+        "position": 5,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      },
+      {
+        "videoId": "Lk0sZwXTwnc",
+        "creatorHandle": "Post Malone",
+        "creatorId": "Post Malone",
+        "caption": "Post Malone, Swae Lee - Sunflower (F-1Trillion Album Livestream)",
+        "positionInFeed": 6,
+        "position": 6,
+        "interacted": false,
+        "interactionType": null,
+        "contentTags": [
+          "music",
+          "live studio performance"
+        ],
+        "contentCategories": [
+          "Music"
+        ]
+      }
+    ],
+    "sessionMetadata": {
+      "type": "VIDEO_WATCH",
+      "captureSurface": "watch",
+      "clientSessionId": "yt-ca-music-engaged-sampler-v1-1777094467585",
+      "observerVersion": "youtube-observer-v2",
+      "ingestVersion": "1.0.0",
+      "uploadEvent": "SYNTHETIC_YOUTUBE_SESSION",
+      "capturedAt": "2026-04-25T05:21:07.585Z",
+      "researchMode": "synthetic-logged-out",
+      "syntheticProfileId": "yt-ca-music-engaged-sampler-v1",
+      "syntheticRegion": "Canada",
+      "syntheticCategory": "Music",
+      "syntheticBehavior": "engaged-sampler",
+      "searchQuery": "live studio performance",
+      "followUpQuery": null
+    }
+  },
+  "upload": {
+    "endpoint": "http://localhost:3001/youtube/feed",
+    "ok": true,
+    "status": 201,
+    "uploadId": "57ab22f8-3b72-4387-b29e-efce13164f83",
+    "body": {
+      "success": true,
+      "snapshotId": "69f522f8-3ead-4a0d-833c-984b11f9e66c"
+    }
+  }
+}

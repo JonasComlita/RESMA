@@ -1,0 +1,413 @@
+{
+  "totalProfilesRequested": 1,
+  "completedCount": 1,
+  "failedCount": 0,
+  "uploadAttemptCount": 1,
+  "uploadSuccessCount": 0,
+  "lowRecommendationProfiles": [],
+  "lowSearchResultProfiles": [],
+  "coverageCells": [
+    {
+      "regionKey": "us",
+      "categoryKey": "technology",
+      "count": 1
+    }
+  ],
+  "missingCoverageCells": [
+    {
+      "regionKey": "us",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "us",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "uk",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "ca",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "br",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "de",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "in",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "jp",
+      "categoryKey": "sports",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "entertainment",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "gaming",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "music",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "fitness-health",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "food-cooking",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "beauty-fashion",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "technology",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "finance-business",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "news-politics",
+      "count": 0
+    },
+    {
+      "regionKey": "mx",
+      "categoryKey": "sports",
+      "count": 0
+    }
+  ]
+}
