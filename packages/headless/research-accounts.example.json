@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "accounts": [
+    {
+      "id": "yt-observatory-us-1",
+      "label": "YouTube Observatory US 1",
+      "platform": "youtube",
+      "researchPurpose": "Signed-in recommendation drift checks for the U.S. observatory baseline.",
+      "notes": [
+        "Manually provisioned by research ops.",
+        "Passive observatory capture only."
+      ],
+      "allowedCaptureMode": "passive-observation-only",
+      "credentialSource": {
+        "kind": "persistent-user-data-dir",
+        "reference": "local-youtube-us-1",
+        "path": "C:/replace-me/manual-research-accounts/youtube-us-1"
+      },
+      "status": "paused",
+      "owner": {
+        "operatorId": "research-ops",
+        "displayName": "Research Ops"
+      },
+      "runScope": "local-manual-only"
+    }
+  ]
+}

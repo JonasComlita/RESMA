@@ -30,11 +30,19 @@ function normalizeInstagramMediaId(raw: unknown): string | null {
 
     try {
         const parsed = new URL(value);
+        const storyMatch = parsed.pathname.match(/\/stories\/[^/]+\/(\d+)/);
+        if (storyMatch?.[1]) {
+            candidate = storyMatch[1];
+        }
         const pathMatch = parsed.pathname.match(/\/(?:reel|p|tv)\/([A-Za-z0-9_-]{5,64})/);
         if (pathMatch?.[1]) {
             candidate = pathMatch[1];
         }
     } catch {
+        const storyPathMatch = value.match(/\/stories\/[^/]+\/(\d+)/);
+        if (storyPathMatch?.[1]) {
+            candidate = storyPathMatch[1];
+        }
         const directPathMatch = value.match(/\/(?:reel|p|tv)\/([A-Za-z0-9_-]{5,64})/);
         if (directPathMatch?.[1]) {
             candidate = directPathMatch[1];
@@ -166,9 +174,15 @@ router.post('/feed', authenticate, validateIngestPayload({
                 const watchTime = parseNonNegativeNumber(metrics.watchTime ?? item.watchDuration ?? item.watchTime) ?? 0;
                 const impressionDuration = parseNonNegativeNumber(metrics.impressionDuration ?? item.impressionDuration) ?? 0;
                 const watchDuration = Math.max(watchTime, impressionDuration);
-                const likesCount = parseNonNegativeInt(metrics.likes ?? item.likes);
-                const commentsCount = parseNonNegativeInt(metrics.comments ?? item.comments);
-                const sharesCount = parseNonNegativeInt(metrics.shares ?? item.shares);
+                const likesCount = parseNonNegativeInt(
+                    metrics.likes ?? metrics.likesCount ?? item.likesCount ?? item.likes ?? item.likeCount
+                );
+                const commentsCount = parseNonNegativeInt(
+                    metrics.comments ?? metrics.commentsCount ?? item.commentsCount ?? item.comments ?? item.commentCount
+                );
+                const sharesCount = parseNonNegativeInt(
+                    metrics.shares ?? metrics.sharesCount ?? item.sharesCount ?? item.shares ?? item.shareCount
+                );
 
                 const engagementMetrics = packAndCompress({
                     watchTime,

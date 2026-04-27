@@ -138,6 +138,106 @@ describe('Instagram Feed API', () => {
     });
   });
 
+  it('persists instagram engagement counts and recommendation surfaces', async () => {
+    vi.mocked(prisma.feedSnapshot.create).mockResolvedValue({
+      id: 'snapshot-instagram-engagement',
+      _count: { feedItems: 1 },
+    } as any);
+
+    const res = await request(app)
+      .post('/instagram/feed')
+      .set('Authorization', `Bearer ${makeAuthToken()}`)
+      .send({
+        feed: [{
+          videoId: 'C9xAbCdEf12',
+          username: 'creator_name',
+          caption: 'Feed post',
+          type: 'image',
+          likesCount: 1200,
+          commentsCount: 34,
+          savesCount: null,
+          recommendations: [{
+            videoId: 'C1ZxYwVuT98',
+            surface: 'related-posts',
+            surfaces: ['related-posts'],
+          }],
+        }],
+        sessionMetadata: {
+          type: 'INSTAGRAM_LIGHT_SNAPSHOT',
+        },
+      });
+
+    expect(res.status).toBe(201);
+
+    const createArgs = vi.mocked(prisma.feedSnapshot.create).mock.calls[0]?.[0];
+    const persistedItem = createArgs?.data.feedItems.create[0];
+    expect(persistedItem).toEqual(expect.objectContaining({
+      videoId: 'C9xAbCdEf12',
+      likesCount: 1200,
+      commentsCount: 34,
+      sharesCount: null,
+      contentCategories: ['image'],
+    }));
+
+    const engagementMetrics = decompressAndUnpack<Record<string, any>>(persistedItem?.engagementMetrics);
+    expect(engagementMetrics).toMatchObject({
+      likes: 1200,
+      comments: 34,
+      shares: null,
+      recommendationSurfaceCounts: {
+        'related-posts': 1,
+      },
+      recommendations: [{
+        videoId: 'C1ZxYwVuT98',
+        surface: 'related-posts',
+        surfaces: ['related-posts'],
+      }],
+    });
+  });
+
+  it('persists instagram story views using the story id from the URL', async () => {
+    vi.mocked(prisma.feedSnapshot.create).mockResolvedValue({
+      id: 'snapshot-instagram-story',
+      _count: { feedItems: 1 },
+    } as any);
+
+    const res = await request(app)
+      .post('/instagram/feed')
+      .set('Authorization', `Bearer ${makeAuthToken()}`)
+      .send({
+        feed: [{
+          url: 'https://www.instagram.com/stories/story_author/1234567890123456789/',
+          author: 'story_author',
+          type: 'story',
+          caption: null,
+          impressionDuration: 5.5,
+          watchTime: 0,
+          loopCount: 0,
+          recommendations: [],
+        }],
+        sessionMetadata: {
+          type: 'STORY_VIEW',
+          captureSurface: 'instagram-stories',
+        },
+      });
+
+    expect(res.status).toBe(201);
+
+    const createArgs = vi.mocked(prisma.feedSnapshot.create).mock.calls[0]?.[0];
+    expect(createArgs?.data.feedItems.create[0]).toEqual(expect.objectContaining({
+      videoId: '1234567890123456789',
+      creatorHandle: 'story_author',
+      watchDuration: 5.5,
+      contentCategories: ['story'],
+    }));
+
+    const persistedSessionMetadata = decompressAndUnpack<Record<string, any>>(createArgs?.data.sessionMetadata);
+    expect(persistedSessionMetadata).toMatchObject({
+      type: 'STORY_VIEW',
+      captureSurface: 'instagram-stories',
+    });
+  });
+
   it('replays duplicate instagram uploads with the same upload id', async () => {
     const transactionClient = {
       $executeRaw: vi.fn()

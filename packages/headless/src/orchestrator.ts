@@ -8,6 +8,7 @@ import {
 } from './profiles.js';
 import type {
     CaptureArtifact,
+    CaptureModeContext,
     CaptureRunSummary,
     CaptureRunResult,
     CaptureRuntimeOptions,
@@ -15,6 +16,7 @@ import type {
     PersistedCaptureArtifact,
     SyntheticResearchProfile,
 } from './types.js';
+import { createDefaultCaptureModeContext } from './researchAccounts.js';
 
 function artifactFilename(profileId: string, capturedAt: string): string {
     const safeTimestamp = capturedAt.replace(/[:.]/g, '-');
@@ -142,7 +144,10 @@ async function loadPersistedArtifact(artifactPath: string): Promise<PersistedCap
             return null;
         }
 
+        const captureMode = (raw.captureMode ?? createDefaultCaptureModeContext()) as CaptureModeContext;
+
         return {
+            captureMode,
             profile: raw.profile as PersistedCaptureArtifact['profile'],
             payload: raw.payload as PersistedCaptureArtifact['payload'],
             summary: raw.summary as PersistedCaptureArtifact['summary'],

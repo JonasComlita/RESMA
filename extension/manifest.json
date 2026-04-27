@@ -12,6 +12,8 @@
         "https://www.youtube.com/*",
         "https://www.instagram.com/*",
         "https://twitter.com/*",
+        "https://www.reddit.com/*",
+        "https://old.reddit.com/*",
         "http://localhost:3001/*"
     ],
     "background": {
@@ -52,6 +54,15 @@
             ],
             "js": [
                 "dist/content/twitter-observer.js"
+            ],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": [
+                "https://www.reddit.com/*"
+            ],
+            "js": [
+                "dist/content/reddit-observer.js"
             ],
             "run_at": "document_idle"
         }

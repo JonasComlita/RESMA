@@ -17,8 +17,16 @@ class FakeElement {
         return false;
     }
 
+    querySelector() {
+        return null;
+    }
+
     querySelectorAll() {
         return [];
+    }
+
+    closest() {
+        return null;
     }
 }
 
@@ -116,10 +124,37 @@ class FakeTweetElement extends FakeElement {
         }
 
         if (selector === 'time') {
-            return {};
+            return {
+                closest: () => ({
+                    getAttribute: (name: string) => (name === 'href' ? '/creator/status/55555' : null),
+                }),
+            };
         }
 
         return null;
+    }
+
+    querySelectorAll(selector: string) {
+        if (selector === 'a[href*="/status/"]') {
+            return [{
+                getAttribute: (name: string) => (name === 'href' ? '/creator/status/55555' : null),
+            }];
+        }
+
+        return [];
+    }
+}
+
+class FakeRedditPostElement extends FakeElement {
+    constructor() {
+        super();
+        this.setAttribute('id', 't3_abc123');
+        this.setAttribute('subreddit-name', 'programming');
+        this.setAttribute('post-title', 'Reddit post title');
+        this.setAttribute('score', '42');
+        this.setAttribute('comment-count', '7');
+        this.setAttribute('post-type', 'link');
+        this.setAttribute('flair', 'Project Update');
     }
 }
 
@@ -320,10 +355,15 @@ describe('content observer consent gates', () => {
 
         vi.stubGlobal('window', {
             addEventListener: vi.fn(),
+            dispatchEvent: vi.fn(),
             innerHeight: 900,
             innerWidth: 1440,
             setInterval: setIntervalMock,
             clearInterval: clearIntervalMock,
+        });
+        vi.stubGlobal('history', {
+            pushState: vi.fn(),
+            replaceState: vi.fn(),
         });
         vi.stubGlobal('location', {
             pathname: '/',
@@ -451,5 +491,88 @@ describe('content observer consent gates', () => {
             },
         });
         expect(clearIntervalMock).toHaveBeenCalledWith(202);
+    });
+
+    it('keeps Reddit uploads behind Start Capture as well', async () => {
+        stubSharedGlobals();
+        const { listeners, sendMessage } = stubChrome();
+        const post = new FakeRedditPostElement();
+        const intervalCallbacks: Array<() => void> = [];
+        const setIntervalMock = vi.fn((callback: () => void) => {
+            intervalCallbacks.push(callback);
+            return 303;
+        });
+        const clearIntervalMock = vi.fn();
+        let now = 0;
+
+        vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += 2000;
+            return now;
+        });
+
+        vi.stubGlobal('window', {
+            setInterval: setIntervalMock,
+            clearInterval: clearIntervalMock,
+        });
+        vi.stubGlobal('location', {
+            hostname: 'www.reddit.com',
+            pathname: '/',
+            search: '',
+            origin: 'https://www.reddit.com',
+        });
+        vi.stubGlobal('document', {
+            body: new FakeElement(),
+            querySelector: vi.fn(() => null),
+            querySelectorAll: vi.fn((selector: string) => (
+                selector.includes('shreddit-post') ? [post] : []
+            )),
+        });
+
+        await import('../src/content/reddit-observer.ts');
+
+        expect(setIntervalMock).not.toHaveBeenCalled();
+        expect(sendMessage).not.toHaveBeenCalled();
+
+        await invokeListener(listeners[0], { type: 'START_CAPTURE' });
+        fakeIntersectionObserverCallbacks[0]([
+            { isIntersecting: true, target: post },
+        ]);
+
+        intervalCallbacks[0]();
+        await Promise.resolve();
+
+        expect(sendMessage).toHaveBeenCalledTimes(1);
+        expect(sendMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'UPLOAD_PLATFORM_FEED',
+                payload: expect.objectContaining({
+                    platform: 'reddit',
+                    feed: [
+                        expect.objectContaining({
+                            videoId: 'abc123',
+                            creatorHandle: 'programming',
+                            caption: 'Reddit post title',
+                            likesCount: 42,
+                            commentsCount: 7,
+                            sharesCount: null,
+                            contentCategories: expect.arrayContaining(['link', 'project-update']),
+                        }),
+                    ],
+                    sessionMetadata: expect.objectContaining({
+                        type: 'REDDIT_FEED_SNAPSHOT',
+                    }),
+                }),
+            }),
+            expect.any(Function)
+        );
+
+        const stopResponse = await invokeListener(listeners[0], { type: 'STOP_CAPTURE' });
+        expect(stopResponse).toEqual({
+            success: true,
+            data: {
+                itemCount: 1,
+            },
+        });
+        expect(clearIntervalMock).toHaveBeenCalledWith(303);
     });
 });

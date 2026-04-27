@@ -5,6 +5,14 @@ export interface NumericRange {
     max: number;
 }
 
+export type SupportedHeadlessPlatform = 'youtube';
+export type ResearchMode = 'synthetic-logged-out' | 'research-account';
+export type CaptureIdentity = 'signed-out-synthetic' | 'signed-in-research-account';
+export type GovernedResearchAccountStatus = 'active' | 'paused' | 'retired';
+export type GovernedResearchAccountRunScope = 'local-manual-only' | 'orchestrated';
+export type GovernedResearchAllowedCaptureMode = 'passive-observation-only';
+export type GovernedResearchCredentialSourceKind = 'persistent-user-data-dir';
+
 export interface RegionDefinition {
     key: string;
     displayName: string;
@@ -41,7 +49,7 @@ export interface BehavioralTraitDefinition {
 export interface SyntheticResearchProfile {
     id: string;
     storageKey: string;
-    platform: 'youtube';
+    platform: SupportedHeadlessPlatform;
     researchMode: 'synthetic-logged-out';
     region: RegionDefinition;
     category: CategoryDefinition;
@@ -49,14 +57,65 @@ export interface SyntheticResearchProfile {
     notes: string[];
 }
 
+export interface GovernedResearchAccountOwner {
+    operatorId?: string;
+    displayName?: string;
+    teamName?: string;
+}
+
+export interface GovernedResearchCredentialSource {
+    kind: GovernedResearchCredentialSourceKind;
+    reference: string;
+    path: string;
+}
+
+export interface GovernedResearchAccount {
+    id: string;
+    label: string;
+    platform: SupportedHeadlessPlatform;
+    researchPurpose: string;
+    notes: string[];
+    allowedCaptureMode: GovernedResearchAllowedCaptureMode;
+    credentialSource: GovernedResearchCredentialSource;
+    status: GovernedResearchAccountStatus;
+    owner?: GovernedResearchAccountOwner;
+    runScope: GovernedResearchAccountRunScope;
+}
+
+export interface GovernedResearchAccountConfig {
+    version: 1;
+    accounts: GovernedResearchAccount[];
+}
+
+export interface GovernedResearchAccountReference {
+    id: string;
+    label: string;
+    platform: SupportedHeadlessPlatform;
+    researchPurpose: string;
+    notes: string[];
+    allowedCaptureMode: GovernedResearchAllowedCaptureMode;
+    status: GovernedResearchAccountStatus;
+    runScope: GovernedResearchAccountRunScope;
+    owner?: GovernedResearchAccountOwner;
+    credentialSourceReference: string;
+}
+
+export interface CaptureModeContext {
+    mode: ResearchMode;
+    captureIdentity: CaptureIdentity;
+    researchAccount?: GovernedResearchAccountReference;
+}
+
 export interface CaptureRuntimeOptions {
     apiBaseUrl?: string;
     authToken?: string;
     browserChannel?: string;
+    captureMode?: CaptureModeContext;
     headless?: boolean;
     outputDir: string;
     profileStorageDir: string;
     profileTimeoutMs?: number;
+    researchAccount?: GovernedResearchAccount;
     resumeExisting?: boolean;
     upload?: boolean;
 }
@@ -82,6 +141,7 @@ export interface ProfileCaptureSummary {
 }
 
 export interface CaptureArtifact {
+    captureMode: CaptureModeContext;
     profile: SyntheticResearchProfile;
     payload: PlatformFeedPayload;
     summary: ProfileCaptureSummary;

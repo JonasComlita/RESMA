@@ -9,7 +9,7 @@ interface CaptureStatus {
 const Popup: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [authMessage, setAuthMessage] = useState('');
-    const [platform, setPlatform] = useState<'tiktok' | 'twitter' | 'youtube' | 'instagram' | null>(null);
+    const [platform, setPlatform] = useState<'tiktok' | 'twitter' | 'youtube' | 'instagram' | 'reddit' | null>(null);
     const [captureStatus, setCaptureStatus] = useState<CaptureStatus>({
         isCapturing: false,
         itemCount: 0,
@@ -23,7 +23,7 @@ const Popup: React.FC = () => {
             setAuthMessage(response?.isAuthenticated ? '' : (response?.message || ''));
         });
 
-        // Detect platform (TikTok, Twitter, YouTube, Instagram)
+        // Detect platform (TikTok, Twitter, YouTube, Instagram, Reddit)
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const url = tabs[0]?.url || '';
             if (url.includes('tiktok.com')) {
@@ -61,6 +61,17 @@ const Popup: React.FC = () => {
                 }
             } else if (url.includes('instagram.com')) {
                 setPlatform('instagram');
+                if (tabs[0]?.id) {
+                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
+                        if (!response) return;
+                        setCaptureStatus({
+                            isCapturing: Boolean(response.isCapturing),
+                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
+                        });
+                    });
+                }
+            } else if (url.includes('www.reddit.com')) {
+                setPlatform('reddit');
                 if (tabs[0]?.id) {
                     chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
                         if (!response) return;
@@ -143,6 +154,7 @@ const Popup: React.FC = () => {
                     else if (platform === 'twitter') msg = `Contributed ${capturedCount} tweets to the observatory.`;
                     else if (platform === 'youtube') msg = `Contributed ${capturedCount} YouTube items to the observatory.`;
                     else if (platform === 'instagram') msg = `Contributed ${capturedCount} Instagram items to the observatory.`;
+                    else if (platform === 'reddit') msg = `Contributed ${capturedCount} Reddit posts to the observatory.`;
                     setMessage(msg);
                     setTimeout(() => setMessage(''), 3000);
                 }
@@ -176,7 +188,7 @@ const Popup: React.FC = () => {
                     </div>
                 ) : !platform ? (
                     <div className="platform-prompt">
-                        <p>Navigate to TikTok, Twitter, YouTube, or Instagram to contribute recommendation data to the observatory.</p>
+                        <p>Navigate to TikTok, Twitter, YouTube, Instagram, or Reddit to contribute recommendation data to the observatory.</p>
                         <a
                             href="https://www.tiktok.com"
                             target="_blank"
@@ -209,6 +221,14 @@ const Popup: React.FC = () => {
                         >
                             Open Instagram
                         </a>
+                        <a
+                            href="https://www.reddit.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                        >
+                            Open Reddit
+                        </a>
                     </div>
                 ) : (
                     <div className="capture-controls">
@@ -232,7 +252,8 @@ const Popup: React.FC = () => {
                                     platform === 'tiktok' ? 'videos' :
                                         platform === 'twitter' ? 'tweets' :
                                             platform === 'youtube' ? 'YouTube videos' :
-                                                platform === 'instagram' ? 'Instagram posts' : ''
+                                                platform === 'instagram' ? 'Instagram posts' :
+                                                    platform === 'reddit' ? 'Reddit posts' : ''
                                 }
                             </p>
                         )}

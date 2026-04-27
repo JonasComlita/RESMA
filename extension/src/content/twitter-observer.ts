@@ -6,6 +6,7 @@ import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared
 
 interface TwitterTweet {
     id: string;
+    syntheticId: boolean;
     authorHandle: string | null;
     authorName: string | null;
     text: string | null;
@@ -13,10 +14,19 @@ interface TwitterTweet {
     impressionStartTime: number;
     impressionDuration: number;
     isPromoted: boolean;
+    replyToHandle: string | null;
+    replyToStatusId: string | null;
+    quotedStatusId: string | null;
+    contentCategories?: string[];
     hasInteracted: boolean;
     interactionType: string | null;
     lastUploadedImpressionDuration: number;
     lastUploadedInteractionType: string | null;
+}
+
+interface TweetIdResult {
+    id: string;
+    syntheticId: boolean;
 }
 
 class TwitterObserver {
@@ -188,13 +198,14 @@ class TwitterObserver {
 
         entries.forEach((entry) => {
             const element = entry.target;
-            const tweetId = this.getTweetId(element);
+            const tweetIdResult = this.getTweetId(element);
 
-            if (!tweetId) return;
+            if (!tweetIdResult) return;
+            const { id: tweetId } = tweetIdResult;
 
             if (entry.isIntersecting) {
                 if (!this.sessionTweets.has(tweetId)) {
-                    const data = this.scrapeTweetData(element, tweetId);
+                    const data = this.scrapeTweetData(element, tweetIdResult);
                     if (data) this.sessionTweets.set(tweetId, data);
                 }
 
@@ -218,25 +229,37 @@ class TwitterObserver {
             return;
         }
 
-        const tweetId = this.getTweetId(element);
-        if (tweetId && this.sessionTweets.has(tweetId)) {
-            const tweet = this.sessionTweets.get(tweetId)!;
+        const tweetIdResult = this.getTweetId(element);
+        if (tweetIdResult && this.sessionTweets.has(tweetIdResult.id)) {
+            const tweet = this.sessionTweets.get(tweetIdResult.id)!;
             tweet.hasInteracted = true;
             tweet.interactionType = type;
-            console.log(`[RESMA] Interaction: ${type} on ${tweetId}`);
+            console.log(`[RESMA] Interaction: ${type} on ${tweetIdResult.id}`);
         }
     }
 
-    private scrapeTweetData(element: Element, tweetId: string): TwitterTweet | null {
+    private scrapeTweetData(element: Element, tweetIdResult: TweetIdResult): TwitterTweet | null {
         try {
             const userLink = element.querySelector('div[data-testid="User-Name"] a');
             const authorHandle = userLink?.getAttribute('href')?.replace('/', '') || null;
             const authorName = userLink?.textContent?.split('@')[0] || null;
             const text = element.querySelector('div[data-testid="tweetText"]')?.textContent || null;
-            const isPromoted = !element.querySelector('time') && !!element.querySelector('svg');
+            const isPromoted = this.isPromotedTweet(element);
+            const replyMetadata = this.getReplyMetadata(element);
+            const quotedStatusId = this.getQuotedStatusId(
+                element,
+                tweetIdResult.id,
+                replyMetadata.replyToStatusId
+            );
+            const contentCategories = this.getContentCategories({
+                isPromoted,
+                replyToStatusId: replyMetadata.replyToStatusId,
+                quotedStatusId,
+            }, element);
 
             return {
-                id: tweetId,
+                id: tweetIdResult.id,
+                syntheticId: tweetIdResult.syntheticId,
                 authorHandle,
                 authorName,
                 text,
@@ -244,6 +267,10 @@ class TwitterObserver {
                 impressionStartTime: Date.now(),
                 impressionDuration: 0,
                 isPromoted,
+                replyToHandle: replyMetadata.replyToHandle,
+                replyToStatusId: replyMetadata.replyToStatusId,
+                quotedStatusId,
+                contentCategories,
                 hasInteracted: false,
                 interactionType: null,
                 lastUploadedImpressionDuration: 0,
@@ -254,13 +281,144 @@ class TwitterObserver {
         }
     }
 
-    private getTweetId(element: Element): string | null {
-        const link = element.querySelector('a[href*="/status/"]');
-        if (link) {
-            return link.getAttribute('href')?.split('/status/')[1]?.split('?')[0] || null;
+    private isPromotedTweet(element: Element): boolean {
+        const hasAdLabel = Array.from(element.querySelectorAll('span'))
+            .some((span) => span.textContent?.trim() === 'Ad');
+        if (hasAdLabel) {
+            return true;
         }
 
-        return this.buildSyntheticTweetId(element);
+        const hasPromotedAttributeSignal = Array.from(element.querySelectorAll('[aria-label], [data-testid]'))
+            .some((candidate) => {
+                const ariaLabel = candidate.getAttribute('aria-label')?.toLowerCase() ?? '';
+                return ariaLabel.includes('promoted')
+                    || candidate.getAttribute('data-testid') === 'placementTracking';
+            });
+
+        const hasWhyThisAdLink = Array.from(element.querySelectorAll('a'))
+            .some((anchor) => {
+                const text = anchor.textContent?.trim().toLowerCase() ?? '';
+                return text.includes('why') && text.includes('ad');
+            });
+
+        if (hasPromotedAttributeSignal && hasWhyThisAdLink) {
+            console.debug('[RESMA] Promoted tweet detected via secondary attribute signal and "Why this ad" fallback');
+            return true;
+        }
+
+        return false;
+    }
+
+    private getReplyMetadata(element: Element): { replyToHandle: string | null; replyToStatusId: string | null } {
+        const replyLabel = Array.from(element.querySelectorAll('span, div'))
+            .find((candidate) => /Replying to\s+@/i.test(candidate.textContent?.trim() ?? ''));
+        if (!replyLabel) {
+            return { replyToHandle: null, replyToStatusId: null };
+        }
+
+        const labelText = replyLabel.textContent?.trim() ?? '';
+        const replyToHandle = labelText.match(/Replying to\s+@([A-Za-z0-9_]+)/i)?.[1] ?? null;
+        const replyContainer = replyLabel.closest('div') ?? replyLabel;
+        const replyToStatusId = Array.from(replyContainer.querySelectorAll('a[href*="/status/"]'))
+            .map((anchor) => this.extractStatusIdFromHref(anchor.getAttribute('href')))
+            .find((statusId): statusId is string => Boolean(statusId)) ?? null;
+
+        return {
+            replyToHandle: replyToHandle ? `@${replyToHandle}` : null,
+            replyToStatusId,
+        };
+    }
+
+    private getQuotedStatusId(
+        element: Element,
+        tweetId: string,
+        replyToStatusId: string | null
+    ): string | null {
+        const candidateCards = Array.from(element.querySelectorAll('div[role="link"], a[role="link"], div[tabindex="0"]'));
+        for (const card of candidateCards) {
+            if (card === element) continue;
+            const statusId = this.extractStatusIdFromHref(
+                card.getAttribute('href')
+                ?? card.querySelector('a[href*="/status/"]')?.getAttribute('href')
+            );
+            if (!statusId || statusId === tweetId || statusId === replyToStatusId) {
+                continue;
+            }
+
+            const cardText = card.textContent?.trim() ?? '';
+            const looksLikeNestedTweet = card.querySelector('time, div[data-testid="tweetText"], div[data-testid="User-Name"]')
+                || (cardText.includes('@') && cardText.length > 20);
+            if (looksLikeNestedTweet) {
+                return statusId;
+            }
+        }
+
+        return Array.from(element.querySelectorAll('a[href*="/status/"]'))
+            .map((anchor) => this.extractStatusIdFromHref(anchor.getAttribute('href')))
+            .find((statusId): statusId is string => Boolean(statusId && statusId !== tweetId && statusId !== replyToStatusId))
+            ?? null;
+    }
+
+    private isPartOfVisibleThread(element: Element): boolean {
+        const cell = element.closest('div[data-testid="cellInnerDiv"]') ?? element;
+        return Array.from(cell.querySelectorAll('div[style]'))
+            .some((candidate) => {
+                const style = candidate.getAttribute('style')?.toLowerCase() ?? '';
+                return style.includes('width: 2px') && style.includes('background-color');
+            });
+    }
+
+    private hasMediaAttachment(element: Element): boolean {
+        return Boolean(
+            element.querySelector('video, div[data-testid="tweetPhoto"], div[data-testid="videoPlayer"], div[data-testid="card.wrapper"], img[alt="Image"]')
+        );
+    }
+
+    private getContentCategories(
+        tweet: Pick<TwitterTweet, 'isPromoted' | 'replyToStatusId' | 'quotedStatusId'>,
+        element: Element
+    ): string[] | undefined {
+        const categories = new Set<string>();
+        if (tweet.isPromoted) categories.add('promoted');
+        if (tweet.replyToStatusId) categories.add('reply');
+        if (tweet.quotedStatusId) categories.add('quote-tweet');
+        if (this.isPartOfVisibleThread(element)) categories.add('thread');
+        if (this.hasMediaAttachment(element)) categories.add('media');
+
+        return categories.size > 0 ? Array.from(categories) : undefined;
+    }
+
+    private extractStatusIdFromHref(href: string | null | undefined): string | null {
+        return href?.match(/\/status\/(\d+)/)?.[1] ?? null;
+    }
+
+    private getTweetId(element: Element): TweetIdResult | null {
+        const timestampStatusId = this.extractStatusIdFromHref(
+            element.querySelector('time')?.closest('a')?.getAttribute('href')
+        );
+        if (timestampStatusId) {
+            return { id: timestampStatusId, syntheticId: false };
+        }
+
+        for (const link of Array.from(element.querySelectorAll('a[href*="/status/"]'))) {
+            const statusId = this.extractStatusIdFromHref(link.getAttribute('href'));
+            if (statusId) {
+                return { id: statusId, syntheticId: false };
+            }
+        }
+
+        const dataTweetId = this.sanitizeString(
+            element.getAttribute('data-tweet-id')
+            ?? element.getAttribute('data-item-id')
+            ?? element.querySelector('[data-tweet-id]')?.getAttribute('data-tweet-id')
+            ?? element.querySelector('[data-item-id]')?.getAttribute('data-item-id')
+        );
+        if (dataTweetId) {
+            return { id: dataTweetId, syntheticId: false };
+        }
+
+        const syntheticId = this.buildSyntheticTweetId(element);
+        return syntheticId ? { id: syntheticId, syntheticId: true } : null;
     }
 
     private sendBatch() {
@@ -284,19 +442,24 @@ class TwitterObserver {
                 engagementMetrics: {
                     impressionDuration: number;
                     isPromoted: boolean;
+                    syntheticId: boolean;
+                    replyToHandle: string | null;
+                    replyToStatusId: string | null;
+                    quotedStatusId: string | null;
                     timestamp: number;
                 };
             };
         }> = [];
 
         for (const [, tweet] of this.sessionTweets.entries()) {
-            if (tweet.impressionStartTime > 0) {
-                const currentDuration = (Date.now() - tweet.impressionStartTime) / 1000;
-                tweet.impressionDuration += currentDuration;
-                tweet.impressionStartTime = Date.now();
-            }
-
-            const unsentImpressionDuration = Math.max(0, tweet.impressionDuration - tweet.lastUploadedImpressionDuration);
+            const currentlyVisibleDuration = tweet.impressionStartTime > 0
+                ? (Date.now() - tweet.impressionStartTime) / 1000
+                : 0;
+            const totalImpressionDuration = tweet.impressionDuration + currentlyVisibleDuration;
+            const unsentImpressionDuration = Math.max(
+                0,
+                totalImpressionDuration - tweet.lastUploadedImpressionDuration
+            );
             const hasMeaningfulDurationDelta = unsentImpressionDuration > 1;
             const hasNewInteraction = Boolean(tweet.interactionType)
                 && tweet.interactionType !== tweet.lastUploadedInteractionType;
@@ -307,7 +470,7 @@ class TwitterObserver {
 
             pendingUploads.push({
                 tweet,
-                nextUploadedImpressionDuration: tweet.impressionDuration,
+                nextUploadedImpressionDuration: totalImpressionDuration,
                 nextUploadedInteractionType: hasNewInteraction ? tweet.interactionType : tweet.lastUploadedInteractionType,
                 payload: {
                     videoId: tweet.id,
@@ -317,10 +480,14 @@ class TwitterObserver {
                     position: pendingUploads.length,
                     interacted: hasNewInteraction,
                     interactionType: hasNewInteraction ? tweet.interactionType : null,
-                    contentCategories: tweet.isPromoted ? ['promoted'] : undefined,
+                    contentCategories: tweet.contentCategories,
                     engagementMetrics: {
                         impressionDuration: unsentImpressionDuration,
                         isPromoted: tweet.isPromoted,
+                        syntheticId: tweet.syntheticId,
+                        replyToHandle: tweet.replyToHandle,
+                        replyToStatusId: tweet.replyToStatusId,
+                        quotedStatusId: tweet.quotedStatusId,
                         timestamp: tweet.timestamp,
                     },
                 },
@@ -366,16 +533,60 @@ class TwitterObserver {
     }
 
     private getCaptureSurface(): string {
-        if (location.pathname.startsWith('/following')) {
+        const pathname = location.pathname.replace(/\/+$/, '') || '/';
+
+        if (pathname.includes('/status/')) {
+            return 'tweet-detail';
+        }
+
+        if (pathname === '/i/bookmarks') {
+            return 'bookmarks';
+        }
+
+        if (/^\/i\/lists\/\d+$/.test(pathname)) {
+            return 'list-timeline';
+        }
+
+        if (pathname === '/notifications') {
+            return 'notifications';
+        }
+
+        if (pathname.startsWith('/following')) {
             return 'following-timeline';
         }
 
-        if (location.pathname.startsWith('/search')) {
+        if (pathname.startsWith('/search')) {
             return 'search-timeline';
         }
 
-        if (location.pathname.includes('/status/')) {
-            return 'tweet-detail';
+        if (pathname === '/home' || pathname === '/') {
+            const activeTabText = Array.from(document.querySelectorAll('[aria-selected="true"]'))
+                .map((tab) => tab.textContent?.trim().toLowerCase() ?? '')
+                .find((text) => text.includes('for you') || text.includes('following'));
+
+            if (activeTabText?.includes('for you')) {
+                return 'home-timeline-for-you';
+            }
+
+            if (activeTabText?.includes('following')) {
+                return 'home-timeline-following';
+            }
+        }
+
+        const reservedPaths = new Set([
+            'home',
+            'explore',
+            'notifications',
+            'messages',
+            'search',
+            'following',
+            'i',
+            'compose',
+            'settings',
+        ]);
+        const profileMatch = pathname.match(/^\/([A-Za-z0-9_]+)$/);
+        if (profileMatch && !reservedPaths.has(profileMatch[1].toLowerCase())) {
+            return 'profile-timeline';
         }
 
         return 'home-timeline';

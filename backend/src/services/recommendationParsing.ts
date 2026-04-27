@@ -76,8 +76,9 @@ const SURFACE_ALIASES: Record<string, Record<string, string>> = {
         reelupnext: 'reels-up-next',
         reelsrail: 'reels-rail',
         reelssuggestions: 'reels-up-next',
-        relatedposts: 'related',
-        suggestedposts: 'related',
+        relatedposts: 'related-posts',
+        suggestedposts: 'related-posts',
+        exploregrid: 'explore-grid',
     },
     tiktok: {
         foryou: 'for-you-next',

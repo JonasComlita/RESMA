@@ -2,8 +2,11 @@ import type {
     BehavioralTraitDefinition,
     CategoryDefinition,
     RegionDefinition,
+    SupportedHeadlessPlatform,
     SyntheticResearchProfile,
 } from './types.js';
+
+export const HEADLESS_PLATFORM_YOUTUBE: SupportedHeadlessPlatform = 'youtube';
 
 export const RESEARCH_REGIONS: readonly RegionDefinition[] = [
     {
@@ -246,7 +249,7 @@ export function buildSyntheticProfiles(variantsPerRegionCategory = 1): Synthetic
                 profiles.push({
                     id,
                     storageKey: id,
-                    platform: 'youtube',
+                    platform: HEADLESS_PLATFORM_YOUTUBE,
                     researchMode: 'synthetic-logged-out',
                     region,
                     category,

@@ -31,8 +31,11 @@ router.post('/feed', authenticate, validateIngestPayload({
         const incomingMetadata = asRecord(validPayload.sessionMetadata);
         const itemsToCreate = validPayload.feed.map((item: any, index: number) => {
             const metrics = asRecord(item.engagementMetrics);
-            const likesCount = parseNonNegativeInt(metrics.likes ?? item.likes);
-            const commentsCount = parseNonNegativeInt(metrics.comments ?? item.comments);
+            const isSyntheticId = typeof item.videoId === 'string' && item.videoId.startsWith('synthetic-');
+            const hasSyntheticId = isSyntheticId || Boolean(metrics.syntheticId);
+            const interacted = isSyntheticId ? null : Boolean(item.interacted);
+            const likesCount = isSyntheticId ? null : parseNonNegativeInt(metrics.likes ?? item.likes);
+            const commentsCount = isSyntheticId ? null : parseNonNegativeInt(metrics.comments ?? item.comments);
             const sharesCount = parseNonNegativeInt(metrics.shares ?? item.shares);
             const impressionDuration = parseNonNegativeNumber(
                 metrics.impressionDuration ?? metrics.watchTime ?? item.watchDuration
@@ -55,10 +58,15 @@ router.post('/feed', authenticate, validateIngestPayload({
                 impressionDuration,
                 interactionType,
                 isPromoted,
+                interacted,
                 likes: likesCount,
                 comments: commentsCount,
                 shares: sharesCount,
                 views: parseNonNegativeNumber(metrics.views ?? item.views),
+                syntheticId: hasSyntheticId,
+                replyToHandle: sanitizeString(metrics.replyToHandle),
+                replyToStatusId: sanitizeString(metrics.replyToStatusId),
+                quotedStatusId: sanitizeString(metrics.quotedStatusId),
                 timestamp: metrics.timestamp,
             }).data;
 
@@ -74,7 +82,7 @@ router.post('/feed', authenticate, validateIngestPayload({
                 engagementMetrics,
                 contentCategories: Array.from(contentCategories.values()),
                 watchDuration: impressionDuration ?? 0,
-                interacted: Boolean(item.interacted),
+                interacted: interacted ?? false,
                 interactionType,
             };
         });

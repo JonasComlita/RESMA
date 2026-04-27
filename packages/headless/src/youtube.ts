@@ -13,6 +13,10 @@ import {
     pickFollowUpQuery,
     pickSeedQuery,
 } from './profiles.js';
+import {
+    createDefaultCaptureModeContext,
+    mergeCaptureModeMetadata,
+} from './researchAccounts.js';
 import type {
     CaptureArtifact,
     CaptureRuntimeOptions,
@@ -455,8 +459,11 @@ async function createPersistentContext(
     profile: SyntheticResearchProfile,
     options: CaptureRuntimeOptions,
 ): Promise<BrowserContext> {
-    const userDataDir = path.join(options.profileStorageDir, profile.storageKey);
-    await mkdir(userDataDir, { recursive: true });
+    const researchAccountUserDataDir = options.researchAccount?.credentialSource.path;
+    const userDataDir = researchAccountUserDataDir ?? path.join(options.profileStorageDir, profile.storageKey);
+    if (!researchAccountUserDataDir) {
+        await mkdir(userDataDir, { recursive: true });
+    }
 
     return chromium.launchPersistentContext(userDataDir, {
         headless: options.headless ?? true,
@@ -475,6 +482,7 @@ export async function captureYouTubeProfile(
     profile: SyntheticResearchProfile,
     options: CaptureRuntimeOptions,
 ): Promise<CaptureArtifact> {
+    const captureMode = options.captureMode ?? createDefaultCaptureModeContext();
     const context = await createPersistentContext(profile, options);
     const page = context.pages()[0] ?? await context.newPage();
     const warnings: string[] = [];
@@ -558,7 +566,7 @@ export async function captureYouTubeProfile(
                 {
                     platform: 'youtube',
                     feed,
-                    sessionMetadata: {
+                    sessionMetadata: mergeCaptureModeMetadata({
                         type: watchedItem ? 'VIDEO_WATCH' : 'HOMEPAGE_SNAPSHOT',
                         captureSurface: watchedItem ? 'watch' : 'search-results',
                         observerVersion: CURRENT_OBSERVER_VERSIONS.youtube,
@@ -573,7 +581,7 @@ export async function captureYouTubeProfile(
                         syntheticBehavior: profile.behavior.key,
                         searchQuery: query,
                         followUpQuery,
-                    },
+                    }, captureMode),
                 },
                 {
                     expectedPlatform: 'youtube',
@@ -596,6 +604,7 @@ export async function captureYouTubeProfile(
             };
 
             return {
+                captureMode,
                 profile,
                 payload,
                 summary,

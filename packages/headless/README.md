@@ -9,6 +9,8 @@ This package creates region-aware, category-stable synthetic research sessions t
 - save artifacts locally for QA and replay
 - optionally upload those artifacts to the existing ingest routes without backend changes
 
+Signed-out synthetic capture remains the default. Governed research-account mode is a separate, opt-in operating path for the small set of cases where signed-in observatory capture is necessary.
+
 ## What Is Runnable Now
 
 Today this package can run a minimal YouTube-first headless flow:
@@ -124,6 +126,53 @@ Useful flags:
 - `--timeout-ms 240000` to raise/lower the per-profile timeout
 - `--no-resume` to ignore existing artifacts and start fresh
 
+## Governed Research-Account Mode
+
+This package supports a deliberately narrow signed-in mode for manually provisioned research accounts.
+
+What it is:
+
+- passive observatory capture for recommendation study
+- explicitly opt-in and policy-sensitive
+- limited to a manually curated account pool
+
+What it is not:
+
+- account creation automation
+- posting, following, liking, replying, messaging, or growth automation
+- impersonation or deceptive identity
+
+Current constraints:
+
+- signed-out capture remains the default
+- governed research-account mode is only allowlisted for `youtube`
+- the only supported credential source is a manually prepared persistent user-data directory
+- the only supported signed-in capture mode is `passive-observation-only`
+
+Use a local config based on [research-accounts.example.json](./research-accounts.example.json). The example is intentionally conservative: it starts `paused` and `local-manual-only` so operators must make an explicit governance decision before enabling orchestrated use.
+
+Example command:
+
+```bash
+pnpm --filter @resma/headless capture \
+  --enable-governed-research-account-mode \
+  --research-account-config C:/local/resma/research-accounts.json \
+  --research-account yt-observatory-us-1 \
+  --region us \
+  --category technology \
+  --limit 1 \
+  --upload \
+  --api-url http://localhost:3001 \
+  --token <jwt>
+```
+
+When this mode is enabled:
+
+- output defaults to `./.captures/headless-research-accounts/<account-id>`
+- session metadata is tagged so downstream systems can distinguish research-account captures
+- the CLI logs the account label, purpose, and passive-capture policy
+- paused, retired, unsupported, or `local-manual-only` accounts are rejected for orchestrated runs
+
 Environment variables:
 
 - `RESMA_API_URL`
@@ -183,10 +232,12 @@ If Prisma reports `permission denied for schema public`, the local Postgres role
 ## Research Assumptions
 
 - default mode is **synthetic logged-out browsing**, not real-person impersonation
+- governed research-account mode is an explicit exception path for signed-in recommendation observation only
 - persistent storage directories are profile-specific so revisit patterns can be studied over time
 - no posting, commenting, monetization behavior, or creator impersonation is included
 - interaction is limited to browsing/navigation signals such as opening watch pages and revisiting adjacent queries
+- manually provisioned account credentials must stay local and out of Git
 
 ## Ethics, TOS, and Data Quality
 
-See [docs/operations/HEADLESS_SYNTHETIC_CAPTURE.md](../../docs/operations/HEADLESS_SYNTHETIC_CAPTURE.md) for the operating guidance that should gate use of this package.
+See [docs/operations/HEADLESS_SYNTHETIC_CAPTURE.md](../../docs/operations/HEADLESS_SYNTHETIC_CAPTURE.md) and [docs/operations/HEADLESS_RESEARCH_ACCOUNTS.md](../../docs/operations/HEADLESS_RESEARCH_ACCOUNTS.md) for the operating guidance that should gate use of this package.

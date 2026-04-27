@@ -12,3 +12,7 @@ coverage/
 # Headless synthetic capture artifacts
 packages/headless/.captures/
 .captures/
+
+# Local governed research-account config
+packages/headless/research-accounts.local.json
+packages/headless/*.research-accounts.local.json

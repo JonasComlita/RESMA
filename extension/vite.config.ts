@@ -54,6 +54,7 @@ export default defineConfig({
                 'content/youtube-observer': resolve(__dirname, 'src/content/youtube-observer.ts'),
                 'content/instagram-observer': resolve(__dirname, 'src/content/instagram-observer.ts'),
                 'content/twitter-observer': resolve(__dirname, 'src/content/twitter-observer.ts'),
+                'content/reddit-observer': resolve(__dirname, 'src/content/reddit-observer.ts'),
             },
             output: {
                 entryFileNames: '[name].js',

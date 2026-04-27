@@ -1,3 +1,39 @@
+import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
+
+export function parseEngagementCount(text: string): number {
+    const compact = text.replace(/\s+/g, '');
+    if (!compact) {
+        return 0;
+    }
+
+    const suffixMatch = compact.match(/(万|亿|[kmb])$/i);
+    const suffix = suffixMatch?.[1] ?? '';
+    const multiplier = suffix === '万'
+        ? 10_000
+        : suffix === '亿'
+            ? 100_000_000
+            : suffix.toLowerCase() === 'k'
+                ? 1_000
+                : suffix.toLowerCase() === 'm'
+                    ? 1_000_000
+                    : suffix.toLowerCase() === 'b'
+                        ? 1_000_000_000
+                        : 1;
+
+    const numericPart = suffix ? compact.slice(0, -suffix.length) : compact;
+    const decimalCommaMatch = numericPart.match(/,(\d{1,2})$/);
+    const normalizedNumeric = decimalCommaMatch
+        ? `${numericPart.slice(0, decimalCommaMatch.index).replace(/,/g, '')}.${decimalCommaMatch[1]}`
+        : numericPart.replace(/,/g, '');
+    const parsed = Number(normalizedNumeric);
+
+    if (!Number.isFinite(parsed)) {
+        return 0;
+    }
+
+    return Math.round(parsed * multiplier);
+}
+
 interface VideoAnalytics {
     duration: number;
     watchedSeconds: number;
@@ -42,6 +78,15 @@ interface CapturedVideo {
     analytics: VideoAnalytics;
 }
 
+interface RecommendationCandidate {
+    videoId: string;
+    position: number;
+    title: string | null;
+    channel: string | null;
+    surface: string;
+    surfaces: string[];
+}
+
 interface FeedSession {
     sessionId: string;
     startTime: number;
@@ -54,6 +99,8 @@ class TikTokObserver {
     private observer: MutationObserver | null = null;
     private isCapturing = false;
     private seenVideoIds = new Set<string>();
+    private periodicUploadedIds = new Set<string>();
+    private periodicFlushIntervalId: number | null = null;
 
     // Video Telemetry State
     private activeVideoId: string | null = null;
@@ -100,9 +147,25 @@ class TikTokObserver {
                     sendResponse({ success: true });
                     break;
                 case 'STOP_CAPTURE':
-                    const data = this.stopCapture();
-                    sendResponse({ success: true, data });
-                    break;
+                    void this.stopCapture().then((data) => {
+                        if (data.uploadSucceeded) {
+                            sendResponse({ success: true, data });
+                            return;
+                        }
+
+                        sendResponse({
+                            success: false,
+                            error: 'Upload failed. Please retry stop capture when connected.',
+                            data,
+                        });
+                    }).catch((error) => {
+                        console.warn('[RESMA] Failed to stop TikTok capture cleanly:', error);
+                        sendResponse({
+                            success: false,
+                            error: 'Failed to finalize capture session.',
+                        });
+                    });
+                    return true;
                 case 'GET_STATUS':
                     sendResponse({
                         isCapturing: this.isCapturing,
@@ -126,6 +189,7 @@ class TikTokObserver {
             if (this.activeVideoId) {
                 this.finalizeActiveVideo('closed_tab');
             }
+            this.stopPeriodicFlush();
         });
     }
 
@@ -134,6 +198,7 @@ class TikTokObserver {
 
         this.session = this.createNewSession();
         this.seenVideoIds.clear();
+        this.periodicUploadedIds.clear();
         this.isCapturing = true;
 
         // Scan existing videos
@@ -158,6 +223,7 @@ class TikTokObserver {
         });
 
         window.addEventListener('scroll', this.handleScroll);
+        this.startPeriodicFlush();
         console.log('[RESMA] Capture started');
     }
 
@@ -168,13 +234,18 @@ class TikTokObserver {
         }
     };
 
-    stopCapture(): FeedSession {
+    async stopCapture(): Promise<{
+        itemCount: number;
+        sessionId: string;
+        scrollEvents: number;
+        uploadSucceeded: boolean;
+    }> {
         // Finalize any currently watching video
         if (this.activeVideoId) {
             this.finalizeActiveVideo('unknown');
         }
 
-        this.isCapturing = false;
+        this.stopPeriodicFlush();
 
         if (this.observer) {
             this.observer.disconnect();
@@ -183,8 +254,134 @@ class TikTokObserver {
 
         window.removeEventListener('scroll', this.handleScroll);
 
+        const remainingVideos = this.session.videos.filter((video) => !this.periodicUploadedIds.has(video.videoId));
+        let uploadSucceeded = true;
+        if (remainingVideos.length > 0) {
+            const uploaded = await this.uploadFeed(remainingVideos);
+            if (uploaded) {
+                remainingVideos.forEach((video) => this.periodicUploadedIds.add(video.videoId));
+            } else {
+                uploadSucceeded = false;
+            }
+        }
+
+        const itemCount = this.session.videos.length;
+        const sessionId = this.session.sessionId;
+        const scrollEvents = this.session.scrollEvents;
+        if (uploadSucceeded) {
+            this.isCapturing = false;
+        } else {
+            this.startPeriodicFlush();
+        }
+
         console.log(`[RESMA] Capture stopped. ${this.session.videos.length} videos captured`);
-        return this.session;
+        return { itemCount, sessionId, scrollEvents, uploadSucceeded };
+    }
+
+    private startPeriodicFlush() {
+        if (!this.isCapturing || this.periodicFlushIntervalId !== null) {
+            return;
+        }
+
+        this.periodicFlushIntervalId = window.setInterval(() => {
+            if (!this.isCapturing) {
+                return;
+            }
+            void this.flushPeriodicBatch();
+        }, 15_000);
+    }
+
+    private stopPeriodicFlush() {
+        if (this.periodicFlushIntervalId === null) {
+            return;
+        }
+
+        window.clearInterval(this.periodicFlushIntervalId);
+        this.periodicFlushIntervalId = null;
+    }
+
+    private async flushPeriodicBatch(): Promise<boolean> {
+        if (!this.isCapturing) {
+            return false;
+        }
+
+        const finalizedVideos = this.session.videos.filter((video) => (
+            video.videoId !== this.activeVideoId && !this.periodicUploadedIds.has(video.videoId)
+        ));
+        if (finalizedVideos.length === 0) {
+            return false;
+        }
+
+        const uploaded = await this.uploadFeed(finalizedVideos);
+        if (uploaded) {
+            finalizedVideos.forEach((video) => this.periodicUploadedIds.add(video.videoId));
+        }
+
+        return uploaded;
+    }
+
+    private createSessionMetadata() {
+        return {
+            type: 'MANUAL_CAPTURE_SESSION',
+            captureSurface: 'for-you-feed',
+            clientSessionId: this.session.sessionId,
+            observerVersion: CURRENT_OBSERVER_VERSIONS.tiktok,
+            ingestVersion: CURRENT_INGEST_VERSION,
+            scrollEvents: this.session.scrollEvents,
+            capturedAt: new Date().toISOString(),
+            totalCaptured: this.session.videos.length,
+        };
+    }
+
+    private toUploadFeedItem(video: CapturedVideo, index: number) {
+        return {
+            videoId: video.videoId,
+            creatorHandle: video.creatorHandle,
+            creatorId: video.creatorId,
+            caption: video.caption,
+            musicTitle: video.musicTitle,
+            positionInFeed: Number.isFinite(video.position) ? video.position : index,
+            watchDuration: video.analytics?.watchedSeconds ?? 0,
+            interacted: Boolean(
+                video.analytics?.interaction?.liked
+                || video.analytics?.interaction?.shared
+                || video.analytics?.interaction?.commented
+            ),
+            engagementMetrics: {
+                ...video.engagement,
+                analytics: video.analytics,
+                isSponsored: Boolean(video.isSponsored),
+                recommendations: Array.isArray(video.recommendations) ? video.recommendations : [],
+            },
+            recommendations: Array.isArray(video.recommendations) ? video.recommendations : [],
+            contentCategories: ['for-you'],
+            contentTags: video.isSponsored ? ['sponsored'] : [],
+        };
+    }
+
+    private uploadFeed(videos: CapturedVideo[]): Promise<boolean> {
+        if (videos.length === 0) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+                type: 'UPLOAD_PLATFORM_FEED',
+                payload: {
+                    platform: 'tiktok',
+                    feed: videos.map((video, index) => this.toUploadFeedItem(video, index)),
+                    sessionMetadata: this.createSessionMetadata(),
+                },
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[RESMA] TikTok upload callback failed:', chrome.runtime.lastError.message);
+                    resolve(false);
+                    return;
+                }
+
+                resolve(Boolean(response?.success));
+            });
+        });
     }
 
     private scanForVideos() {
@@ -346,17 +543,10 @@ class TikTokObserver {
             const musicEl = element.querySelector('[data-e2e="video-music"]');
             const musicTitle = musicEl?.textContent?.trim() || null;
 
-            // Engagement Metrics
             const getCount = (selector: string): number => {
                 const el = element.querySelector(selector);
                 const text = el?.textContent?.trim();
-                if (!text) return 0;
-
-                let multiplier = 1;
-                if (text.includes('K')) multiplier = 1000;
-                if (text.includes('M')) multiplier = 1000000;
-
-                return parseFloat(text) * multiplier;
+                return text ? parseEngagementCount(text) : 0;
             };
 
             const likes = getCount('[data-e2e="like-count"]');
@@ -395,19 +585,48 @@ class TikTokObserver {
         }
     }
 
-    private extractRecommendationCandidates(element: HTMLElement, currentVideoId: string) {
-        const anchors = Array.from(element.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
-        const deduped = new Map<string, {
-            videoId: string;
-            position: number;
-            title: string | null;
-            channel: string | null;
-            surface: string;
-            surfaces: string[];
-        }>();
+    private extractRecommendationCandidates(element: HTMLElement, currentVideoId: string): RecommendationCandidate[] {
+        const railSelector = [
+            '[data-e2e*="recommend" i] a[href*="/video/"]',
+            '[data-e2e*="related" i] a[href*="/video/"]',
+            '[data-e2e*="up-next" i] a[href*="/video/"]',
+            '[data-e2e*="upnext" i] a[href*="/video/"]',
+            '[data-e2e*="next" i] a[href*="/video/"]',
+        ].join(', ');
+        const railAnchors = Array.from(element.querySelectorAll<HTMLAnchorElement>(railSelector));
+        const railRecommendations = this.collectRecommendationsFromAnchors(
+            railAnchors,
+            currentVideoId,
+            'for-you-next',
+            false
+        );
+
+        if (railRecommendations.length > 0) {
+            return railRecommendations;
+        }
+
+        const fallbackAnchors = Array.from(element.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
+        return this.collectRecommendationsFromAnchors(
+            fallbackAnchors,
+            currentVideoId,
+            'related-link',
+            true
+        );
+    }
+
+    private collectRecommendationsFromAnchors(
+        anchors: HTMLAnchorElement[],
+        currentVideoId: string,
+        surface: string,
+        skipProfileLinks: boolean
+    ): RecommendationCandidate[] {
+        const deduped = new Map<string, RecommendationCandidate>();
 
         for (const anchor of anchors) {
-            const candidateId = anchor.getAttribute('href')?.match(/\/video\/(\d{5,32})/)?.[1];
+            const href = anchor.getAttribute('href') ?? anchor.href ?? '';
+            if (skipProfileLinks && href.includes('/@')) continue;
+
+            const candidateId = href.match(/\/video\/(\d{5,32})/)?.[1];
             if (!candidateId || candidateId === currentVideoId) continue;
             if (deduped.has(candidateId)) continue;
 
@@ -416,8 +635,8 @@ class TikTokObserver {
                 position: deduped.size + 1,
                 title: anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null,
                 channel: null,
-                surface: 'related-link',
-                surfaces: ['related-link'],
+                surface,
+                surfaces: [surface],
             });
 
             if (deduped.size >= 20) break;

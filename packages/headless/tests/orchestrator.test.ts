@@ -5,6 +5,7 @@ import os from 'node:os';
 import { summarizeCaptureRun } from '../src/orchestrator.js';
 import { runSyntheticCaptureMatrix } from '../src/orchestrator.js';
 import { buildSyntheticProfiles } from '../src/profiles.js';
+import { createDefaultCaptureModeContext } from '../src/researchAccounts.js';
 import type { PersistedCaptureArtifact } from '../src/types.js';
 
 describe('summarizeCaptureRun', () => {
@@ -14,6 +15,7 @@ describe('summarizeCaptureRun', () => {
 
         const completed: PersistedCaptureArtifact[] = [
             {
+                captureMode: createDefaultCaptureModeContext(),
                 profile: sample,
                 payload: {
                     platform: 'youtube',
@@ -56,6 +58,7 @@ describe('summarizeCaptureRun', () => {
 
         const artifactPath = path.join(outputDir, '2026-04-25T00-00-00-000Z-sample.json');
         await writeFile(artifactPath, JSON.stringify({
+            captureMode: createDefaultCaptureModeContext(),
             profile: sample,
             payload: {
                 platform: 'youtube',

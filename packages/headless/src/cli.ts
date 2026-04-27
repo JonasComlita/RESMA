@@ -2,8 +2,19 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { buildSyntheticProfiles } from './profiles.js';
+import {
+    assertGovernedResearchCredentialSourceExists,
+    createDefaultCaptureModeContext,
+    createGovernedResearchCaptureModeContext,
+    loadGovernedResearchAccountConfig,
+    resolveGovernedResearchAccount,
+} from './researchAccounts.js';
 import { runSyntheticCaptureMatrix } from './orchestrator.js';
-import type { CaptureRuntimeOptions, SyntheticResearchProfile } from './types.js';
+import type {
+    CaptureRuntimeOptions,
+    GovernedResearchAccount,
+    SyntheticResearchProfile,
+} from './types.js';
 
 interface ParsedArgs {
     regions: string[];
@@ -13,10 +24,15 @@ interface ParsedArgs {
     limitPerCell: number | null;
     maxProfiles: number | null;
     outputDir: string;
+    outputDirProvided: boolean;
     profileStorageDir: string;
+    profileStorageDirProvided: boolean;
     profileTimeoutMs: number | null;
     apiBaseUrl?: string;
     authToken?: string;
+    enableGovernedResearchAccountMode: boolean;
+    researchAccountConfigPath?: string;
+    researchAccountId?: string;
     resumeExisting: boolean;
     upload: boolean;
     headless: boolean;
@@ -38,6 +54,9 @@ function printUsage() {
         '  --profile-storage-dir .profiles  Persistent browser state directory',
         '  --timeout-ms 180000         Per-profile timeout before the browser is closed',
         '  --no-resume                 Do not reuse existing artifacts in the output directory',
+        '  --enable-governed-research-account-mode',
+        '  --research-account-config <path>',
+        '  --research-account <id>',
         '  --upload                    POST captures to the existing ingest routes',
         '  --api-url http://localhost:3001',
         '  --token <jwt>',
@@ -61,7 +80,7 @@ function readFlagValue(args: string[], index: number): string {
     return value;
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(argv: string[]): ParsedArgs {
     const parsed: ParsedArgs = {
         regions: [],
         categories: [],
@@ -70,10 +89,13 @@ function parseArgs(argv: string[]): ParsedArgs {
         limitPerCell: null,
         maxProfiles: null,
         outputDir: path.resolve(process.cwd(), '.captures', 'headless'),
+        outputDirProvided: false,
         profileStorageDir: path.resolve(process.cwd(), '.captures', 'profiles'),
+        profileStorageDirProvided: false,
         profileTimeoutMs: null,
         apiBaseUrl: process.env.RESMA_API_URL,
         authToken: process.env.RESMA_TOKEN,
+        enableGovernedResearchAccountMode: false,
         resumeExisting: true,
         upload: false,
         headless: true,
@@ -109,14 +131,27 @@ function parseArgs(argv: string[]): ParsedArgs {
                 break;
             case '--output-dir':
                 parsed.outputDir = path.resolve(process.cwd(), readFlagValue(argv, index));
+                parsed.outputDirProvided = true;
                 index += 1;
                 break;
             case '--profile-storage-dir':
                 parsed.profileStorageDir = path.resolve(process.cwd(), readFlagValue(argv, index));
+                parsed.profileStorageDirProvided = true;
                 index += 1;
                 break;
             case '--timeout-ms':
                 parsed.profileTimeoutMs = Number.parseInt(readFlagValue(argv, index), 10);
+                index += 1;
+                break;
+            case '--enable-governed-research-account-mode':
+                parsed.enableGovernedResearchAccountMode = true;
+                break;
+            case '--research-account-config':
+                parsed.researchAccountConfigPath = path.resolve(process.cwd(), readFlagValue(argv, index));
+                index += 1;
+                break;
+            case '--research-account':
+                parsed.researchAccountId = readFlagValue(argv, index);
                 index += 1;
                 break;
             case '--api-url':
@@ -164,6 +199,22 @@ function parseArgs(argv: string[]): ParsedArgs {
 
     if (parsed.profileTimeoutMs !== null && (!Number.isFinite(parsed.profileTimeoutMs) || parsed.profileTimeoutMs < 1_000)) {
         throw new Error('--timeout-ms must be at least 1000 when provided');
+    }
+
+    const requestedResearchAccountMode = parsed.enableGovernedResearchAccountMode
+        || Boolean(parsed.researchAccountConfigPath)
+        || Boolean(parsed.researchAccountId);
+
+    if (!parsed.enableGovernedResearchAccountMode && requestedResearchAccountMode) {
+        throw new Error('Research-account flags require --enable-governed-research-account-mode.');
+    }
+
+    if (parsed.enableGovernedResearchAccountMode) {
+        if (!parsed.researchAccountConfigPath || !parsed.researchAccountId) {
+            throw new Error(
+                '--enable-governed-research-account-mode requires both --research-account-config and --research-account.',
+            );
+        }
     }
 
     if (parsed.upload && (!parsed.apiBaseUrl || !parsed.authToken)) {
@@ -220,6 +271,45 @@ export function filterProfiles(profiles: SyntheticResearchProfile[], args: Parse
     return filtered;
 }
 
+interface ResolvedGovernedResearchAccountSelection {
+    captureMode: CaptureRuntimeOptions['captureMode'];
+    researchAccount?: GovernedResearchAccount;
+}
+
+export async function resolveGovernedResearchAccountSelection(
+    args: {
+        enableGovernedResearchAccountMode: boolean;
+        researchAccountConfigPath?: string;
+        researchAccountId?: string;
+    },
+    profiles: SyntheticResearchProfile[],
+): Promise<ResolvedGovernedResearchAccountSelection> {
+    if (!args.enableGovernedResearchAccountMode) {
+        return {
+            captureMode: createDefaultCaptureModeContext(),
+        };
+    }
+
+    if (!args.researchAccountConfigPath || !args.researchAccountId) {
+        throw new Error(
+            '--enable-governed-research-account-mode requires both --research-account-config and --research-account.',
+        );
+    }
+
+    const config = await loadGovernedResearchAccountConfig(args.researchAccountConfigPath);
+    const account = resolveGovernedResearchAccount({
+        accountId: args.researchAccountId,
+        config,
+        requestedPlatforms: Array.from(new Set(profiles.map((profile) => profile.platform))),
+    });
+    await assertGovernedResearchCredentialSourceExists(account);
+
+    return {
+        captureMode: createGovernedResearchCaptureModeContext(account),
+        researchAccount: account,
+    };
+}
+
 export async function main() {
     const commandAndArgs = process.argv.slice(2);
     const command = commandAndArgs[0] === 'capture' ? 'capture' : 'capture';
@@ -238,14 +328,41 @@ export async function main() {
         throw new Error('No synthetic profiles matched the requested filters.');
     }
 
+    const researchAccountSelection = await resolveGovernedResearchAccountSelection(parsed, profiles);
+    const researchAccount = researchAccountSelection.researchAccount;
+
+    if (researchAccount) {
+        if (!parsed.outputDirProvided) {
+            parsed.outputDir = path.resolve(process.cwd(), '.captures', 'headless-research-accounts', researchAccount.id);
+        }
+        if (!parsed.profileStorageDirProvided) {
+            parsed.profileStorageDir = path.resolve(
+                process.cwd(),
+                '.captures',
+                'headless-research-account-state',
+                researchAccount.id,
+            );
+        }
+
+        console.warn([
+            'Governed research-account mode enabled.',
+            `  account: ${researchAccount.id} (${researchAccount.label})`,
+            `  platform: ${researchAccount.platform}`,
+            `  purpose: ${researchAccount.researchPurpose}`,
+            '  policy: passive observatory capture only; no posting, engagement, or account creation automation.',
+        ].join('\n'));
+    }
+
     const runtimeOptions: CaptureRuntimeOptions = {
         apiBaseUrl: parsed.apiBaseUrl,
         authToken: parsed.authToken,
         browserChannel: parsed.browserChannel,
+        captureMode: researchAccountSelection.captureMode,
         headless: parsed.headless,
         outputDir: parsed.outputDir,
         profileStorageDir: parsed.profileStorageDir,
         profileTimeoutMs: parsed.profileTimeoutMs ?? undefined,
+        researchAccount,
         resumeExisting: parsed.resumeExisting,
         upload: parsed.upload,
     };
@@ -275,6 +392,7 @@ export async function main() {
         `  summary: ${result.summaryPath}`,
         `  completed: ${result.summary.completedCount}/${result.summary.totalProfilesRequested}`,
         `  resumed: ${result.summary.resumedCount}`,
+        `  capture mode: ${runtimeOptions.captureMode?.mode ?? 'synthetic-logged-out'}`,
         `  low recommendations: ${result.summary.lowRecommendationProfiles.length}`,
         `  missing coverage cells: ${result.summary.missingCoverageCells.length}`,
     ].join('\n'));

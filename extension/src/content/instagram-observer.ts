@@ -4,7 +4,7 @@
  */
 import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
 
-type InstagramCaptureSurface = 'instagram-feed' | 'instagram-reels' | 'unknown';
+type InstagramCaptureSurface = 'instagram-feed' | 'instagram-reels' | 'instagram-stories' | 'unknown';
 
 interface RecommendationRow {
     videoId: string;
@@ -18,9 +18,12 @@ interface RecommendationRow {
 interface InstagramCapturedItem {
     videoId: string;
     id: string;
-    type: 'image' | 'video' | 'carousel' | 'reel';
+    type: 'image' | 'video' | 'carousel' | 'reel' | 'story';
     author: string | null;
     caption: string | null;
+    likesCount: number | null;
+    commentsCount: number | null;
+    savesCount: null;
     timestamp: number;
     impressionDuration: number;
     watchTime: number;
@@ -44,7 +47,12 @@ class InstagramObserver {
     private activeReelId: string | null = null;
     private activeVideoElement: HTMLVideoElement | null = null;
     private activeReelStartTime = 0;
-    private activeReelMaxTime = 0;
+    private activeReelCumulativeTime = 0;
+    private activeReelLastCurrentTime = 0;
+    private activeReelLoopCount = 0;
+    private activeStoryId: string | null = null;
+    private activeStoryUsername: string | null = null;
+    private activeStoryStartTime = 0;
 
     constructor() {
         this.intersectionObserver = new IntersectionObserver(this.handleIntersection.bind(this), {
@@ -72,6 +80,7 @@ class InstagramObserver {
                 this.lightweightUploadedIds.clear();
                 this.clientSessionId = `ig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
                 this.startPeriodicFlush();
+                void this.checkActiveStory();
                 sendResponse({ success: true, data: { itemCount: 0 } });
                 return true;
             }
@@ -79,6 +88,7 @@ class InstagramObserver {
             if (message.type === 'STOP_CAPTURE') {
                 (async () => {
                     await this.finalizeReel();
+                    await this.finalizeStory();
                     const flushResult = await this.flushManualCaptureSession();
                     if (flushResult.success) {
                         this.isCapturing = false;
@@ -110,9 +120,11 @@ class InstagramObserver {
         this.observeFeedArticles();
         this.observeDynamicDom();
         this.observeReels();
+        this.observeStories();
 
         window.addEventListener('beforeunload', () => {
             void this.finalizeReel();
+            void this.finalizeStory();
             void this.sendLightweightBatch();
         });
     }
@@ -128,6 +140,7 @@ class InstagramObserver {
             }
             void this.sendLightweightBatch();
             this.checkActiveReel();
+            void this.checkActiveStory();
         }, 12000);
     }
 
@@ -143,6 +156,9 @@ class InstagramObserver {
     private getCaptureSurface(): InstagramCaptureSurface {
         if (location.pathname.includes('/reels/')) {
             return 'instagram-reels';
+        }
+        if (this.currentStoryRoute()) {
+            return 'instagram-stories';
         }
         if (location.pathname === '/' || location.pathname.startsWith('/explore')) {
             return 'instagram-feed';
@@ -241,8 +257,9 @@ class InstagramObserver {
             const type: InstagramCapturedItem['type'] = hasVideo
                 ? (location.pathname.includes('/reels/') ? 'reel' : 'video')
                 : (hasCarousel ? 'carousel' : 'image');
-            const isSponsored = Array.from(element.querySelectorAll('span'))
-                .some((span) => span.textContent?.trim() === 'Sponsored');
+            const isSponsored = this.hasSponsoredLabel(element);
+            const likesCount = this.extractLikeCount(element);
+            const commentsCount = this.extractCommentCount(element);
 
             return {
                 videoId: id,
@@ -250,6 +267,9 @@ class InstagramObserver {
                 type,
                 author,
                 caption,
+                likesCount,
+                commentsCount,
+                savesCount: null,
                 timestamp: Date.now(),
                 impressionDuration: 0,
                 watchTime: 0,
@@ -257,13 +277,122 @@ class InstagramObserver {
                 isSponsored,
                 hasInteracted: false,
                 interactionType: null,
-                recommendations: [],
+                recommendations: this.scrapeRelatedPostRecommendations(element, id),
                 position: this.capturedPosts.size,
             };
         } catch (error) {
             console.warn('[RESMA] Failed to scrape Instagram post:', error);
             return null;
         }
+    }
+
+    private parseEngagementCount(text: string | null | undefined): number {
+        if (!text) return 0;
+
+        const normalized = text.replace(/,/g, '');
+        const matches = Array.from(normalized.matchAll(/(\d+(?:\.\d+)?)\s*([kmb])?/gi));
+        const match = matches.at(-1);
+        if (!match) return 0;
+
+        const parsed = Number.parseFloat(match[1]);
+        if (!Number.isFinite(parsed) || parsed < 0) return 0;
+
+        const suffix = (match[2] || '').toLowerCase();
+        const multiplier = suffix === 'k'
+            ? 1_000
+            : suffix === 'm'
+                ? 1_000_000
+                : suffix === 'b'
+                    ? 1_000_000_000
+                    : 1;
+
+        return Math.round(parsed * multiplier);
+    }
+
+    private hasEngagementNumber(text: string | null | undefined): boolean {
+        return Boolean(text && /\d[\d,.]*\s*[kmb]?/i.test(text));
+    }
+
+    private extractLikeCount(element: Element): number | null {
+        const candidates = Array.from(element.querySelectorAll<HTMLElement>(
+            '[aria-label*="like" i], [data-testid*="like" i], a, span'
+        ));
+        const counts: number[] = [];
+
+        for (const candidate of candidates) {
+            const text = [
+                candidate.textContent,
+                candidate.getAttribute('aria-label'),
+                candidate.getAttribute('data-testid'),
+            ].filter(Boolean).join(' ');
+            if (!/\blikes?\b|\bliked\b/i.test(text) || !this.hasEngagementNumber(text)) {
+                continue;
+            }
+            counts.push(this.parseEngagementCount(text));
+        }
+
+        return counts.length > 0 ? Math.max(...counts) : null;
+    }
+
+    private scrapeRelatedPostRecommendations(element: Element, currentPostId: string): RecommendationRow[] {
+        const anchors = Array.from(element.querySelectorAll<HTMLAnchorElement>('a[href*="/reel/"], a[href*="/p/"]'));
+        const deduped = new Map<string, RecommendationRow>();
+
+        for (const anchor of anchors) {
+            const href = anchor.getAttribute('href') || '';
+            const match = href.match(/\/(?:reel|p)\/([A-Za-z0-9_-]{5,64})/);
+            const videoId = match?.[1];
+            if (!videoId || videoId === currentPostId || !this.isRelatedPostAnchor(anchor)) {
+                continue;
+            }
+
+            const surface = 'related-posts';
+            deduped.set(videoId, {
+                videoId,
+                position: deduped.size + 1,
+                title: anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null,
+                channel: null,
+                surface,
+                surfaces: [surface],
+            });
+
+            if (deduped.size >= 25) {
+                break;
+            }
+        }
+
+        return Array.from(deduped.values());
+    }
+
+    private isRelatedPostAnchor(anchor: HTMLAnchorElement): boolean {
+        let current: Element | null = anchor;
+        for (let depth = 0; current && depth < 5; depth += 1) {
+            const text = current.textContent?.trim() || '';
+            if (/\b(suggested posts?|related posts?|more posts like this|recommended posts?)\b/i.test(text)) {
+                return true;
+            }
+            current = current.parentElement;
+        }
+
+        return false;
+    }
+
+    private extractCommentCount(element: Element): number | null {
+        const candidates = Array.from(element.querySelectorAll<HTMLElement>('a, button, span, div[role="button"]'));
+        const counts: number[] = [];
+
+        for (const candidate of candidates) {
+            const text = [
+                candidate.textContent,
+                candidate.getAttribute('aria-label'),
+            ].filter(Boolean).join(' ');
+            if (!/\bcomments?\b/i.test(text) || !this.hasEngagementNumber(text)) {
+                continue;
+            }
+            counts.push(this.parseEngagementCount(text));
+        }
+
+        return counts.length > 0 ? Math.max(...counts) : null;
     }
 
     private recordInteraction(id: string, interactionType: string) {
@@ -297,7 +426,9 @@ class InstagramObserver {
             this.activeReelId = reelId;
             this.activeVideoElement = activeVideo;
             this.activeReelStartTime = Date.now();
-            this.activeReelMaxTime = 0;
+            this.activeReelCumulativeTime = 0;
+            this.activeReelLastCurrentTime = 0;
+            this.activeReelLoopCount = 0;
             activeVideo.addEventListener('timeupdate', this.onReelTimeUpdate);
         }
     }
@@ -312,7 +443,17 @@ class InstagramObserver {
 
     private onReelTimeUpdate = () => {
         if (!this.activeVideoElement) return;
-        this.activeReelMaxTime = Math.max(this.activeReelMaxTime, this.activeVideoElement.currentTime);
+        const currentTime = this.activeVideoElement.currentTime;
+        const delta = currentTime - this.activeReelLastCurrentTime;
+
+        if (delta > 0 && delta < 5) {
+            this.activeReelCumulativeTime += delta;
+        } else if (delta < 0) {
+            this.activeReelCumulativeTime += currentTime;
+            this.activeReelLoopCount += 1;
+        }
+
+        this.activeReelLastCurrentTime = currentTime;
     };
 
     private scrapeReelRecommendations(currentReelId: string): RecommendationRow[] {
@@ -326,17 +467,24 @@ class InstagramObserver {
             if (!videoId || videoId === currentReelId) continue;
 
             const title = anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null;
-            const row: RecommendationRow = {
-                videoId,
-                position: deduped.size + 1,
-                title,
-                channel: null,
-                surface: 'reels-up-next',
-                surfaces: ['reels-up-next'],
-            };
+            const surface = this.detectReelRecommendationSurface(anchor);
+            const surfaces = [surface];
 
-            if (!deduped.has(videoId)) {
-                deduped.set(videoId, row);
+            const existing = deduped.get(videoId);
+            if (existing) {
+                existing.surfaces = Array.from(new Set([...existing.surfaces, ...surfaces]));
+                if (!existing.title && title) {
+                    existing.title = title;
+                }
+            } else {
+                deduped.set(videoId, {
+                    videoId,
+                    position: deduped.size + 1,
+                    title,
+                    channel: null,
+                    surface,
+                    surfaces,
+                });
             }
 
             if (deduped.size >= 25) {
@@ -347,17 +495,67 @@ class InstagramObserver {
         return Array.from(deduped.values());
     }
 
+    private detectReelRecommendationSurface(anchor: HTMLAnchorElement): string {
+        if (this.isInsideHorizontalScrollContainer(anchor)) {
+            return 'reels-rail';
+        }
+
+        if (location.pathname.startsWith('/explore') || anchor.closest('[role="grid"]')) {
+            return 'explore-grid';
+        }
+
+        if (this.isInsidePrimaryVerticalScrollContainer(anchor)) {
+            return 'reels-up-next';
+        }
+
+        return 'unknown';
+    }
+
+    private isInsideHorizontalScrollContainer(element: Element): boolean {
+        let current = element.parentElement;
+        while (current && current !== document.body) {
+            const styles = window.getComputedStyle(current);
+            const hasHorizontalOverflow = (styles.overflowX === 'auto' || styles.overflowX === 'scroll')
+                && current.scrollWidth > current.clientWidth + 20;
+            const hasHorizontalSnap = /\bx\b|\binline\b/i.test(styles.scrollSnapType);
+            if (hasHorizontalOverflow || hasHorizontalSnap) {
+                return true;
+            }
+            current = current.parentElement;
+        }
+
+        return false;
+    }
+
+    private isInsidePrimaryVerticalScrollContainer(element: Element): boolean {
+        let current = element.parentElement;
+        while (current && current !== document.body) {
+            const styles = window.getComputedStyle(current);
+            const hasVerticalOverflow = (styles.overflowY === 'auto' || styles.overflowY === 'scroll')
+                && current.scrollHeight > current.clientHeight + 20;
+            if (hasVerticalOverflow) {
+                return true;
+            }
+            current = current.parentElement;
+        }
+
+        return location.pathname.includes('/reels/') && Boolean(element.closest('main'));
+    }
+
     private async finalizeReel() {
         if (!this.activeReelId) return;
 
         const reelId = this.activeReelId;
         const activeVideoElement = this.activeVideoElement;
         const activeReelStartTime = this.activeReelStartTime;
-        const activeReelMaxTime = this.activeReelMaxTime;
+        const activeReelCumulativeTime = this.activeReelCumulativeTime;
+        const activeReelLoopCount = this.activeReelLoopCount;
         this.activeVideoElement = null;
         this.activeReelId = null;
         this.activeReelStartTime = 0;
-        this.activeReelMaxTime = 0;
+        this.activeReelCumulativeTime = 0;
+        this.activeReelLastCurrentTime = 0;
+        this.activeReelLoopCount = 0;
 
         if (activeVideoElement) {
             activeVideoElement.removeEventListener('timeupdate', this.onReelTimeUpdate);
@@ -369,10 +567,15 @@ class InstagramObserver {
             type: 'reel',
             author: null,
             caption: null,
+            likesCount: null,
+            commentsCount: null,
+            savesCount: null,
             timestamp: Date.now(),
             impressionDuration: 0,
-            watchTime: activeReelMaxTime || Math.max(0, (Date.now() - activeReelStartTime) / 1000),
-            loopCount: 0,
+            watchTime: activeReelCumulativeTime === 0
+                ? Math.max(0, (Date.now() - activeReelStartTime) / 1000)
+                : activeReelCumulativeTime,
+            loopCount: activeReelLoopCount,
             isSponsored: false,
             hasInteracted: false,
             interactionType: null,
@@ -394,6 +597,122 @@ class InstagramObserver {
                 }
             }
         }
+    }
+
+    private observeStories() {
+        const dispatchLocationChange = () => window.dispatchEvent(new Event('resma-location-change'));
+        const originalPushState = history.pushState.bind(history);
+        const originalReplaceState = history.replaceState.bind(history);
+
+        history.pushState = ((...args: Parameters<History['pushState']>) => {
+            const result = originalPushState(...args);
+            dispatchLocationChange();
+            return result;
+        }) as History['pushState'];
+
+        history.replaceState = ((...args: Parameters<History['replaceState']>) => {
+            const result = originalReplaceState(...args);
+            dispatchLocationChange();
+            return result;
+        }) as History['replaceState'];
+
+        const handleLocationChange = () => {
+            window.setTimeout(() => {
+                void this.checkActiveStory();
+            }, 0);
+        };
+
+        window.addEventListener('popstate', handleLocationChange);
+        window.addEventListener('hashchange', handleLocationChange);
+        window.addEventListener('resma-location-change', handleLocationChange);
+        void this.checkActiveStory();
+    }
+
+    private currentStoryRoute(): { username: string; storyId: string } | null {
+        const match = location.pathname.match(/\/stories\/([^/]+)\/(\d+)\//);
+        if (!match?.[1] || !match?.[2]) {
+            return null;
+        }
+
+        return {
+            username: decodeURIComponent(match[1]),
+            storyId: match[2],
+        };
+    }
+
+    private async checkActiveStory() {
+        if (!this.isCapturing) {
+            this.activeStoryId = null;
+            this.activeStoryUsername = null;
+            this.activeStoryStartTime = 0;
+            return;
+        }
+
+        const route = this.currentStoryRoute();
+        if (!route) {
+            await this.finalizeStory();
+            return;
+        }
+
+        if (this.activeStoryId === route.storyId && this.activeStoryUsername === route.username) {
+            return;
+        }
+
+        await this.finalizeStory();
+        this.activeStoryId = route.storyId;
+        this.activeStoryUsername = route.username;
+        this.activeStoryStartTime = Date.now();
+    }
+
+    private async finalizeStory() {
+        if (!this.activeStoryId) return;
+
+        const storyId = this.activeStoryId;
+        const username = this.activeStoryUsername;
+        const storyStartTime = this.activeStoryStartTime;
+        this.activeStoryId = null;
+        this.activeStoryUsername = null;
+        this.activeStoryStartTime = 0;
+
+        const item: InstagramCapturedItem = {
+            videoId: storyId,
+            id: storyId,
+            type: 'story',
+            author: username,
+            caption: null,
+            likesCount: null,
+            commentsCount: null,
+            savesCount: null,
+            timestamp: Date.now(),
+            impressionDuration: Math.max(0, (Date.now() - storyStartTime) / 1000),
+            watchTime: 0,
+            loopCount: 0,
+            isSponsored: this.hasSponsoredLabel(document),
+            hasInteracted: false,
+            interactionType: null,
+            recommendations: [],
+            position: this.capturedPosts.size,
+        };
+
+        this.capturedPosts.set(storyId, item);
+        if (this.isCapturing) {
+            this.manualCaptureBuffer.set(storyId, item);
+            if (!this.lightweightUploadedIds.has(storyId)) {
+                const uploadSucceeded = await this.uploadFeed([item], {
+                    type: 'STORY_VIEW',
+                    captureSurface: 'instagram-stories',
+                    uploadEvent: 'INSTAGRAM_STORY_VIEW',
+                });
+                if (uploadSucceeded) {
+                    this.lightweightUploadedIds.add(storyId);
+                }
+            }
+        }
+    }
+
+    private hasSponsoredLabel(root: ParentNode): boolean {
+        return Array.from(root.querySelectorAll('span'))
+            .some((span) => span.textContent?.trim() === 'Sponsored');
     }
 
     private async sendLightweightBatch() {

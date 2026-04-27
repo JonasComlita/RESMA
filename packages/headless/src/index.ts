@@ -2,6 +2,7 @@ export {
     BEHAVIORAL_TRAITS,
     buildSyntheticProfiles,
     CORE_CATEGORY_DEFINITIONS,
+    HEADLESS_PLATFORM_YOUTUBE,
     getBehaviorByKey,
     getCategoryByKey,
     getRegionByKey,
@@ -10,19 +11,42 @@ export {
     RESEARCH_REGIONS,
 } from './profiles.js';
 export { runSyntheticCaptureMatrix, summarizeCaptureRun } from './orchestrator.js';
+export {
+    assertGovernedResearchCredentialSourceExists,
+    createDefaultCaptureModeContext,
+    createGovernedResearchCaptureModeContext,
+    loadGovernedResearchAccountConfig,
+    mergeCaptureModeMetadata,
+    parseGovernedResearchAccountConfig,
+    resolveGovernedResearchAccount,
+    toGovernedResearchAccountReference,
+} from './researchAccounts.js';
 export { captureYouTubeProfile } from './youtube.js';
 export { uploadCapturePayload } from './uploader.js';
 export type {
     BehavioralTraitDefinition,
     CaptureArtifact,
+    CaptureIdentity,
+    CaptureModeContext,
     CaptureRunResult,
     CaptureRunSummary,
     CaptureRuntimeOptions,
     CategoryDefinition,
     CoverageCellSummary,
+    GovernedResearchAccount,
+    GovernedResearchAccountConfig,
+    GovernedResearchAccountOwner,
+    GovernedResearchAccountReference,
+    GovernedResearchAllowedCaptureMode,
+    GovernedResearchCredentialSource,
+    GovernedResearchCredentialSourceKind,
+    GovernedResearchAccountRunScope,
+    GovernedResearchAccountStatus,
     PersistedCaptureArtifact,
     ProfileCaptureSummary,
+    ResearchMode,
     RegionDefinition,
+    SupportedHeadlessPlatform,
     SyntheticResearchProfile,
     UploadResult,
 } from './types.js';

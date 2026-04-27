@@ -21,6 +21,7 @@ Baseline assumptions:
 - do not message, comment, post, like, subscribe, or monetize from these profiles
 - keep behavior limited to low-risk browsing, result opening, scrolling, and repeat navigation patterns
 - preserve clear provenance in metadata so downstream analysis can segment synthetic captures from contributor captures
+- treat signed-in research-account usage as a separate, higher-risk mode with explicit governance
 
 ## Regions
 
@@ -87,6 +88,8 @@ Synthetic capture should enter RESMA through the existing ingest contracts:
 4. Do not special-case backend persistence unless analysis needs explicit filtering later.
 5. If segmentation becomes necessary, do it downstream by reading the metadata already attached at ingest.
 
+Research-account captures must also tag explicit governance metadata, including account id/label references and signed-in capture identity, so downstream systems can audit this mode separately from signed-out synthetic runs.
+
 ## Data Quality Expectations
 
 What this layer is good at:
@@ -113,6 +116,7 @@ Quality expectations:
 - Platform terms may restrict automated browsing or scraping even for research use.
 - YouTube UI changes may silently degrade selectors and lower capture quality.
 - Logged-out sessions will not fully represent deeply personalized recommendation states.
+- Signed-in research-account mode carries higher policy, enforcement, and account-integrity risk than signed-out mode.
 - Region simulation via locale and `gl`/`hl` parameters is directionally useful but not a perfect substitute for in-region network presence.
 - High-volume automation can create rate-limit, bot-detection, or account-integrity risk if operators move beyond the logged-out baseline.
 - Local authenticated ingest tests also depend on the database role having permission to run Prisma migrations and create tables in the configured schema.
@@ -124,3 +128,4 @@ Quality expectations:
 3. Check each run's `run-summary.json` for missing cells, low search-result counts, and low recommendation density.
 4. Add QA checks for selector drift before increasing volume.
 5. Only consider signed-in synthetic research accounts after a separate policy review and explicit labeling plan.
+6. If signed-in research accounts are approved, follow [HEADLESS_RESEARCH_ACCOUNTS.md](./HEADLESS_RESEARCH_ACCOUNTS.md) and keep the account pool manual, low-volume, and passive-only.

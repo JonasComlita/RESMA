@@ -19,6 +19,7 @@ import youtubeRouter from './routes/youtube.js';
 import instagramRouter from './routes/instagram.js';
 import insightsRouter from './routes/insights.js';
 import twitterRouter from './routes/twitter.js';
+import redditRouter from './routes/reddit.js';
 import { apiKeysRouter } from './routes/apiKeys.js';
 import { programmaticApiRouter } from './routes/programmaticApi.js';
 import { reportsRouter, sharedReportsRouter } from './routes/reports.js';
@@ -161,6 +162,8 @@ app.use('/instagram/feed', createIngestRateLimiter());
 app.use('/instagram', instagramRouter);
 app.use('/twitter/feed', createIngestRateLimiter());
 app.use('/twitter', twitterRouter);
+app.use('/reddit/feed', createIngestRateLimiter());
+app.use('/reddit', redditRouter);
 app.get('/docs/openapi.json', (_req, res) => {
     res.json(buildOpenApiDocument());
 });

@@ -8,7 +8,7 @@ import { coercePlatformFeedPayload, CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VER
 import { createTwitterUploadPayload } from './twitter-service.js';
 import { getJwtExpiryTime, isJwtExpired } from './authSession.js';
 
-type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok' | 'twitter';
+type SupportedPlatform = 'youtube' | 'instagram' | 'tiktok' | 'twitter' | 'reddit';
 
 interface StorageData {
     token?: string;
@@ -236,6 +236,7 @@ function uploadEndpointForPlatform(platform: SupportedPlatform, apiBaseUrl: stri
     if (platform === 'youtube') return `${apiBaseUrl}/youtube/feed`;
     if (platform === 'instagram') return `${apiBaseUrl}/instagram/feed`;
     if (platform === 'twitter') return `${apiBaseUrl}/twitter/feed`;
+    if (platform === 'reddit') return `${apiBaseUrl}/reddit/feed`;
     return `${apiBaseUrl}/feeds`;
 }
 
