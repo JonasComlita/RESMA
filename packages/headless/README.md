@@ -70,43 +70,43 @@ Traits cover:
 Install workspace dependencies first:
 
 ```bash
-pnpm install
+bun install
 ```
 
 Build just this package:
 
 ```bash
-pnpm --filter @resma/headless build
+bun run --filter @resma/headless build
 ```
 
 Run one local artifact capture without uploading:
 
 ```bash
-pnpm --filter @resma/headless capture --region us --category technology --limit 1
+bun run --filter @resma/headless capture --region us --category technology --limit 1
 ```
 
 Run with a locally installed browser channel if Playwright browsers are not installed:
 
 ```bash
-pnpm --filter @resma/headless capture --region jp --category music --limit 1 --browser-channel chrome
+bun run --filter @resma/headless capture --region jp --category music --limit 1 --browser-channel chrome
 ```
 
 Upload through the existing ingest pipeline:
 
 ```bash
-pnpm --filter @resma/headless capture --region us --category news-politics --limit 1 --upload --api-url http://localhost:3001 --token <jwt>
+bun run --filter @resma/headless capture --region us --category news-politics --limit 1 --upload --api-url http://localhost:3001 --token <jwt>
 ```
 
 Run a matrix with one profile per requested region/category cell:
 
 ```bash
-pnpm --filter @resma/headless capture --region "us uk ca br de in jp mx" --category "technology music news-politics sports" --limit 1 --upload --api-url http://localhost:3001 --token <jwt>
+bun run --filter @resma/headless capture --region "us uk ca br de in jp mx" --category "technology music news-politics sports" --limit 1 --upload --api-url http://localhost:3001 --token <jwt>
 ```
 
 Global cap semantics now live on `--max-profiles` instead of `--limit`:
 
 ```bash
-pnpm --filter @resma/headless capture --region "us uk" --category "technology music" --limit 1 --max-profiles 2
+bun run --filter @resma/headless capture --region "us uk" --category "technology music" --limit 1 --max-profiles 2
 ```
 
 Long-running matrix runs can be resumed safely from the same output directory:
@@ -154,7 +154,7 @@ Use a local config based on [research-accounts.example.json](./research-accounts
 Example command:
 
 ```bash
-pnpm --filter @resma/headless capture \
+bun run --filter @resma/headless capture \
   --enable-governed-research-account-mode \
   --research-account-config C:/local/resma/research-accounts.json \
   --research-account yt-observatory-us-1 \
@@ -223,8 +223,8 @@ If `--upload` reaches the backend but auth registration or ingest persistence fa
 Typical healthy setup:
 
 ```bash
-pnpm --filter backend db:generate
-pnpm --filter backend exec prisma migrate deploy
+bun run --filter backend db:generate
+bun run --filter backend prisma migrate deploy
 ```
 
 If Prisma reports `permission denied for schema public`, the local Postgres role in `backend/.env` does not currently have create privileges on the target schema. That is an environment/database ownership issue, not a headless package issue, and it must be corrected before authenticated upload smoke tests can pass.

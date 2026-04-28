@@ -13,7 +13,11 @@
       "vite/client"
     ],
     "skipLibCheck": true,
-    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "./*"
+      ]
+    },
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

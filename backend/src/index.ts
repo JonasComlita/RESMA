@@ -191,9 +191,11 @@ app.get('/docs', (_req, res) => {
 // Error handling
 app.use(errorHandler);
 
-const isExecutedDirectly = typeof require !== 'undefined'
-    && typeof module !== 'undefined'
-    && require.main === module;
+const isExecutedDirectly = process.argv[1]?.endsWith('index.ts')
+    || process.argv[1]?.endsWith('index.js')
+    || (typeof require !== 'undefined'
+        && typeof module !== 'undefined'
+        && require.main === module);
 
 // Start server only when executed directly (not during tests/imports)
 if (isExecutedDirectly) {

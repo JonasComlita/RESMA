@@ -17,16 +17,15 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "capture": "tsx src/cli.ts",
-    "test": "pnpm exec vitest run"
+    "capture": "bun run src/cli.ts",
+    "test": "bun test",
+    "typecheck": "tsgo"
   },
   "dependencies": {
     "@resma/shared": "workspace:*",
     "playwright": "^1.52.0"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "tsx": "^4.7.0",
-    "vitest": "^1.6.1"
+    "@types/node": "^20.10.0"
   }
 }

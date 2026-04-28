@@ -15,10 +15,11 @@
     }
   },
   "scripts": {
-    "build": "node ./scripts/clean-dist.mjs && pnpm run build:esm && pnpm run build:cjs && node ./scripts/write-cjs-package.mjs",
+    "build": "bun run scripts/clean-dist.mjs && bun run build:esm && bun run build:cjs && bun run scripts/write-cjs-package.mjs",
     "build:esm": "tsc -p tsconfig.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
-    "dev": "tsc -p tsconfig.json --watch"
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsgo"
   },
   "dependencies": {
     "zod": "^3.22.4"

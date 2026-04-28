@@ -54,7 +54,7 @@ const LazySandDanceViewer = lazy(async () => {
     ]);
 
     SandDanceReact.use(
-        React,
+        React as unknown as Parameters<typeof SandDanceReact.use>[0],
         ReactDOM as unknown as Parameters<typeof SandDanceReact.use>[1],
         vega as unknown as Parameters<typeof SandDanceReact.use>[2]
     );

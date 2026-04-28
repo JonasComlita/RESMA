@@ -1,8 +1,5 @@
-import dotenv from 'dotenv';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-
-dotenv.config();
 
 interface CountRow {
     count: bigint | number;

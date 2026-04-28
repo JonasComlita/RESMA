@@ -1,0 +1,8 @@
+# Bun configuration for RESMA monorepo
+
+[install]
+# Use the existing lockfile format
+peer = false
+
+[run]
+# Bun automatically loads .env files

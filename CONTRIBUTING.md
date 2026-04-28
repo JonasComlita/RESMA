@@ -6,7 +6,7 @@ Thank you for your interest in contributing to RESMA! This document provides gui
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/resma.git`
-3. Install dependencies: `pnpm install`
+3. Install dependencies: `bun install`
 4. Create a branch: `git checkout -b feature/your-feature`
 
 ## 📁 Project Structure
@@ -19,16 +19,16 @@ Thank you for your interest in contributing to RESMA! This document provides gui
 
 ```bash
 # Start all services
-pnpm dev
+bun run dev
 
 # Run backend only
-pnpm --filter backend dev
+bun run --filter backend dev
 
 # Run forum only
-pnpm --filter forum dev
+bun run --filter forum dev
 
 # Build extension
-pnpm --filter extension build
+bun run --filter extension build
 ```
 
 ## 📝 Commit Guidelines
@@ -51,7 +51,7 @@ When contributing to data collection features:
 
 ## 📋 Pull Request Process
 
-1. Ensure tests pass: `pnpm test`
+1. Ensure tests pass: `bun run test`
 2. Update documentation if needed
 3. Request review from maintainers
 

@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./backend" },
+    { "path": "./frontend" },
+    { "path": "./extension" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/mcp" },
+    { "path": "./packages/headless" }
+  ]
+}

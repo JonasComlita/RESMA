@@ -1,0 +1,1 @@
+{"version":"7.0.0-dev.20260427.1","root":["./src/cli.ts","./src/index.ts","./src/orchestrator.ts","./src/profiles.ts","./src/reddit.ts","./src/researchaccounts.ts","./src/tiktok.ts","./src/types.ts","./src/uploader.ts","./src/youtube.ts"]}

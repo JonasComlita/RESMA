@@ -93,6 +93,7 @@ const server = new McpServer(
     },
 );
 
+// @ts-ignore deep instantiation bug in TS 7.0 beta
 server.registerTool(
     'audience_forecast',
     {
@@ -123,6 +124,7 @@ server.registerTool(
     },
 );
 
+// @ts-ignore deep instantiation bug in TS 7.0 beta
 server.registerTool(
     'recommendation_map',
     {
@@ -153,6 +155,7 @@ server.registerTool(
     },
 );
 
+// @ts-ignore deep instantiation bug in TS 7.0 beta
 server.registerTool(
     'go_to_market_brief',
     {
@@ -186,6 +189,7 @@ server.registerTool(
     },
 );
 
+// @ts-ignore deep instantiation bug in TS 7.0 beta
 server.registerTool(
     'data_quality',
     {
@@ -213,6 +217,7 @@ server.registerTool(
     },
 );
 
+// @ts-ignore deep instantiation bug in TS 7.0 beta
 server.registerTool(
     'observatory_stats',
     {
@@ -236,6 +241,7 @@ server.registerTool(
     },
 );
 
+// @ts-ignore deep instantiation bug in TS 7.0 beta
 server.registerTool(
     'agency_report_export',
     {

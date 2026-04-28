@@ -43,7 +43,7 @@ interface ParsedArgs {
 
 function printUsage() {
     console.log([
-        'Usage: pnpm --filter @resma/headless capture [options]',
+        'Usage: bun run --filter @resma/headless capture [options]',
         '',
         'Options:',
         '  --platform youtube,tiktok   Limit platforms by key',

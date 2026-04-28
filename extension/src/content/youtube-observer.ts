@@ -462,7 +462,7 @@ class YouTubeObserver {
                     position: index + 1,
                     videoId,
                     title: anchor.getAttribute('title') || anchor.getAttribute('aria-label') || null,
-                    channel: null,
+                    channel: null as string | null,
                     surface,
                 };
             })

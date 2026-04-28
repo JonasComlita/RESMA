@@ -29,7 +29,7 @@ For `agency_report_export`, the API key must include a package with report expor
 ## Local run
 
 ```bash
-pnpm --filter @resma/mcp dev
+bun run --filter @resma/mcp dev
 ```
 
 ## Privacy boundary

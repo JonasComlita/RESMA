@@ -47,8 +47,7 @@ resma/
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm 8+
+- Bun 1.3+
 - PostgreSQL 15+
 - Redis (optional, for caching)
 
@@ -60,7 +59,7 @@ git clone https://github.com/your-username/resma.git
 cd resma
 
 # Install dependencies
-pnpm install
+bun install
 
 # Set up environment variables
 cp .env.example .env
@@ -69,10 +68,10 @@ cp .env.example .env
 docker-compose up -d postgres
 
 # Run migrations
-pnpm --filter backend db:migrate
+cd backend && bun run db:migrate
 
 # Start development servers
-pnpm dev
+bun run dev
 ```
 
 ### Contributor Workflow
@@ -174,9 +173,9 @@ If you have production data, review the migration before applying:
 - Recommended commands:
 
 ```bash
-pnpm --filter backend prisma migrate status
-pnpm --filter backend prisma migrate deploy
-pnpm --filter backend db:validate-platform-migration
+cd backend && bun run prisma migrate status
+cd backend && bun run prisma migrate deploy
+cd backend && bun run db:validate-platform-migration
 ```
 
 ### Agent Prompt Pack (Starter Stack)
@@ -304,3 +303,20 @@ Another major product direction is making recommendation distance legible to con
 - add category, region, and platform selectors so users can compare what different circles find relevant
 - surface adjacent, distant, and bridge content so people can see what their current profile is not being shown
 - keep the core observatory feed as a truth surface, while any sponsor or advertiser modules stay clearly labeled and visually separate from measured recommendation content
+- provide clear opt-out and account-deletion paths that are easy to find and use
+
+## Performance & Build Optimizations (2026 Migration)
+
+In April 2026, the RESMA monorepo underwent a significant architectural migration to optimize developer velocity and runtime performance.
+
+### 1. Bun Stack Migration
+The project transitioned from Node.js/pnpm to **Bun** as the primary runtime, package manager, and test runner.
+- **Speed**: Dependencies install significantly faster via `bun install`.
+- **Native Execution**: Removed `tsx` and `dotenv` dependencies; Bun natively executes TypeScript and loads `.env` files.
+- **Unified Tooling**: Replaced `vitest` with `bun test` for a high-performance, built-in testing experience.
+
+### 2. TypeScript 7.0 Beta (tsgo)
+We integrated the **TypeScript 7.0 Native Preview** (`tsgo`) to parallelize the monorepo's type-checking pipeline.
+- **Parallel Builds**: Using `tsgo --build --builders 4 --checkers 4` allows concurrent type-checking across all workspace packages.
+- **Native Performance**: Leverages a Go-based native compiler for massive speed gains in large monorepo structures.
+- **Modern Standards**: Migrated all configurations to comply with TS 7.0 standards (e.g., removing `baseUrl` in favor of explicit `paths`).

@@ -1,7 +1,3 @@
-import dotenv from 'dotenv';
-
-dotenv.config();
-
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const DEFAULT_API_KEY_PEPPER = 'dev-api-key-pepper-change-me';
 const DEFAULT_RECOVERY_CODE_PEPPER = DEFAULT_API_KEY_PEPPER;
