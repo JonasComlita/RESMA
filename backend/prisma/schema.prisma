@@ -57,6 +57,7 @@ model User {
   passwordHash               String
   recoveryCodeHash           String?           @unique
   recoveryCodeLookupHash     String?           @unique
+  recoveryCodeExpiresAt      DateTime?
   userType                   UserType          @default(VIEWER)
   subscriptionTier           SubscriptionTier  @default(FREE)
   accessPackage              AccessPackage     @default(CONTRIBUTOR_FREE)

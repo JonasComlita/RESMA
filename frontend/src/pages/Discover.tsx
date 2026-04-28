@@ -8,6 +8,7 @@ import { Globe, Monitor } from 'lucide-react';
 export function Discover() {
     const [region, setRegion] = useState('Global');
     const [platform, setPlatform] = useState('All Platforms');
+    const [category, setCategory] = useState<string | null>(null);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -64,10 +65,11 @@ export function Discover() {
                     <div className="lg:col-span-8 space-y-8">
                         <CategoryRail 
                             title="Trending Contexts" 
-                            items={['AI & Engineering', 'Creator Economy', 'Global Politics', 'Venture Capital']} 
+                            selected={category}
+                            onSelect={setCategory}
                         />
                         
-                        <OrganicFeed platform={platform} />
+                        <OrganicFeed platform={platform} category={category} />
                     </div>
                     
                     {/* Right Rail: Adjacent Commercial Layer */}

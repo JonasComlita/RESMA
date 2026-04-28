@@ -15,16 +15,20 @@ interface FeedItem {
 
 interface OrganicFeedProps {
     platform?: string;
+    category?: string | null;
 }
 
-export function OrganicFeed({ platform = 'All Platforms' }: OrganicFeedProps) {
+export function OrganicFeed({ platform = 'All Platforms', category = null }: OrganicFeedProps) {
     const [feed, setFeed] = useState<FeedItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function fetchPopular() {
             try {
-                const query = platform && platform !== 'All Platforms' ? `?platform=${platform}` : '';
+                const params = new URLSearchParams();
+                if (platform && platform !== 'All Platforms') params.set('platform', platform);
+                if (category) params.set('category', category);
+                const query = params.toString() ? `?${params.toString()}` : '';
                 const response = await api.get<{ feed: FeedItem[] }>(`/analysis/discover/popular${query}`);
                 if (response && response.feed) {
                     setFeed(response.feed);
@@ -39,7 +43,7 @@ export function OrganicFeed({ platform = 'All Platforms' }: OrganicFeedProps) {
         void fetchPopular();
         const interval = setInterval(fetchPopular, 60000); // refresh every minute
         return () => clearInterval(interval);
-    }, [platform]);
+    }, [platform, category]);
 
     const formatTimestamp = (isoString: string) => {
         const date = new Date(isoString);

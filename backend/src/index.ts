@@ -2,8 +2,9 @@ import type { Server } from 'node:http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
+import pinoHttp from 'pino-http';
 import { config } from './config.js';
+import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { authRouter } from './routes/auth.js';
 import { feedsRouter } from './routes/feeds.js';
@@ -82,7 +83,7 @@ async function shutdown(signal: string) {
         return;
     }
     shutdownInFlight = true;
-    console.info(`Received ${signal}, shutting down RESMA API...`);
+    logger.info(`Received ${signal}, shutting down RESMA API...`);
 
     let exitCode = 0;
 
@@ -105,14 +106,14 @@ async function shutdown(signal: string) {
         }
     } catch (error) {
         exitCode = 1;
-        console.error('HTTP shutdown failed:', error);
+        logger.error({ err: error }, 'HTTP shutdown failed');
     }
 
     try {
         await prisma.$disconnect();
     } catch (error) {
         exitCode = 1;
-        console.error('Prisma disconnect failed:', error);
+        logger.error({ err: error }, 'Prisma disconnect failed');
     }
 
     process.exit(exitCode);
@@ -121,7 +122,7 @@ async function shutdown(signal: string) {
 // Middleware
 app.use(helmet());
 app.use(cors({ origin: config.cors.origin, credentials: true }));
-app.use(morgan('dev'));
+app.use(pinoHttp({ logger }));
 
 // Body parsers - MessagePack first (for compressed requests), then JSON fallback
 app.use(msgpackParser);
@@ -197,8 +198,7 @@ const isExecutedDirectly = typeof require !== 'undefined'
 // Start server only when executed directly (not during tests/imports)
 if (isExecutedDirectly) {
     server = app.listen(config.port, () => {
-        console.log(`RESMA API running on port ${config.port}`);
-        console.log(`   Environment: ${config.nodeEnv}`);
+        logger.info({ port: config.port, env: config.nodeEnv }, 'RESMA API running');
     });
 
     process.once('SIGINT', () => {

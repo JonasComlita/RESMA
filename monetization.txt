@@ -1,0 +1,118 @@
+RESMA is not primarily a tool company like Excel. It is not primarily an extension company like Honey. And it should be very careful about becoming “an advertiser platform like YouTube.” What it actually is, if it works, is an independent recommendation intelligence company.
+
+That means the closest analogs are:
+
+Ground News: comparative view of what different groups are being shown
+SEMrush / Ahrefs: intelligence layer over an opaque platform
+Nielsen / Comscore / Sportradar: third-party measurement and predictive signal
+Kayak / Hopper: value comes from watching continuously over time, not from one query
+That’s the whole game. You are not selling compute. You are selling:
+
+observatory coverage
+historical depth
+cross-cohort comparison
+early signal about how recommendation systems are moving
+So I would make three hard calls.
+
+1. Do not lead with per-call pricing
+Per-call API pricing is the wrong default for this business.
+
+It makes sense only for truly expensive marginal-cost features, mainly:
+
+LLM-generated interpretations
+white-glove report generation if it becomes materially costly
+maybe bulk export jobs later
+For the core product, flat subscriptions fit better:
+
+people are paying for access to a living observatory
+not for each forecast or map click
+metering the core analytics will feel arbitrary and cheap
+2. Do not describe this as an advertiser platform
+You were right to call that out.
+
+The right framing is:
+
+independent pre-impression intelligence
+organic recommendation intelligence
+third-party observatory of what platforms are actually surfacing
+That matters a lot. “Advertiser platform” makes you sound like optimization middleware for targeting people harder. That is both strategically weaker and ethically riskier.
+
+The stronger version is:
+
+brands, agencies, creators, and researchers use RESMA to understand how recommendation systems behave
+RESMA does not sell impressions
+RESMA does not sell personal targeting
+RESMA sells aggregate, independent intelligence about recommendation behavior
+That’s a premium product if it’s real.
+
+3. Contributors should remain free
+This part of the conversation was dead on.
+
+Contributors are the supply side. They should get:
+
+personal transparency
+bubble/discovery tools
+research participation
+maybe lightweight creator-facing self-insight if they also create
+But they should not be the main revenue source. Charging them heavily is backwards.
+
+The money should come from:
+
+individual creators: flat monthly subscription
+agencies / brands: premium subscription or annual contract
+research institutions / media orgs / NGOs: licensed aggregate access
+API / MCP consumers: subscription access with tiered limits, not nickel-and-dime per call
+So if I were setting the business model today, it would look like this:
+
+Free Contributor
+
+extension
+personal observatory
+bubble score / discovery basics
+participation in the dataset
+Creator Pro
+
+flat monthly
+audience forecast
+recommendation maps
+aggregate briefs
+historical trend access
+Agency / Brand Intelligence
+
+monthly or annual, probably annual once validated
+multi-client workspaces
+saved reports
+white-labeled exports
+cohort monitoring
+competitor reach snapshots
+recommendation gap reports
+Institutional / Research License
+
+aggregate-only dataset access
+historical trend slices
+export rights
+maybe restricted API/MCP access
+Usage-based overages only where cost is real
+
+AI narrative generation
+heavy exports
+enterprise bulk jobs
+My honest caution: the codebase is already drifting toward an agency-first surface. You can see it in the package tiers, report runs, and report shares. That is not necessarily wrong. But if the company story becomes “we help advertisers target better,” you will lose the moral high ground and probably the most defensible brand.
+
+The better story is:
+
+We measure the algorithm independently
+We help people understand what it is doing
+We help creators, agencies, researchers, and institutions act on that intelligence without exposing contributor-level data
+That’s strong. That can become a real company.
+
+If I were CEO, the near-term go-to-market would be:
+
+Keep contributor acquisition free and privacy-first.
+Sell Creator Pro as the first paid self-serve product.
+Sell Agency Pilot as white-glove, high-touch, not mass self-serve yet.
+Treat MCP/API access as a distribution and integration channel, not the core business model.
+Keep the product language centered on independent recommendation intelligence, not ad targeting.
+My blunt verdict:
+The best version of RESMA is “Bloomberg terminal / Ground News / SEMrush for recommendation systems,” not “adtech API for social platforms.”
+Stay there. That’s where the moat and the integrity are.

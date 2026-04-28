@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { logger } from '../lib/logger.js';
 import { param, query } from 'express-validator';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
@@ -71,7 +72,7 @@ analysisRouter.get(
         );
         const durationMs = Date.now() - startedAt;
 
-        console.info('analysis.similar', {
+        logger.info({
             userId: req.userId,
             snapshotId: snapshotId || null,
             requestedLimit,
@@ -79,7 +80,7 @@ analysisRouter.get(
             returned: similarFeeds.length,
             candidateCount,
             durationMs,
-        });
+        }, 'analysis.similar');
 
         res.json({
             success: true,
@@ -717,13 +718,48 @@ analysisRouter.get('/profile', authenticate, userAnalysisRateLimiter, async (req
     }
 });
 
+// Get trending categories from real feed data
+analysisRouter.get('/discover/categories', publicAnalysisRateLimiter, async (req, res, next) => {
+    try {
+        const categories = await prisma.$queryRaw`
+            SELECT 
+                cat as category,
+                COUNT(DISTINCT fi."videoId") as item_count
+            FROM feed_items fi
+            JOIN feed_snapshots fs ON fi."snapshotId" = fs.id,
+            UNNEST(fi."contentCategories") as cat
+            WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+              AND cat != ''
+            GROUP BY cat
+            ORDER BY item_count DESC
+            LIMIT 20;
+        `;
+
+        res.json({
+            success: true,
+            data: {
+                categories: (categories as any[]).map(row => ({
+                    label: row.category,
+                    count: Number(row.item_count),
+                }))
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // Get global popular discover feed (Postgres fallback)
 analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, res, next) => {
     try {
         const targetPlatform = req.query.platform as string | undefined;
+        const targetCategory = req.query.category as string | undefined;
         let topTrending;
 
-        if (targetPlatform && targetPlatform !== 'All Platforms') {
+        const hasPlatform = targetPlatform && targetPlatform !== 'All Platforms';
+        const hasCategory = targetCategory && targetCategory !== 'All';
+
+        if (hasPlatform && hasCategory) {
             topTrending = await prisma.$queryRaw`
                 SELECT 
                     fi."videoId" as id,
@@ -736,6 +772,41 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
                 WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
                   AND fs."platform" = ${targetPlatform}
+                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
+                GROUP BY fi."videoId"
+                ORDER BY appearances DESC
+                LIMIT 15;
+            `;
+        } else if (hasPlatform) {
+            topTrending = await prisma.$queryRaw`
+                SELECT 
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                  AND fs."platform" = ${targetPlatform}
+                GROUP BY fi."videoId"
+                ORDER BY appearances DESC
+                LIMIT 15;
+            `;
+        } else if (hasCategory) {
+            topTrending = await prisma.$queryRaw`
+                SELECT 
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
                 GROUP BY fi."videoId"
                 ORDER BY appearances DESC
                 LIMIT 15;

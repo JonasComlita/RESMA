@@ -2,14 +2,40 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { body, validationResult } from 'express-validator';
+import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config.js';
 import { createError } from '../middleware/errorHandler.js';
 import { authenticate, AuthRequest } from '../middleware/authenticate.js';
+import { validateZod } from '../middleware/validateZod.js';
+import { logger } from '../lib/logger.js';
 
 export const authRouter: Router = Router();
+
+const RECOVERY_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// ── Zod schemas ──────────────────────────────────────────────────────────
+
+const registerSchema = z.object({
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const loginSchema = z.object({
+    anonymousId: z.string().min(1, 'Anonymous ID required'),
+    password: z.string().min(1, 'Password required'),
+});
+
+const recoverSchema = z.object({
+    recoveryCode: z.string().min(1, 'Recovery code required'),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+});
+
+const deleteAccountSchema = z.object({
+    confirmAnonymousId: z.string().min(1, 'Contributor ID confirmation required'),
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────
 
 function createSessionToken(userId: string) {
     return jwt.sign({ userId }, config.jwt.secret, {
@@ -63,21 +89,18 @@ function generateRecoveryCode() {
     return raw.match(/.{1,4}/g)?.join('-') ?? raw;
 }
 
+function recoveryCodeExpiresAt() {
+    return new Date(Date.now() + RECOVERY_CODE_TTL_MS);
+}
+
+// ── Routes ───────────────────────────────────────────────────────────────
+
 // Register new user
 authRouter.post(
     '/register',
-    [
-        body('password')
-            .isLength({ min: 8 })
-            .withMessage('Password must be at least 8 characters'),
-    ],
+    validateZod({ body: registerSchema }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return next(createError(errors.array()[0].msg, 400));
-            }
-
             const { password } = req.body;
             const passwordHash = await bcrypt.hash(password, 12);
             const recoveryCode = generateRecoveryCode();
@@ -87,6 +110,7 @@ authRouter.post(
                 passwordHash,
                 recoveryCodeHash,
                 recoveryCodeLookupHash: getRecoveryCodeLookupHash(normalizedRecoveryCode),
+                recoveryCodeExpiresAt: recoveryCodeExpiresAt(),
             };
 
             const user = await prisma.user.create({
@@ -116,17 +140,9 @@ authRouter.post(
 // Login
 authRouter.post(
     '/login',
-    [
-        body('anonymousId').notEmpty().withMessage('Anonymous ID required'),
-        body('password').notEmpty().withMessage('Password required'),
-    ],
+    validateZod({ body: loginSchema }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return next(createError(errors.array()[0].msg, 400));
-            }
-
             const { anonymousId, password } = req.body;
 
             const user = await prisma.user.findUnique({
@@ -163,19 +179,9 @@ authRouter.post(
 // Recover account with a saved recovery code and rotate credentials
 authRouter.post(
     '/recover',
-    [
-        body('recoveryCode').notEmpty().withMessage('Recovery code required'),
-        body('newPassword')
-            .isLength({ min: 8 })
-            .withMessage('New password must be at least 8 characters'),
-    ],
+    validateZod({ body: recoverSchema }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return next(createError(errors.array()[0].msg, 400));
-            }
-
             const normalizedRecoveryCode = normalizeRecoveryCode(req.body.recoveryCode);
             if (!normalizedRecoveryCode) {
                 return next(createError('Invalid recovery code', 401));
@@ -196,6 +202,12 @@ authRouter.post(
                 return next(createError('Invalid recovery code', 401));
             }
 
+            // Enforce time-bound expiration (Security Standard §5)
+            if (user.recoveryCodeExpiresAt && user.recoveryCodeExpiresAt < new Date()) {
+                logger.warn({ userId: user.id }, 'Expired recovery code used');
+                return next(createError('Recovery code has expired. Please contact support or request a new one.', 401));
+            }
+
             const passwordHash = await bcrypt.hash(req.body.newPassword, 12);
             const nextRecoveryCode = generateRecoveryCode();
             const normalizedNextRecoveryCode = normalizeRecoveryCode(nextRecoveryCode)!;
@@ -203,6 +215,7 @@ authRouter.post(
                 passwordHash,
                 recoveryCodeHash: await hashRecoveryCode(normalizedNextRecoveryCode),
                 recoveryCodeLookupHash: getRecoveryCodeLookupHash(normalizedNextRecoveryCode),
+                recoveryCodeExpiresAt: recoveryCodeExpiresAt(),
             };
             const updatedUser = await prisma.user.update({
                 where: { id: user.id },
@@ -233,16 +246,9 @@ authRouter.post(
 authRouter.post(
     '/delete-account',
     authenticate,
-    [
-        body('confirmAnonymousId').notEmpty().withMessage('Contributor ID confirmation required'),
-    ],
+    validateZod({ body: deleteAccountSchema }),
     async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return next(createError(errors.array()[0].msg, 400));
-            }
-
             const user = await prisma.user.findUnique({
                 where: { id: req.userId },
                 select: {

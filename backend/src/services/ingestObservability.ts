@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { logger } from '../lib/logger.js';
 
 export interface IngestRequestMeta {
     uploadId: string;
@@ -31,24 +32,24 @@ export function getIngestRequestMeta(req: Request): IngestRequestMeta {
 
 export function logIngestInfo(event: string, req: Request, extra?: Record<string, unknown>): void {
     const meta = getIngestRequestMeta(req);
-    console.log(`[RESMA][INGEST][INFO] ${event}`, {
+    logger.info({
         ...meta,
         ...(extra ?? {}),
-    });
+    }, `ingest.${event}`);
 }
 
 export function logIngestWarn(event: string, req: Request, extra?: Record<string, unknown>): void {
     const meta = getIngestRequestMeta(req);
-    console.warn(`[RESMA][INGEST][WARN] ${event}`, {
+    logger.warn({
         ...meta,
         ...(extra ?? {}),
-    });
+    }, `ingest.${event}`);
 }
 
 export function logIngestError(event: string, req: Request, extra?: Record<string, unknown>): void {
     const meta = getIngestRequestMeta(req);
-    console.error(`[RESMA][INGEST][ERROR] ${event}`, {
+    logger.error({
         ...meta,
         ...(extra ?? {}),
-    });
+    }, `ingest.${event}`);
 }
