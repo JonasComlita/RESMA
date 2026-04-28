@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
+import { Discover } from './pages/Discover';
 import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -10,6 +11,7 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/discover" element={<Discover />} />
         <Route
           path="/dashboard"
           element={(

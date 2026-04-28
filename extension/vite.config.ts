@@ -38,6 +38,11 @@ function manifestRewritePlugin(): Plugin {
 
 export default defineConfig({
     plugins: [react(), manifestRewritePlugin()],
+    resolve: {
+        alias: {
+            '@resma/shared': resolve(__dirname, '../packages/shared/src/index.ts'),
+        },
+    },
     test: {
         environment: 'node',
         include: ['tests/**/*.test.ts'],

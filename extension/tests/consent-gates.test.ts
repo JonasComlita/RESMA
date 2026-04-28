@@ -145,8 +145,25 @@ class FakeTweetElement extends FakeElement {
     }
 }
 
+class FakeVideoElement {
+    currentTime = 0;
+    private readonly listeners = new Map<string, Array<() => void>>();
+
+    addEventListener(name: string, listener: () => void) {
+        const existing = this.listeners.get(name) ?? [];
+        existing.push(listener);
+        this.listeners.set(name, existing);
+    }
+
+    emit(name: string) {
+        for (const listener of this.listeners.get(name) ?? []) {
+            listener();
+        }
+    }
+}
+
 class FakeRedditPostElement extends FakeElement {
-    constructor() {
+    constructor(private readonly video: FakeVideoElement | null = null) {
         super();
         this.setAttribute('id', 't3_abc123');
         this.setAttribute('subreddit-name', 'programming');
@@ -156,6 +173,15 @@ class FakeRedditPostElement extends FakeElement {
         this.setAttribute('post-type', 'link');
         this.setAttribute('flair', 'Project Update');
     }
+
+    querySelectorAll(selector: string) {
+        if (selector === 'video' && this.video) {
+            return [this.video];
+        }
+
+        return [];
+    }
+
 }
 
 function stubSharedGlobals() {
@@ -552,6 +578,7 @@ describe('content observer consent gates', () => {
                             videoId: 'abc123',
                             creatorHandle: 'programming',
                             caption: 'Reddit post title',
+                            position: 1,
                             likesCount: 42,
                             commentsCount: 7,
                             sharesCount: null,
@@ -574,5 +601,65 @@ describe('content observer consent gates', () => {
             },
         });
         expect(clearIntervalMock).toHaveBeenCalledWith(303);
+    });
+
+    it('sends incremental Reddit video watch time instead of cumulative totals across batches', async () => {
+        stubSharedGlobals();
+        const { listeners, sendMessage } = stubChrome();
+        const video = new FakeVideoElement();
+        const post = new FakeRedditPostElement(video);
+        const intervalCallbacks: Array<() => void> = [];
+        const setIntervalMock = vi.fn((callback: () => void) => {
+            intervalCallbacks.push(callback);
+            return 404;
+        });
+        let now = 0;
+
+        vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += 2000;
+            return now;
+        });
+
+        vi.stubGlobal('window', {
+            setInterval: setIntervalMock,
+            clearInterval: vi.fn(),
+        });
+        vi.stubGlobal('location', {
+            hostname: 'www.reddit.com',
+            pathname: '/',
+            search: '',
+            origin: 'https://www.reddit.com',
+        });
+        vi.stubGlobal('document', {
+            body: new FakeElement(),
+            querySelector: vi.fn(() => null),
+            querySelectorAll: vi.fn((selector: string) => (
+                selector.includes('shreddit-post') ? [post] : []
+            )),
+        });
+
+        await import('../src/content/reddit-observer.ts');
+        await invokeListener(listeners[0], { type: 'START_CAPTURE' });
+        fakeIntersectionObserverCallbacks[0]([
+            { isIntersecting: true, target: post },
+        ]);
+
+        video.currentTime = 4;
+        video.emit('timeupdate');
+        intervalCallbacks[0]();
+        await Promise.resolve();
+
+        video.currentTime = 7;
+        video.emit('timeupdate');
+        intervalCallbacks[0]();
+        await Promise.resolve();
+
+        const firstPayload = sendMessage.mock.calls[0]?.[0]?.payload?.feed?.[0];
+        const secondPayload = sendMessage.mock.calls[1]?.[0]?.payload?.feed?.[0];
+
+        expect(firstPayload.watchDuration).toBe(4);
+        expect(firstPayload.watchTime).toBe(4);
+        expect(secondPayload.watchDuration).toBe(3);
+        expect(secondPayload.watchTime).toBe(3);
     });
 });

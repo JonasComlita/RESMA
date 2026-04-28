@@ -369,7 +369,7 @@ class RedditObserver {
             hasInteracted: false,
             interactionType: null,
             lastUploadedInteractionType: null,
-            position: this.sessionPosts.size,
+            position: this.sessionPosts.size + 1,
         };
     }
 
@@ -462,7 +462,7 @@ class RedditObserver {
         watchTime: number,
         hasNewInteraction: boolean
     ): RedditUploadPayload {
-        const watchDuration = post.type === 'video' ? Math.max(0, post.watchTime) : 0;
+        const watchDuration = post.type === 'video' ? Math.max(0, watchTime) : 0;
 
         return {
             videoId: post.postId,
@@ -473,7 +473,7 @@ class RedditObserver {
             subreddit: post.subreddit,
             caption: post.title,
             title: post.title,
-            position: Number.isFinite(post.position) ? post.position : index,
+            position: Number.isFinite(post.position) ? post.position : index + 1,
             watchDuration,
             watchTime: watchDuration,
             interacted: hasNewInteraction,

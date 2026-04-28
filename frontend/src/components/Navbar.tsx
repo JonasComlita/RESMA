@@ -16,7 +16,8 @@ export function Navbar() {
                     </div>
                     <div className="hidden md:flex items-center space-x-8">
                         <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors">How it works</a>
-                        <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Observatory</a>
+                        <Link to="/discover" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Discover</Link>
+                        <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">Dashboard</Link>
                         <Link to="/login" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Contributor Login</Link>
                         <a
                             href="/login"

@@ -8,6 +8,7 @@ build/
 .DS_Store
 coverage/
 .turbo/
+monetization.txt
 
 # Headless synthetic capture artifacts
 packages/headless/.captures/

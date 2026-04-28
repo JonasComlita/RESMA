@@ -12,6 +12,13 @@ Social media algorithms are black boxes that shape what billions of people see d
 - **Personal transparency** so contributors can understand why they see what they see
 - **Aggregate insights** so researchers, creators, and analysts can learn from cohort-level trends without exposing raw contributor feeds
 
+The deeper thesis is that recommendation systems do not just personalize what you see, they also hide what nearby and distant social circles find relevant. If your feed is highly shaped, then there is content popular one, two, or six hops away from you that you may never see organically. RESMA is meant to make that structure inspectable:
+
+- what your current recommendation world looks like
+- what adjacent circles are seeing that you only occasionally touch
+- what distant cohorts find common that your feed rarely surfaces
+- what bridge content crosses between otherwise separate recommendation bubbles
+
 Privacy, retention, and delete-all-data behavior are documented in [docs/operations/PRIVACY_AND_RETENTION.md](docs/operations/PRIVACY_AND_RETENTION.md).
 
 ## Contributor Trust & Control
@@ -73,7 +80,7 @@ pnpm dev
 1. Create a pseudonymous contributor account.
 2. Save the recovery code returned at registration.
 3. Capture feed snapshots with the browser extension.
-4. Explore your contributor dashboard and cross-user observatory views.
+4. Explore your contributor dashboard, cross-user observatory views, and what adjacent or distant cohorts are seeing beyond your current recommendation bubble.
 5. Export aggregate-only insight briefs if you want cohort-level creator analysis.
 6. Delete your account from the dashboard at any time if you want your observatory data removed.
 
@@ -215,6 +222,7 @@ All report and creator-facing outputs remain aggregate-only. They are derived fr
 - Updated graph pan/zoom and edge rendering with D3 while preserving React-rendered nodes and current interaction behavior.
 - Added lazy-loaded SandDance exploration for aggregate rows in data quality and audience forecast surfaces.
 - Added Gephi-compatible `GEXF 1.3` export for recommendation maps.
+- Continued shaping the frontend toward a discoverable observatory experience where contributors can inspect what is surfacing now, compare adjacent circles, and eventually browse recommendation distance across categories, regions, and platforms.
 
 ### Cross-User Comparison Data Quality Improvements
 
@@ -287,3 +295,12 @@ The next step is a source-linked external research layer on top of that foundati
 - add optional web-enabled agents that gather current external context such as platform UI or policy changes, creator trend signals, and market benchmarks
 - use that external context as an augmentation layer for forecasting and report generation, while keeping RESMA's first-party observatory data as the source of truth for core modeling
 - require source-linked outputs from external research agents so human users and downstream AI tools can audit where claims came from
+
+### Observatory Discovery Roadmap
+
+Another major product direction is making recommendation distance legible to contributors and analysts, not just measurable in backend models.
+
+- build a Discover-style observatory surface for "what's surfacing now"
+- add category, region, and platform selectors so users can compare what different circles find relevant
+- surface adjacent, distant, and bridge content so people can see what their current profile is not being shown
+- keep the core observatory feed as a truth surface, while any sponsor or advertiser modules stay clearly labeled and visually separate from measured recommendation content
