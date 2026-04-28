@@ -1,2 +1,3 @@
-2026/04/24-22:25:34.665 4ffc Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-technology-engaged-sampler-v1\Default\shared_proto_db\metadata since it was missing.
-2026/04/24-22:25:34.670 4ffc Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-technology-engaged-sampler-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:43:30.484 75c Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-technology-engaged-sampler-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:43:30.485 75c Recovering log #3
+2026/04/27-18:43:30.486 75c Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-technology-engaged-sampler-v1\Default\shared_proto_db\metadata/000003.log 

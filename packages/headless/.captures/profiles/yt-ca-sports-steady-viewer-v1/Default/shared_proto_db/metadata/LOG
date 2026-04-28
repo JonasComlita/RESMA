@@ -1,2 +1,3 @@
-2026/04/24-22:22:05.187 3fbc Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-sports-steady-viewer-v1\Default\shared_proto_db\metadata since it was missing.
-2026/04/24-22:22:05.194 3fbc Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-sports-steady-viewer-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:31:05.601 1fa8 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-sports-steady-viewer-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:31:05.608 1fa8 Recovering log #3
+2026/04/27-18:31:05.608 1fa8 Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-sports-steady-viewer-v1\Default\shared_proto_db\metadata/000003.log 

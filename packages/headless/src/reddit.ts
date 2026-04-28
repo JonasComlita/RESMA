@@ -61,7 +61,7 @@ async function applyScrollCadence(page: Page, profile: SyntheticResearchProfile)
     const waitMs = Math.round(Math.min(pickInRange(profile.behavior.scrollCadenceMs, `${profile.id}:scroll`), 4_000));
 
     for (let index = 0; index < actions; index += 1) {
-        await page.mouse.wheel(0, 1000);
+        await page.evaluate(() => window.scrollBy(0, 1000));
         await page.waitForTimeout(waitMs);
     }
 }

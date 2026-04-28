@@ -258,7 +258,7 @@ export async function runSyntheticCaptureMatrix(
                 profileId: profile.id,
                 error: error instanceof Error ? error.message : 'unknown-error',
             });
-            console.error(`[${resumed.length + completed.length + failed.length}/${profiles.length}] Failed ${profile.id}.`);
+            console.error(`[${resumed.length + completed.length + failed.length}/${profiles.length}] Failed ${profile.id}: ${error instanceof Error ? error.message : error}`);
         }
 
         await writeRunSummary(profiles, [...resumed, ...completed], failed, summaryPath, resumed.length);

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 
@@ -30,9 +31,10 @@ export async function withDurableIngestIdempotency<T>({
     }
 
     return prisma.$transaction(async (tx) => {
+        const id = randomUUID();
         const insertedRows = await tx.$executeRaw`
-            INSERT INTO "ingest_events" ("userId", "uploadId")
-            VALUES (${userId}, ${uploadId})
+            INSERT INTO "ingest_events" ("id", "userId", "uploadId", "updatedAt")
+            VALUES (${id}, ${userId}, ${uploadId}, CURRENT_TIMESTAMP)
             ON CONFLICT ("userId", "uploadId") DO NOTHING
         `;
 

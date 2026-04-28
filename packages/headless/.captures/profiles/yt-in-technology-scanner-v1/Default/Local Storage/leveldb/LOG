@@ -1,2 +1,3 @@
-2026/04/24-22:27:42.526 4fec Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-technology-scanner-v1\Default\Local Storage\leveldb since it was missing.
-2026/04/24-22:27:42.539 4fec Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-technology-scanner-v1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/27-18:50:49.965 34f8 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-technology-scanner-v1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/27-18:50:49.983 34f8 Recovering log #3
+2026/04/27-18:50:49.984 34f8 Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-technology-scanner-v1\Default\Local Storage\leveldb/000003.log 

@@ -1,2 +1,3 @@
-2026/04/24-22:26:18.478 4f00 Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-news-politics-scanner-v1\Default\shared_proto_db\metadata since it was missing.
-2026/04/24-22:26:18.484 4f00 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-news-politics-scanner-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:45:03.993 3e2c Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-news-politics-scanner-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:45:03.995 3e2c Recovering log #3
+2026/04/27-18:45:03.996 3e2c Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-de-news-politics-scanner-v1\Default\shared_proto_db\metadata/000003.log 

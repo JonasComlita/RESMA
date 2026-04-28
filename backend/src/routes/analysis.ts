@@ -716,3 +716,77 @@ analysisRouter.get('/profile', authenticate, userAnalysisRateLimiter, async (req
         next(error);
     }
 });
+
+// Get global popular discover feed (Postgres fallback)
+analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, res, next) => {
+    try {
+        const targetPlatform = req.query.platform as string | undefined;
+        let topTrending;
+
+        if (targetPlatform && targetPlatform !== 'All Platforms') {
+            topTrending = await prisma.$queryRaw`
+                SELECT 
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                  AND fs."platform" = ${targetPlatform}
+                GROUP BY fi."videoId"
+                ORDER BY appearances DESC
+                LIMIT 15;
+            `;
+        } else {
+            topTrending = await prisma.$queryRaw`
+                SELECT 
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                GROUP BY fi."videoId"
+                ORDER BY appearances DESC
+                LIMIT 15;
+            `;
+        }
+
+        res.json({
+            success: true,
+            data: {
+                feed: (topTrending as any[]).map((row) => {
+                    let cleanCreator = row.creator || 'Unknown Creator';
+                    if (row.platform === 'tiktok' && cleanCreator.includes('/@')) {
+                        const parts = cleanCreator.split('/@');
+                        cleanCreator = parts[1]?.split('/')[0] || cleanCreator;
+                    }
+                    cleanCreator = cleanCreator.replace(/^@/, '');
+
+                    let url = '';
+                    if (row.platform === 'youtube') url = `https://youtube.com/watch?v=${row.id}`;
+                    if (row.platform === 'tiktok') url = `https://tiktok.com/@${cleanCreator}/video/${row.id}`;
+                    if (row.platform === 'reddit') url = `https://reddit.com${row.id.startsWith('/') ? '' : '/'}${row.id}`;
+
+                    return {
+                        id: row.id,
+                        title: row.title,
+                        creator: cleanCreator,
+                        platform: row.platform,
+                        timestamp: row.timestamp,
+                        url,
+                        reachMetrics: `Surfacing broadly across ${row.appearances} regional cohorts`
+                    };
+                })
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});

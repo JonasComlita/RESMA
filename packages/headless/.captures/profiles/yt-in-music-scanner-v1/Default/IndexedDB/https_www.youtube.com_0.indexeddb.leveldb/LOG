@@ -1,2 +1,3 @@
-2026/04/24-22:27:17.587 4f88 Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-music-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb since it was missing.
-2026/04/24-22:27:17.596 4f88 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-music-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/04/27-18:47:36.497 3870 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-music-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/04/27-18:47:36.503 3870 Recovering log #3
+2026/04/27-18:47:36.505 3870 Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-in-music-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/000003.log 

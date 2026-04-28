@@ -321,7 +321,7 @@ async function collectRecommendationsWithWait(page: Page): Promise<Recommendatio
             return recommendations;
         }
 
-        await page.mouse.wheel(0, 480);
+        await page.evaluate(() => window.scrollBy(0, 480));
         await page.waitForTimeout(RECOMMENDATION_POLL_MS);
     }
 
@@ -368,7 +368,7 @@ async function applyScrollCadence(page: Page, profile: SyntheticResearchProfile)
     const waitMs = Math.round(Math.min(pickInRange(profile.behavior.scrollCadenceMs, `${profile.id}:scroll`), 4_000));
 
     for (let index = 0; index < actions; index += 1) {
-        await page.mouse.wheel(0, 640);
+        await page.evaluate(() => window.scrollBy(0, 640));
         await page.waitForTimeout(waitMs);
     }
 }

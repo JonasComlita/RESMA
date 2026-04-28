@@ -50,6 +50,8 @@ export function Discover() {
                                 <option value="All Platforms">All Platforms</option>
                                 <option value="youtube">YouTube</option>
                                 <option value="tiktok">TikTok</option>
+                                <option value="reddit">Reddit</option>
+                                <option value="instagram">Instagram</option>
                                 <option value="twitter">Twitter</option>
                             </select>
                         </div>
@@ -65,7 +67,7 @@ export function Discover() {
                             items={['AI & Engineering', 'Creator Economy', 'Global Politics', 'Venture Capital']} 
                         />
                         
-                        <OrganicFeed />
+                        <OrganicFeed platform={platform} />
                     </div>
                     
                     {/* Right Rail: Adjacent Commercial Layer */}

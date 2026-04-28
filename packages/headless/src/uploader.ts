@@ -23,15 +23,8 @@ function uploadEndpointForPlatform(platform: PlatformFeedPayload['platform'], ap
 }
 
 function payloadForPlatformUpload(payload: PlatformFeedPayload): Record<string, unknown> {
-    if (payload.platform === 'tiktok') {
-        return {
-            platform: payload.platform,
-            feed: payload.feed,
-            sessionMetadata: payload.sessionMetadata,
-        };
-    }
-
     return {
+        platform: payload.platform,
         feed: payload.feed,
         sessionMetadata: payload.sessionMetadata,
     };

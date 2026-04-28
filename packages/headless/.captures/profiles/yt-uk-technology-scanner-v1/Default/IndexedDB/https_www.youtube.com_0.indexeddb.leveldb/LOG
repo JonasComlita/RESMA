@@ -1,2 +1,3 @@
-2026/04/24-21:54:03.022 2474 Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-technology-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb since it was missing.
-2026/04/24-21:54:03.031 2474 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-technology-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/04/27-18:22:23.691 b58 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-technology-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/04/27-18:22:23.692 b58 Recovering log #3
+2026/04/27-18:22:23.694 b58 Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-technology-scanner-v1\Default\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/000003.log 

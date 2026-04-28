@@ -1,2 +1,3 @@
-2026/04/24-22:20:17.158 34f4 Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-music-engaged-sampler-v1\Default\Local Storage\leveldb since it was missing.
-2026/04/24-22:20:17.175 34f4 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-music-engaged-sampler-v1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/27-18:26:25.814 272c Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-music-engaged-sampler-v1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/27-18:26:25.822 272c Recovering log #3
+2026/04/27-18:26:25.823 272c Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-ca-music-engaged-sampler-v1\Default\Local Storage\leveldb/000003.log 

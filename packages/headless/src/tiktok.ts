@@ -82,7 +82,7 @@ async function applyScrollCadence(page: Page, profile: SyntheticResearchProfile)
     const waitMs = Math.round(Math.min(pickInRange(profile.behavior.scrollCadenceMs, `${profile.id}:scroll`), 4_000));
 
     for (let index = 0; index < actions; index += 1) {
-        await page.mouse.wheel(0, 800);
+        await page.evaluate(() => window.scrollBy(0, 800));
         await page.waitForTimeout(waitMs);
         await dismissTikTokConsent(page); // Login nags appear on scroll
     }
@@ -100,7 +100,7 @@ async function collectExploreFeed(page: Page): Promise<CapturedItemCandidate[]> 
             if (!videoId) return null;
 
             const creatorLink = item.querySelector('a[href*="/@"]');
-            const creatorHandle = creatorLink?.getAttribute('href')?.replace('/', '') || null;
+            const creatorHandle = creatorLink?.getAttribute('href')?.replace(/^\//, '')?.split('/')[0] || null;
 
             const captionEl = item.querySelector('[data-e2e="video-desc"]');
             const caption = captionEl?.textContent?.trim() || null;

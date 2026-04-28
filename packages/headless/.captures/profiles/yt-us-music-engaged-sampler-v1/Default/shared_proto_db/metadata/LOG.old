@@ -1,2 +1,3 @@
-2026/04/24-21:44:50.229 4b44 Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-us-music-engaged-sampler-v1\Default\shared_proto_db\metadata since it was missing.
-2026/04/24-21:44:50.235 4b44 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-us-music-engaged-sampler-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:10:11.781 3180 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-us-music-engaged-sampler-v1\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/04/27-18:10:11.781 3180 Recovering log #3
+2026/04/27-18:10:11.782 3180 Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-us-music-engaged-sampler-v1\Default\shared_proto_db\metadata/000003.log 

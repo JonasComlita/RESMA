@@ -16,6 +16,7 @@ export interface ValidatedFeedRequest extends AuthRequest {
 interface ValidateIngestPayloadOptions {
     platform: SupportedPlatform;
     routeLabel: string;
+    allowAnyPlatform?: boolean;
 }
 
 export function validateIngestPayload(options: ValidateIngestPayloadOptions) {
@@ -23,7 +24,8 @@ export function validateIngestPayload(options: ValidateIngestPayloadOptions) {
         const requestedPlatform = typeof req.body?.platform === 'string'
             ? req.body.platform.trim().toLowerCase()
             : null;
-        if (requestedPlatform && requestedPlatform !== options.platform) {
+        
+        if (!options.allowAnyPlatform && requestedPlatform && requestedPlatform !== options.platform) {
             logIngestWarn(`Contract validation failed for ${options.routeLabel}`, req, {
                 reason: `payload requested explicit platform outside the ${options.routeLabel} ${options.platform} gateway`,
             });
@@ -39,7 +41,7 @@ export function validateIngestPayload(options: ValidateIngestPayloadOptions) {
         }
 
         const validPayload = coercePlatformFeedPayload(req.body, {
-            expectedPlatform: options.platform,
+            expectedPlatform: (options.allowAnyPlatform && requestedPlatform) ? requestedPlatform as SupportedPlatform : options.platform,
             requireFullFeedValidity: true,
         });
         if (!validPayload) {

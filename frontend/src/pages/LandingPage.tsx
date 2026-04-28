@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Shield, Eye, Database, Network, Share2 } from 'lucide-react';
+import { ArrowRight, Eye, Network, Share2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 
 export function LandingPage() {

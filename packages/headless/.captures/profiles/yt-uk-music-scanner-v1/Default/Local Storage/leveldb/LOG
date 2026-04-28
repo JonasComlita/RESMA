@@ -1,2 +1,3 @@
-2026/04/24-21:53:23.062 18f0 Creating DB C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-music-scanner-v1\Default\Local Storage\leveldb since it was missing.
-2026/04/24-21:53:23.081 18f0 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-music-scanner-v1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/27-18:19:31.549 42f8 Reusing MANIFEST C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-music-scanner-v1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/27-18:19:31.555 42f8 Recovering log #3
+2026/04/27-18:19:31.555 42f8 Reusing old log C:\Users\jonas\Documents\RESMA-main\RESMA-main\packages\headless\.captures\profiles\yt-uk-music-scanner-v1\Default\Local Storage\leveldb/000003.log 

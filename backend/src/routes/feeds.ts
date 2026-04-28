@@ -20,7 +20,7 @@ import { logIngestError, logIngestInfo, logIngestWarn } from '../services/ingest
 import { getReplayKey, getUploadId, withIngestReplayGuard } from '../services/ingestReplayGuard.js';
 
 export const feedsRouter: Router = Router();
-const GENERIC_FEEDS_PLATFORM = 'tiktok';
+const DEFAULT_FEEDS_GATEWAY_PLATFORM = 'tiktok';
 
 /**
  * Helper to serialize metadata to compressed MessagePack
@@ -109,13 +109,14 @@ feedsRouter.post(
     '/',
     authenticate,
     validateIngestPayload({
-        platform: GENERIC_FEEDS_PLATFORM,
+        platform: DEFAULT_FEEDS_GATEWAY_PLATFORM,
         routeLabel: '/feeds',
+        allowAnyPlatform: true,
     }),
     async (req: ValidatedFeedRequest, res: Response, next: NextFunction) => {
         try {
             const validPayload = req.validatedFeedPayload!;
-            const platform = GENERIC_FEEDS_PLATFORM;
+            const platform = validPayload.platform;
             const replayKey = getReplayKey(req, req.userId);
             const uploadId = getUploadId(req);
             const replayOutcome = await withIngestReplayGuard(replayKey, async () => {
