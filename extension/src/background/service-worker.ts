@@ -352,10 +352,18 @@ async function handlePlatformUpload(rawPayload: unknown): Promise<boolean> {
         },
     });
     const uploadId = createUploadId();
+    
+    // Chunking: Persist payload to local storage before upload attempt
+    const chunkKey = `upload_chunk_${uploadId}`;
+    await chrome.storage.local.set({ [chunkKey]: requestPayload });
+
     const success = await uploadPayload(endpoint, requestPayload, token, uploadId, payload.platform);
 
-    if (!success) {
-        console.error(`[RESMA] [${payload.platform}] [${uploadId}] Upload failed`);
+    if (success) {
+        // Clear chunk on success
+        await chrome.storage.local.remove(chunkKey);
+    } else {
+        console.error(`[RESMA] [${payload.platform}] [${uploadId}] Upload failed, payload preserved in storage at ${chunkKey}`);
     }
 
     return success;
@@ -484,3 +492,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 console.log('[RESMA] Service worker initialized');
+
+// MV3 Keep-Alive Heartbeat
+chrome.alarms.create('resma-keepAlive', { periodInMinutes: 0.5 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'resma-keepAlive') {
+        console.debug('[RESMA] Keep-alive heartbeat tick to prevent MV3 suspension.');
+        // In a complete chunking implementation, we would also check chrome.storage.local
+        // here to resume any aborted uploads that failed due to worker suspension.
+    }
+});

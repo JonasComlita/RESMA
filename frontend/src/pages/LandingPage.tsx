@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Shield, Eye, Database } from 'lucide-react';
+import { ArrowRight, Shield, Eye, Database, Network, Share2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 
 export function LandingPage() {
@@ -10,13 +10,13 @@ export function LandingPage() {
             {/* Hero Section */}
             <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-8">
-                    Build a privacy-preserving <br />
+                    Map the shape of <br />
                     <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        recommendation observatory.
+                        other social worlds.
                     </span>
                 </h1>
                 <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-12 leading-relaxed">
-                    Contribute recommendation data pseudonymously, understand your own feed, and help power aggregate insights for researchers and creators without exposing raw contributor feeds.
+                    Don't just see how you've been profiled. RESMA makes recommendation systems inspectable, showing you what people one, two, or six hops away are seeing—and where your own feed is artificially narrow.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
                     <a href="/login" className="w-full sm:w-auto px-8 py-4 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all flex items-center justify-center">
@@ -60,19 +60,19 @@ export function LandingPage() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid md:grid-cols-3 gap-12">
                         <FeatureCard
-                            icon={<Eye className="w-8 h-8 text-blue-600" />}
-                            title="Personal Transparency"
-                            description="Visualize your own recommendation patterns and see which categories and creators dominate your feed."
+                            icon={<Network className="w-8 h-8 text-blue-600" />}
+                            title="Six Degrees of Separation"
+                            description="Stop just looking at your own stats. See what people one, two, or six hops away from you are being shown by the algorithm."
                         />
                         <FeatureCard
-                            icon={<Database className="w-8 h-8 text-indigo-600" />}
-                            title="Collective Research"
-                            description="Contribute to a shared recommendation observatory that helps explain platform behavior across many contributors."
+                            icon={<Share2 className="w-8 h-8 text-indigo-600" />}
+                            title="Discover Bridge Content"
+                            description="Identify the rare media and creators that cross the boundaries between distant, highly-shaped social bubbles."
                         />
                         <FeatureCard
-                            icon={<Shield className="w-8 h-8 text-emerald-600" />}
-                            title="Aggregate-Only Insights"
-                            description="Creators and analysts can use cohort-level trends and forecasts without seeing raw contributor feeds or per-user drilldowns."
+                            icon={<Eye className="w-8 h-8 text-emerald-600" />}
+                            title="Map Your Blind Spots"
+                            description="Discover where your recommendation world is artificially narrow, and what content is common in other circles but entirely absent from yours."
                         />
                     </div>
                 </div>

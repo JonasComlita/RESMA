@@ -25,7 +25,8 @@
     "react-router-dom": "^7.11.0",
     "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0",
-    "vega": "^5.33.1"
+    "vega": "^5.33.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

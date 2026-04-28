@@ -1,4 +1,3 @@
-import React from 'react';
 import { Video, Clock, TrendingUp } from 'lucide-react';
 
 interface FeedItem {

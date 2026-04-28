@@ -1,4 +1,3 @@
-import React from 'react';
 import { ExternalLink, Info } from 'lucide-react';
 
 interface SponsoredModuleProps {

@@ -8,6 +8,7 @@ import {
 import { useDashboardForecast } from '../hooks/useDashboardForecast';
 import { useDashboardOppositeDiscovery } from '../hooks/useDashboardOppositeDiscovery';
 import { useDashboardRecommendationMap } from '../hooks/useDashboardRecommendationMap';
+import { useDashboardStore } from '../store/dashboardStore';
 import { Navbar } from '../components/Navbar';
 import { DataQualitySection } from '../components/dashboard/DataQualitySection';
 import { DeleteAccountCard } from '../components/dashboard/DeleteAccountCard';
@@ -29,8 +30,7 @@ export function Dashboard() {
     const { user, isLoading, deleteAccount, logout } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState<GlobalStats | null>(null);
-    const [maxDepth, setMaxDepth] = useState(3);
-    const [platform, setPlatform] = useState('youtube');
+    const { platform, setPlatform, maxDepth, setMaxDepth } = useDashboardStore();
     const {
         dataQuality,
         dataQualityTrend,
