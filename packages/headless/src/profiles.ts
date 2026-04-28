@@ -231,35 +231,38 @@ export function getBehaviorByKey(behaviorKey: string): BehavioralTraitDefinition
     return behavior;
 }
 
-export function buildSyntheticProfiles(variantsPerRegionCategory = 1): SyntheticResearchProfile[] {
+export function buildSyntheticProfiles(variantsPerRegionCategory = 1, platforms: SupportedHeadlessPlatform[] = ['youtube']): SyntheticResearchProfile[] {
     const profiles: SyntheticResearchProfile[] = [];
 
-    for (const region of RESEARCH_REGIONS) {
-        for (const category of CORE_CATEGORY_DEFINITIONS) {
-            for (let variantIndex = 0; variantIndex < variantsPerRegionCategory; variantIndex += 1) {
-                const behavior = BEHAVIORAL_TRAITS[(profiles.length + variantIndex) % BEHAVIORAL_TRAITS.length];
-                const id = [
-                    'yt',
-                    region.key,
-                    slugify(category.label),
-                    behavior.key,
-                    `v${variantIndex + 1}`,
-                ].join('-');
+    for (const platform of platforms) {
+        for (const region of RESEARCH_REGIONS) {
+            for (const category of CORE_CATEGORY_DEFINITIONS) {
+                for (let variantIndex = 0; variantIndex < variantsPerRegionCategory; variantIndex += 1) {
+                    const behavior = BEHAVIORAL_TRAITS[(profiles.length + variantIndex) % BEHAVIORAL_TRAITS.length];
+                    const platformPrefix = platform === 'youtube' ? 'yt' : platform === 'tiktok' ? 'tt' : 'rd';
+                    const id = [
+                        platformPrefix,
+                        region.key,
+                        slugify(category.label),
+                        behavior.key,
+                        `v${variantIndex + 1}`,
+                    ].join('-');
 
-                profiles.push({
-                    id,
-                    storageKey: id,
-                    platform: HEADLESS_PLATFORM_YOUTUBE,
-                    researchMode: 'synthetic-logged-out',
-                    region,
-                    category,
-                    behavior,
-                    notes: [
-                        'Synthetic research profile with no real-person identity linkage.',
-                        'Uses the same core category matrix across all target regions.',
-                        'Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts.',
-                    ],
-                });
+                    profiles.push({
+                        id,
+                        storageKey: id,
+                        platform,
+                        researchMode: 'synthetic-logged-out',
+                        region,
+                        category,
+                        behavior,
+                        notes: [
+                            'Synthetic research profile with no real-person identity linkage.',
+                            'Uses the same core category matrix across all target regions.',
+                            'Defaults to logged-out capture unless the operator explicitly provisions labeled research accounts.',
+                        ],
+                    });
+                }
             }
         }
     }

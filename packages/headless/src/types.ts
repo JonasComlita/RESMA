@@ -5,7 +5,7 @@ export interface NumericRange {
     max: number;
 }
 
-export type SupportedHeadlessPlatform = 'youtube';
+export type SupportedHeadlessPlatform = 'youtube' | 'tiktok' | 'reddit';
 export type ResearchMode = 'synthetic-logged-out' | 'research-account';
 export type CaptureIdentity = 'signed-out-synthetic' | 'signed-in-research-account';
 export type GovernedResearchAccountStatus = 'active' | 'paused' | 'retired';

@@ -14,9 +14,11 @@ import type {
     CaptureRuntimeOptions,
     GovernedResearchAccount,
     SyntheticResearchProfile,
+    SupportedHeadlessPlatform,
 } from './types.js';
 
 interface ParsedArgs {
+    platforms: SupportedHeadlessPlatform[];
     regions: string[];
     categories: string[];
     profileIds: string[];
@@ -44,6 +46,7 @@ function printUsage() {
         'Usage: pnpm --filter @resma/headless capture [options]',
         '',
         'Options:',
+        '  --platform youtube,tiktok   Limit platforms by key',
         '  --region us,uk              Limit regions by key',
         '  --category technology       Limit categories by key slug',
         '  --profile yt-us-technology  Run a specific profile id',
@@ -82,6 +85,7 @@ function readFlagValue(args: string[], index: number): string {
 
 export function parseArgs(argv: string[]): ParsedArgs {
     const parsed: ParsedArgs = {
+        platforms: ['youtube'],
         regions: [],
         categories: [],
         profileIds: [],
@@ -105,6 +109,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         switch (argument) {
+            case '--platform':
+                parsed.platforms = parseListFlag(readFlagValue(argv, index)) as SupportedHeadlessPlatform[];
+                index += 1;
+                break;
             case '--region':
                 parsed.regions = parseListFlag(readFlagValue(argv, index));
                 index += 1;
@@ -320,7 +328,7 @@ export async function main() {
     }
 
     const profiles = filterProfiles(
-        buildSyntheticProfiles(parsed.variantsPerRegionCategory),
+        buildSyntheticProfiles(parsed.variantsPerRegionCategory, parsed.platforms),
         parsed,
     );
 

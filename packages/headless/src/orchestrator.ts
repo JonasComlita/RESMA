@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { captureYouTubeProfile } from './youtube.js';
+import { captureTikTokProfile } from './tiktok.js';
+import { captureRedditProfile } from './reddit.js';
 import { uploadCapturePayload } from './uploader.js';
 import {
     CORE_CATEGORY_DEFINITIONS,
@@ -235,7 +237,19 @@ export async function runSyntheticCaptureMatrix(
         const started = resumed.length + completed.length + failed.length + 1;
         console.log(`[${started}/${profiles.length}] Capturing ${profile.id}...`);
         try {
-            const artifact = await captureYouTubeProfile(profile, options);
+            let artifact: CaptureArtifact;
+            switch (profile.platform) {
+                case 'tiktok':
+                    artifact = await captureTikTokProfile(profile, options);
+                    break;
+                case 'reddit':
+                    artifact = await captureRedditProfile(profile, options);
+                    break;
+                case 'youtube':
+                default:
+                    artifact = await captureYouTubeProfile(profile, options);
+                    break;
+            }
             const persisted = await persistCaptureArtifact(artifact, options);
             completed.push(persisted);
             console.log(`[${resumed.length + completed.length}/${profiles.length}] Finished ${profile.id}.`);
