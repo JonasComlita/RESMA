@@ -209,7 +209,7 @@ creatorsRouter.get(
             });
 
             const creatorCounts: Record<string, number> = {};
-            const categoryCounts: Record<string, number> = {};
+            const categoryCounts: Record<string, number> = Object.create(null);
 
             for (const snapshot of viewerSnapshots) {
                 for (const item of snapshot.feedItems) {
@@ -217,7 +217,7 @@ creatorsRouter.get(
                         creatorCounts[item.creatorHandle] = (creatorCounts[item.creatorHandle] || 0) + 1;
                     }
                     for (const cat of item.contentCategories) {
-                        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+                        categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
                     }
                 }
             }

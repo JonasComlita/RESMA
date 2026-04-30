@@ -151,12 +151,12 @@ export async function generateVideoInsights(
     });
 
     // Count category frequencies
-    const categoryCounts: Record<string, number> = {};
-    for (const item of userCategories) {
+    const categoryCounts = userCategories.reduce((acc, item) => {
         for (const cat of item.contentCategories) {
-            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            acc[cat] = (acc[cat] ?? 0) + 1;
         }
-    }
+        return acc;
+    }, Object.create(null) as Record<string, number>);
 
     // Get this video's categories
     const thisVideo = await prisma.feedItem.findFirst({
@@ -220,12 +220,12 @@ export async function generateFeedInsights(
         take: 100,
     });
 
-    const categoryCounts: Record<string, number> = {};
-    for (const item of userCategories) {
+    const categoryCounts = userCategories.reduce((acc, item) => {
         for (const cat of item.contentCategories) {
-            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            acc[cat] = (acc[cat] ?? 0) + 1;
         }
-    }
+        return acc;
+    }, Object.create(null) as Record<string, number>);
 
     const creatorHandles = [
         ...new Set(
