@@ -699,7 +699,15 @@ export async function generateRecommendationMapForUsers(
     options: RecommendationMapOptions,
     scope?: { cohortId?: string }
 ): Promise<RecommendationMapResult> {
-    const uniqueUserIds = Array.from(new Set(userIds.map((userId) => userId.trim()).filter(Boolean)));
+    const uniqueUserSet = new Set<string>();
+    for (const userId of userIds) {
+        const trimmed = userId.trim();
+        if (trimmed) {
+            uniqueUserSet.add(trimmed);
+        }
+    }
+    const uniqueUserIds = Array.from(uniqueUserSet);
+
     if (uniqueUserIds.length === 0) {
         throw new TraversalInputError('No users available for this recommendation map scope.', 404);
     }
