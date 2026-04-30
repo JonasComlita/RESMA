@@ -27,6 +27,8 @@ import { reportsRouter, sharedReportsRouter } from './routes/reports.js';
 import { buildOpenApiDocument } from './openapi.js';
 
 const app: express.Express = express();
+app.set('trust proxy', 1);
+
 const HEALTH_CACHE_MS = 10_000;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 let server: Server | null = null;
