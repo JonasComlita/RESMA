@@ -35,34 +35,50 @@ This document outlines the baseline security standards and performance optimizat
 *   **Single-Use Tokens**: Invalidate tokens immediately after a successful use or after a password change.
 *   **Secure Storage**: Store hashed versions of reset tokens in the database, never the raw token itself.
 
+### 6. Cryptographic Safeguards
+**Principle**: Protect data in transit and at rest with modern encryption.
+*   **Secure Hashing**: Use Argon2 or bcrypt for passwords. Never use outdated algorithms like MD5 or SHA-1.
+*   **Encryption at Rest**: Ensure sensitive PII and secrets are encrypted within the database.
+*   **TLS 1.3+**: Enforce modern TLS versions for all data in transit.
+
+### 7. Insecure Design Prevention
+**Principle**: Security must be a primary requirement, not an afterthought.
+*   **Threat Modeling**: Conduct security reviews during the design phase of new features.
+*   **Secure Defaults**: Systems should be "secure by default" (e.g., minimal permissions, private profiles).
+
+### 8. SSRF (Server-Side Request Forgery) Protection
+**Principle**: Validate and restrict all server-initiated requests.
+*   **URL Whitelisting**: Use a strict whitelist for any external requests made by the server.
+*   **Network Segregation**: Block access to internal metadata services (e.g., AWS/Azure IMDS) and internal-only APIs from the application layer.
+
 ---
 
 ## ⚡ Performance & Reliability
 
-### 6. Frontend Error Handling
+### 9. Frontend Error Handling
 **Principle**: Provide useful fallback states, not raw crashes.
 *   **Error Boundaries**: Implement React Error Boundaries to catch component-level crashes and display a friendly fallback UI.
 *   **Graceful Failures**: Use loading states, API failure notifications, and clear recovery actions (e.g., "Retry", "Refresh", or "Contact Support").
 *   **Internal Detail Protection**: Never expose stack traces or internal server error details to the end user.
 
-### 7. Database Performance & Indexes
+### 10. Database Performance & Indexes
 **Principle**: Optimize common access patterns without over-indexing.
 *   **Strategic Indexing**: Index paths used in frequent filters, joins, and sorts. Use `EXPLAIN ANALYZE` to identify slow queries.
 *   **Avoid Over-Indexing**: Do not index every column; excessive indexes slow down write operations (INSERT/UPDATE).
 *   **Composite Indexes**: Use composite indexes for queries involving multiple columns.
 
-### 8. Structured Logging
+### 11. Structured Logging
 **Principle**: Traceable, searchable, and secret-free logs.
 *   **Structured Logs**: Use JSON format for logs to allow easy ingestion by tools like ELK or Datadog.
 *   **Contextual Data**: Include enough context (Request IDs, User IDs) to trace requests across the system.
 *   **No Sensitive Junk**: Automatically scrub logs of secrets, passwords, or PII (Personally Identifiable Information).
 
-### 9. Monitoring and Alarms
+### 12. Monitoring and Alarms
 **Principle**: Proactive detection of critical system failures.
 *   **Threshold Alerts**: Set alarms for 5xx error spikes, P99 latency jumps, and business-critical failures (e.g., failed payments, signup drops).
 *   **Alert Routing**: Route high-priority alerts to Slack, PagerDuty, or SMS for immediate attention.
 
-### 10. Rollback and Deployment Plan
+### 13. Rollback and Deployment Plan
 **Principle**: Ensure every deployment is reversible and low-risk.
 *   **Easy Rollbacks**: Keep previous versions deployable. Automate the rollback process for the frontend and backend.
 *   **Feature Flags**: Use feature flags for risky changes, allowing you to "kill" a specific feature without a full redeploy.
