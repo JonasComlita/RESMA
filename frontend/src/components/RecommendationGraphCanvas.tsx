@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { select } from 'd3-selection';
 import { linkHorizontal } from 'd3-shape';
 import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
@@ -74,6 +74,89 @@ function nodeColor(type: 'bfs' | 'dfs' | 'both') {
     if (type === 'bfs') return '#2563eb';
     return '#ea580c';
 }
+
+/**
+ * GraphEdge represents a single path in the recommendation graph.
+ * ⚡ Bolt Optimization:
+ * Extracted into a memoized component to prevent re-rendering hundreds of edges
+ * when the parent's `viewport` state changes (e.g. during panning/zooming).
+ */
+const GraphEdge = memo(({
+    edge,
+    source,
+    target,
+    edgePath,
+}: {
+    edge: MergedEdge;
+    source: NodePosition;
+    target: NodePosition;
+    edgePath: (link: { source: NodePosition; target: NodePosition }) => string | null;
+}) => {
+    return (
+        <path
+            d={edgePath({ source, target }) ?? undefined}
+            fill="none"
+            stroke={edgeColor(edge)}
+            strokeOpacity={0.32 + edge.confidence * 0.35}
+            strokeWidth={1.2 + edge.confidence * 2}
+        />
+    );
+});
+
+/**
+ * GraphNode represents a single video node in the recommendation graph.
+ * ⚡ Bolt Optimization:
+ * Extracted into a memoized component. When combined with useCallback for `onToggleExpansion`,
+ * this ensures nodes only re-render if their specific selection/expansion state changes,
+ * maintaining a smooth 60fps graph interaction instead of blocking the main thread.
+ */
+const GraphNode = memo(({
+    node,
+    position,
+    isSelected,
+    isExpanded,
+    onToggleExpansion,
+}: {
+    node: RecommendationMapResult['combinedNodes'][number];
+    position: NodePosition;
+    isSelected: boolean;
+    isExpanded: boolean;
+    onToggleExpansion: (videoId: string) => void;
+}) => {
+    const radius = isSelected ? 15 : isExpanded ? 12 : 10;
+    const fill = nodeColor(node.discoveredBy);
+
+    return (
+        <g
+            transform={`translate(${position.x}, ${position.y})`}
+            onClick={(event) => {
+                event.stopPropagation();
+                onToggleExpansion(node.videoId);
+            }}
+            className="cursor-pointer"
+        >
+            <circle
+                r={radius + 4}
+                fill={fill}
+                opacity={0.16}
+            />
+            <circle
+                r={radius}
+                fill={fill}
+                stroke={isSelected ? '#e2e8f0' : '#020617'}
+                strokeWidth={isSelected ? 2.6 : 1.4}
+            />
+            <text
+                x={0}
+                y={4}
+                textAnchor="middle"
+                className="fill-slate-50 text-[10px] font-semibold"
+            >
+                {shortenVideoId(node.videoId)}
+            </text>
+        </g>
+    );
+});
 
 export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProps) {
     const allEdges = useMemo(() => mergeEdges(map), [map]);
@@ -219,7 +302,7 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
         [map.combinedNodes, selectedNodeId]
     );
 
-    const toggleNodeExpansion = (videoId: string) => {
+    const toggleNodeExpansion = useCallback((videoId: string) => {
         setSelectedNodeId(videoId);
         setExpandedNodes((current) => {
             const next = new Set(current);
@@ -230,7 +313,7 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
             }
             return next;
         });
-    };
+    }, [map.seedVideoId]);
 
     return (
         <div className="rounded-2xl border border-gray-200 bg-slate-950 p-3">
@@ -296,13 +379,12 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
                         if (!source || !target) return null;
 
                         return (
-                            <path
+                            <GraphEdge
                                 key={`${edge.fromVideoId}-${edge.toVideoId}`}
-                                d={edgePath({ source, target }) ?? undefined}
-                                fill="none"
-                                stroke={edgeColor(edge)}
-                                strokeOpacity={0.32 + edge.confidence * 0.35}
-                                strokeWidth={1.2 + edge.confidence * 2}
+                                edge={edge}
+                                source={source}
+                                target={target}
+                                edgePath={edgePath}
                             />
                         );
                     })}
@@ -311,41 +393,15 @@ export function RecommendationGraphCanvas({ map }: RecommendationGraphCanvasProp
                         const position = nodePositions.get(node.videoId);
                         if (!position) return null;
 
-                        const isSelected = selectedNodeId === node.videoId;
-                        const isExpanded = expandedNodes.has(node.videoId);
-                        const radius = isSelected ? 15 : isExpanded ? 12 : 10;
-                        const fill = nodeColor(node.discoveredBy);
-
                         return (
-                            <g
+                            <GraphNode
                                 key={node.videoId}
-                                transform={`translate(${position.x}, ${position.y})`}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    toggleNodeExpansion(node.videoId);
-                                }}
-                                className="cursor-pointer"
-                            >
-                                <circle
-                                    r={radius + 4}
-                                    fill={fill}
-                                    opacity={0.16}
-                                />
-                                <circle
-                                    r={radius}
-                                    fill={fill}
-                                    stroke={isSelected ? '#e2e8f0' : '#020617'}
-                                    strokeWidth={isSelected ? 2.6 : 1.4}
-                                />
-                                <text
-                                    x={0}
-                                    y={4}
-                                    textAnchor="middle"
-                                    className="fill-slate-50 text-[10px] font-semibold"
-                                >
-                                    {shortenVideoId(node.videoId)}
-                                </text>
-                            </g>
+                                node={node}
+                                position={position}
+                                isSelected={selectedNodeId === node.videoId}
+                                isExpanded={expandedNodes.has(node.videoId)}
+                                onToggleExpansion={toggleNodeExpansion}
+                            />
                         );
                     })}
                 </g>
