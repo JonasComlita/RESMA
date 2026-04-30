@@ -18,17 +18,17 @@ const RECOVERY_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // ── Zod schemas ──────────────────────────────────────────────────────────
 
 const registerSchema = z.object({
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(8, 'Password must be at least 8 characters').max(100, 'Password is too long'),
 });
 
 const loginSchema = z.object({
     anonymousId: z.string().min(1, 'Anonymous ID required'),
-    password: z.string().min(1, 'Password required'),
+    password: z.string().min(1, 'Password required').max(100, 'Password is too long'),
 });
 
 const recoverSchema = z.object({
     recoveryCode: z.string().min(1, 'Recovery code required'),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters').max(100, 'New password is too long'),
 });
 
 const deleteAccountSchema = z.object({
