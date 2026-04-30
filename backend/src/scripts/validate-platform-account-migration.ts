@@ -28,60 +28,65 @@ async function main(): Promise<number> {
         return 1;
     }
 
-    const totalCreators = await prisma.creator.count();
-    const totalPlatformAccounts = await prisma.platformAccount.count();
-
-    const creatorsWithoutAccounts = await prisma.creator.count({
-        where: {
-            platformAccounts: {
-                none: {},
+    const [
+        totalCreators,
+        totalPlatformAccounts,
+        creatorsWithoutAccounts,
+        creatorUsersWithoutAccounts,
+        blankHandleRows,
+        missingPlatformRows,
+        negativeFeedMetricRows,
+        negativeReachMetricRows,
+        platformBreakdown,
+    ] = await Promise.all([
+        prisma.creator.count(),
+        prisma.platformAccount.count(),
+        prisma.creator.count({
+            where: {
+                platformAccounts: {
+                    none: {},
+                },
             },
-        },
-    });
-
-    const creatorUsersWithoutAccounts = await prisma.creator.count({
-        where: {
-            user: { userType: 'CREATOR' },
-            platformAccounts: {
-                none: {},
+        }),
+        prisma.creator.count({
+            where: {
+                user: { userType: 'CREATOR' },
+                platformAccounts: {
+                    none: {},
+                },
             },
-        },
-    });
-
-    const blankHandleRows = await queryCount(Prisma.sql`
-        SELECT COUNT(*)::bigint AS count
-        FROM "platform_accounts"
-        WHERE trim("platform_handle") = ''
-    `);
-
-    const missingPlatformRows = await queryCount(Prisma.sql`
-        SELECT COUNT(*)::bigint AS count
-        FROM "creator_reach"
-        WHERE "platform" IS NULL OR trim("platform") = ''
-    `);
-
-    const negativeFeedMetricRows = await queryCount(Prisma.sql`
-        SELECT COUNT(*)::bigint AS count
-        FROM "feed_items"
-        WHERE COALESCE("likesCount", 0) < 0
-           OR COALESCE("commentsCount", 0) < 0
-           OR COALESCE("sharesCount", 0) < 0
-    `);
-
-    const negativeReachMetricRows = await queryCount(Prisma.sql`
-        SELECT COUNT(*)::bigint AS count
-        FROM "creator_reach"
-        WHERE COALESCE("likesCount", 0) < 0
-           OR COALESCE("commentsCount", 0) < 0
-           OR COALESCE("sharesCount", 0) < 0
-    `);
-
-    const platformBreakdown = await prisma.platformAccount.groupBy({
-        by: ['platform'],
-        _count: {
-            _all: true,
-        },
-    });
+        }),
+        queryCount(Prisma.sql`
+            SELECT COUNT(*)::bigint AS count
+            FROM "platform_accounts"
+            WHERE trim("platform_handle") = ''
+        `),
+        queryCount(Prisma.sql`
+            SELECT COUNT(*)::bigint AS count
+            FROM "creator_reach"
+            WHERE "platform" IS NULL OR trim("platform") = ''
+        `),
+        queryCount(Prisma.sql`
+            SELECT COUNT(*)::bigint AS count
+            FROM "feed_items"
+            WHERE COALESCE("likesCount", 0) < 0
+               OR COALESCE("commentsCount", 0) < 0
+               OR COALESCE("sharesCount", 0) < 0
+        `),
+        queryCount(Prisma.sql`
+            SELECT COUNT(*)::bigint AS count
+            FROM "creator_reach"
+            WHERE COALESCE("likesCount", 0) < 0
+               OR COALESCE("commentsCount", 0) < 0
+               OR COALESCE("sharesCount", 0) < 0
+        `),
+        prisma.platformAccount.groupBy({
+            by: ['platform'],
+            _count: {
+                _all: true,
+            },
+        }),
+    ]);
 
     const issues: string[] = [];
     const warnings: string[] = [];
