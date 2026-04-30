@@ -30,6 +30,7 @@ vi.mock('../src/services/agencyReports.js', async () => {
     return {
         ...actual,
         createAgencyReportPreset: vi.fn(),
+        listAgencyReportPresetsForUser: vi.fn(),
         loadAgencyReportRunForUser: vi.fn(),
         createAgencyReportShare: vi.fn(),
         resolveAgencyReportShare: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('../src/services/agencyReports.js', async () => {
 const { prisma } = await import('../src/lib/prisma.js');
 const {
     createAgencyReportPreset,
+    listAgencyReportPresetsForUser,
     resolveAgencyReportShare,
     serializeStoredAgencyReport,
     markAgencyReportExportAccess,
@@ -147,5 +149,28 @@ describe('Agency report routes', () => {
             reportShareId: 'share-1',
             format: 'client-report',
         }));
+    });
+    it('handles errors on GET /reports/packages/me', async () => {
+        vi.mocked(prisma.user.findUnique).mockRejectedValue(new Error('Database error'));
+
+        const response = await request(app)
+            .get('/reports/packages/me')
+            .set('Authorization', `Bearer ${makeAuthToken()}`);
+
+        expect(response.status).toBe(500);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBe('Internal server error');
+    });
+
+    it('handles errors on GET /reports/presets', async () => {
+        vi.mocked(listAgencyReportPresetsForUser).mockRejectedValue(new Error('Preset loading error'));
+
+        const response = await request(app)
+            .get('/reports/presets')
+            .set('Authorization', `Bearer ${makeAuthToken()}`);
+
+        expect(response.status).toBe(500);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBe('Internal server error');
     });
 });
