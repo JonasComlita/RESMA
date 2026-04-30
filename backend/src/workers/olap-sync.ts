@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { decode } from '@msgpack/msgpack';
 import { decompress } from 'fzstd'; // or equivalent brotli/zstd library used in the project
 
@@ -11,7 +11,7 @@ import { decompress } from 'fzstd'; // or equivalent brotli/zstd library used in
  * TODO: Hook this into a Cron job or a Queue (e.g., BullMQ).
  */
 
-const prisma = new PrismaClient();
+
 
 // Mock ClickHouse client for architecture scaffold
 const clickhouse = {
