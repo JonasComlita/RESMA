@@ -674,12 +674,12 @@ analysisRouter.get('/profile', authenticate, userAnalysisRateLimiter, async (req
         });
 
         // Calculate category breakdown
-        const categoryCounts: Record<string, number> = {};
+        const categoryCounts: Record<string, number> = Object.create(null);
         const creatorCounts: Record<string, number> = {};
 
         for (const item of feedItems) {
             for (const cat of item.contentCategories) {
-                categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+                categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
             }
             if (item.creatorHandle) {
                 creatorCounts[item.creatorHandle] = (creatorCounts[item.creatorHandle] || 0) + 1;
