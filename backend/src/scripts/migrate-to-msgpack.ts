@@ -39,38 +39,47 @@ async function migrateTable<T extends { id: string }>(
     const records = await findMany();
     console.log(`  Found ${records.length} records to migrate`);
 
-    for (const record of records) {
-        try {
-            const jsonFields = getJsonFields(record);
-            const compressedFields: Record<string, Buffer> = {};
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < records.length; i += BATCH_SIZE) {
+        const batch = records.slice(i, i + BATCH_SIZE);
 
-            for (const [key, value] of Object.entries(jsonFields)) {
-                if (value === null || value === undefined) {
-                    continue;
+        await Promise.all(batch.map(async (record) => {
+            try {
+                const jsonFields = getJsonFields(record);
+                const compressedFields: Record<string, Buffer> = {};
+
+                for (const [key, value] of Object.entries(jsonFields)) {
+                    if (value === null || value === undefined) {
+                        continue;
+                    }
+
+                    // Calculate original JSON size
+                    const jsonStr = JSON.stringify(value);
+                    const originalBytes = Buffer.byteLength(jsonStr, 'utf-8');
+
+                    // Compress to MessagePack + Zstandard
+                    const result = packAndCompress(value);
+
+                    compressedFields[key] = result.data;
+
+                    // Update stats
+                    stats.originalBytes += originalBytes;
+                    stats.compressedBytes += result.compressedSize;
                 }
 
-                // Calculate original JSON size
-                const jsonStr = JSON.stringify(value);
-                stats.originalBytes += Buffer.byteLength(jsonStr, 'utf-8');
+                if (Object.keys(compressedFields).length > 0) {
+                    await update(record.id, getUpdateData(compressedFields));
+                }
 
-                // Compress to MessagePack + Zstandard
-                const result = packAndCompress(value);
-                compressedFields[key] = result.data;
-                stats.compressedBytes += result.compressedSize;
+                stats.processed++;
+            } catch (error) {
+                console.error(`  Failed to migrate record ${record.id}:`, error);
+                stats.failed++;
             }
+        }));
 
-            if (Object.keys(compressedFields).length > 0) {
-                await update(record.id, getUpdateData(compressedFields));
-            }
-
-            stats.processed++;
-
-            if (stats.processed % 100 === 0) {
-                console.log(`  Processed ${stats.processed}/${records.length} records...`);
-            }
-        } catch (error) {
-            console.error(`  Failed to migrate record ${record.id}:`, error);
-            stats.failed++;
+        if (stats.processed % 50 === 0 || stats.processed === records.length) {
+            console.log(`  Processed ${stats.processed}/${records.length} records...`);
         }
     }
 
