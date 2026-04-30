@@ -170,43 +170,57 @@ creatorsRouter.get(
                 return next(createError(`No claimed ${platform} account found`, 404));
             }
 
-            const feedItems = await prisma.feedItem.findMany({
-                where: {
-                    creatorHandle: account.platformHandle,
-                    snapshot: {
-                        platform: account.platform,
-                        user: {
-                            contributeToCreatorInsights: true,
-                        },
-                    },
-                },
-                include: {
-                    snapshot: {
-                        include: {
+            const [feedItems, viewerSnapshots] = await Promise.all([
+                prisma.feedItem.findMany({
+                    where: {
+                        creatorHandle: account.platformHandle,
+                        snapshot: {
+                            platform: account.platform,
                             user: {
-                                select: { id: true },
+                                contributeToCreatorInsights: true,
                             },
                         },
                     },
-                },
-            });
-
-            const uniqueViewerIds = new Set(feedItems.map((item) => item.snapshot.userId));
-            const viewerSnapshots = await prisma.feedSnapshot.findMany({
-                where: {
-                    platform: account.platform,
-                    userId: { in: Array.from(uniqueViewerIds) },
-                },
-                include: {
-                    feedItems: {
-                        select: {
-                            creatorHandle: true,
-                            contentCategories: true,
+                    include: {
+                        snapshot: {
+                            include: {
+                                user: {
+                                    select: { id: true },
+                                },
+                            },
                         },
                     },
-                },
-                take: 100,
-            });
+                }),
+                prisma.feedSnapshot.findMany({
+                    where: {
+                        platform: account.platform,
+                        user: {
+                            contributeToCreatorInsights: true,
+                            feedSnapshots: {
+                                some: {
+                                    platform: account.platform,
+                                    feedItems: {
+                                        some: {
+                                            creatorHandle: account.platformHandle,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    include: {
+                        feedItems: {
+                            select: {
+                                creatorHandle: true,
+                                contentCategories: true,
+                            },
+                        },
+                    },
+                    take: 100,
+                })
+            ]);
+
+            const uniqueViewerIds = new Set(feedItems.map((item) => item.snapshot.userId));
 
             const creatorCounts: Record<string, number> = {};
             const categoryCounts: Record<string, number> = {};
