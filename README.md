@@ -222,6 +222,7 @@ All report and creator-facing outputs remain aggregate-only. They are derived fr
 - Added lazy-loaded SandDance exploration for aggregate rows in data quality and audience forecast surfaces.
 - Added Gephi-compatible `GEXF 1.3` export for recommendation maps.
 - Continued shaping the frontend toward a discoverable observatory experience where contributors can inspect what is surfacing now, compare adjacent circles, and eventually browse recommendation distance across categories, regions, and platforms.
+- Added MVP platform-normalized Discover ranking for the public "what's surfacing now" feed: all-platform results now compare each item against its own platform's recent popularity distribution before mixing platforms, while platform-filtered views continue using observed appearances.
 
 ### Cross-User Comparison Data Quality Improvements
 
@@ -301,6 +302,7 @@ Another major product direction is making recommendation distance legible to con
 
 - build a Discover-style observatory surface for "what's surfacing now"
 - add category, region, and platform selectors so users can compare what different circles find relevant
+- evolve cross-platform ranking beyond the MVP percentile model with a platform-neutral signal normalization layer inspired by public recommender architectures such as xAI's `x-algorithm`/Phoenix: dwell, completion, save, share, profile click, follow-author, "not interested", hide, mute, block, report, and fast-skip signals should map into common scoring vocabulary before they influence aggregation
 - surface adjacent, distant, and bridge content so people can see what their current profile is not being shown
 - keep the core observatory feed as a truth surface, while any sponsor or advertiser modules stay clearly labeled and visually separate from measured recommendation content
 - provide clear opt-out and account-deletion paths that are easy to find and use

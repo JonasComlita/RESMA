@@ -9,6 +9,10 @@ interface FeedItem {
     platform: 'youtube' | 'tiktok' | 'twitter' | 'instagram' | 'reddit';
     timestamp: string;
     reachMetrics: string;
+    appearances: number;
+    normalizedScore: number;
+    rankingBasis: 'platform_percentile' | 'appearances';
+    contentFamily: string;
     thumbnailUrl?: string;
     url?: string;
 }
@@ -58,7 +62,11 @@ export function OrganicFeed({ platform = 'All Platforms', category = null }: Org
                         <TrendingUp className="w-5 h-5 text-emerald-600" />
                         <h2 className="text-xl font-bold text-gray-900">What's Surfacing Now</h2>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Measured observatory data across your selected regions.</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {platform === 'All Platforms'
+                            ? 'Platform-normalized surfacing from recent observatory captures.'
+                            : 'Measured observatory data across your selected regions.'}
+                    </p>
                 </div>
                 {loading && <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />}
             </div>
@@ -89,7 +97,9 @@ export function OrganicFeed({ platform = 'All Platforms', category = null }: Org
                                         </>
                                     )}
                                     <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                                        {item.reachMetrics}
+                                        {platform === 'All Platforms' && item.rankingBasis === 'platform_percentile'
+                                            ? `${item.reachMetrics} · ${item.contentFamily.replace(/_/g, ' ')}`
+                                            : item.reachMetrics}
                                     </div>
                                 </div>
                             </div>

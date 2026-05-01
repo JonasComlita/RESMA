@@ -44,7 +44,7 @@ The article highlights how **Claude Code** allows developers to build functional
 ## 3. Market Alignment & Monetization
 The article lists "Easy Folders" ($3,700/mo) and "Helper-AI" ($3,500/2mo) as successful examples.
 - **Value Proposition:** While these are simple utilities, they prove that users/creators are willing to pay for tools that organize or enhance their social media experience.
-- **RESMA's Positioning:** RESMA is positioned as a "Bloomberg for Recommendations." By moving from simple utility to **Independent Intelligence**, we can justify the **Creator Pro** ($50+/mo) and **Agency** ($500+/mo) tiers mentioned in `monetization.txt`.
+- **RESMA's Positioning:** RESMA is positioned as a "Bloomberg for Recommendations." By moving from simple utility to **Independent Intelligence**, we can justify the **Creator Pro** ($50+/mo) and **Agency** ($500+/mo) tiers mentioned in `monetization.md`.
 
 ## 4. Competitive Landscape (The "weekend project" risk)
 The "low barrier to entry" is a double-edged sword.

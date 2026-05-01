@@ -31,9 +31,152 @@ const MAX_SIMILAR_LIMIT = 20;
 const SUPPORTED_ANALYSIS_PLATFORMS = ['youtube', 'instagram', 'twitter', 'tiktok'] as const;
 const userAnalysisRateLimiter = createUserAnalysisRateLimiter();
 const publicAnalysisRateLimiter = createAnalysisRateLimiter();
+const DISCOVER_POPULAR_LIMIT = 15;
+const DISCOVER_RANKING_BASIS_PLATFORM_PERCENTILE = 'platform_percentile';
+const DISCOVER_RANKING_BASIS_APPEARANCES = 'appearances';
+
+type DiscoverRankingBasis =
+    typeof DISCOVER_RANKING_BASIS_PLATFORM_PERCENTILE
+    | typeof DISCOVER_RANKING_BASIS_APPEARANCES;
+
+interface DiscoverTrendRow {
+    id: string;
+    title: string | null;
+    creator: string | null;
+    platform: string;
+    timestamp: Date | string;
+    appearances: number | bigint;
+}
+
+interface DiscoverFeedItem {
+    id: string;
+    title: string | null;
+    creator: string;
+    platform: string;
+    timestamp: Date | string;
+    url: string;
+    reachMetrics: string;
+    appearances: number;
+    normalizedScore: number;
+    rankingBasis: DiscoverRankingBasis;
+    contentFamily: string;
+}
 
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
+}
+
+function toFiniteNumber(value: number | bigint | string | null | undefined): number {
+    const parsed = typeof value === 'bigint' ? Number(value) : Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function timestampMs(value: Date | string | null | undefined): number {
+    const parsed = value instanceof Date ? value.getTime() : new Date(value ?? 0).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundDiscoverScore(value: number): number {
+    return Math.round(clampNumber(value, 0, 1) * 10000) / 10000;
+}
+
+export function discoverContentFamilyForPlatform(platform: string): string {
+    switch (platform) {
+    case 'tiktok':
+        return 'short_video';
+    case 'youtube':
+        return 'long_video';
+    case 'reddit':
+        return 'community_post';
+    case 'twitter':
+    case 'instagram':
+        return 'social_post';
+    default:
+        return 'unknown';
+    }
+}
+
+export function scoreDiscoverRowsByPlatformPercentile(rows: DiscoverTrendRow[]): Map<string, number> {
+    const rowsByPlatform = new Map<string, DiscoverTrendRow[]>();
+
+    for (const row of rows) {
+        const platformRows = rowsByPlatform.get(row.platform) ?? [];
+        platformRows.push(row);
+        rowsByPlatform.set(row.platform, platformRows);
+    }
+
+    const scores = new Map<string, number>();
+    for (const [platform, platformRows] of rowsByPlatform.entries()) {
+        const ranked = [...platformRows].sort((left, right) => {
+            const appearanceDelta = toFiniteNumber(right.appearances) - toFiniteNumber(left.appearances);
+            if (appearanceDelta !== 0) return appearanceDelta;
+            const recencyDelta = timestampMs(right.timestamp) - timestampMs(left.timestamp);
+            if (recencyDelta !== 0) return recencyDelta;
+            return String(left.id).localeCompare(String(right.id));
+        });
+        const denominator = Math.max(ranked.length, 1);
+        ranked.forEach((row, index) => {
+            scores.set(`${platform}:${row.id}`, roundDiscoverScore((denominator - index) / denominator));
+        });
+    }
+
+    return scores;
+}
+
+export function buildDiscoverFeed(
+    rows: DiscoverTrendRow[],
+    options: { allPlatforms: boolean; limit?: number }
+): DiscoverFeedItem[] {
+    const scores = scoreDiscoverRowsByPlatformPercentile(rows);
+    const rankingBasis: DiscoverRankingBasis = options.allPlatforms
+        ? DISCOVER_RANKING_BASIS_PLATFORM_PERCENTILE
+        : DISCOVER_RANKING_BASIS_APPEARANCES;
+    const feed = rows.map((row) => {
+        const appearances = Math.max(0, Math.round(toFiniteNumber(row.appearances)));
+        const platform = String(row.platform);
+        let cleanCreator = row.creator || 'Unknown Creator';
+        if (platform === 'tiktok' && cleanCreator.includes('/@')) {
+            const parts = cleanCreator.split('/@');
+            cleanCreator = parts[1]?.split('/')[0] || cleanCreator;
+        }
+        cleanCreator = cleanCreator.replace(/^@/, '');
+
+        let url = '';
+        if (platform === 'youtube') url = `https://youtube.com/watch?v=${row.id}`;
+        if (platform === 'tiktok') url = `https://tiktok.com/@${cleanCreator}/video/${row.id}`;
+        if (platform === 'reddit') url = `https://reddit.com${row.id.startsWith('/') ? '' : '/'}${row.id}`;
+
+        const normalizedScore = scores.get(`${platform}:${row.id}`) ?? 0;
+        const topPercentile = Math.max(1, Math.ceil((1 - normalizedScore) * 100));
+
+        return {
+            id: row.id,
+            title: row.title,
+            creator: cleanCreator,
+            platform,
+            timestamp: row.timestamp,
+            url,
+            reachMetrics: options.allPlatforms
+                ? `Top ${topPercentile}% within ${platform}; observed ${appearances} times`
+                : `Surfacing broadly across ${appearances} regional cohorts`,
+            appearances,
+            normalizedScore,
+            rankingBasis,
+            contentFamily: discoverContentFamilyForPlatform(platform),
+        };
+    });
+
+    feed.sort((left, right) => {
+        if (options.allPlatforms) {
+            const scoreDelta = right.normalizedScore - left.normalizedScore;
+            if (scoreDelta !== 0) return scoreDelta;
+        }
+        const appearanceDelta = right.appearances - left.appearances;
+        if (appearanceDelta !== 0) return appearanceDelta;
+        return timestampMs(right.timestamp) - timestampMs(left.timestamp);
+    });
+
+    return feed.slice(0, options.limit ?? DISCOVER_POPULAR_LIMIT);
 }
 
 const platformQueryValidation = query('platform')
@@ -724,7 +867,7 @@ analysisRouter.get('/discover/categories', publicAnalysisRateLimiter, async (req
         const categories = await prisma.$queryRaw`
             SELECT 
                 cat as category,
-                COUNT(DISTINCT fi."videoId") as item_count
+                COUNT(DISTINCT (fs."platform", fi."videoId")) as item_count
             FROM feed_items fi
             JOIN feed_snapshots fs ON fi."snapshotId" = fs.id,
             UNNEST(fi."contentCategories") as cat
@@ -754,13 +897,13 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
     try {
         const targetPlatform = req.query.platform as string | undefined;
         const targetCategory = req.query.category as string | undefined;
-        let topTrending;
+        let topTrending: DiscoverTrendRow[];
 
         const hasPlatform = targetPlatform && targetPlatform !== 'All Platforms';
         const hasCategory = targetCategory && targetCategory !== 'All';
 
         if (hasPlatform && hasCategory) {
-            topTrending = await prisma.$queryRaw`
+            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
                 SELECT 
                     fi."videoId" as id,
                     MAX(fi."caption") as title,
@@ -773,12 +916,12 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                 WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
                   AND fs."platform" = ${targetPlatform}
                   AND fi."contentCategories" @> ARRAY[${targetCategory}]
-                GROUP BY fi."videoId"
-                ORDER BY appearances DESC
-                LIMIT 15;
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC
+                LIMIT ${DISCOVER_POPULAR_LIMIT};
             `;
         } else if (hasPlatform) {
-            topTrending = await prisma.$queryRaw`
+            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
                 SELECT 
                     fi."videoId" as id,
                     MAX(fi."caption") as title,
@@ -790,12 +933,12 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
                 WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
                   AND fs."platform" = ${targetPlatform}
-                GROUP BY fi."videoId"
-                ORDER BY appearances DESC
-                LIMIT 15;
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC
+                LIMIT ${DISCOVER_POPULAR_LIMIT};
             `;
         } else if (hasCategory) {
-            topTrending = await prisma.$queryRaw`
+            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
                 SELECT 
                     fi."videoId" as id,
                     MAX(fi."caption") as title,
@@ -807,12 +950,11 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
                 WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
                   AND fi."contentCategories" @> ARRAY[${targetCategory}]
-                GROUP BY fi."videoId"
-                ORDER BY appearances DESC
-                LIMIT 15;
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC;
             `;
         } else {
-            topTrending = await prisma.$queryRaw`
+            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
                 SELECT 
                     fi."videoId" as id,
                     MAX(fi."caption") as title,
@@ -823,38 +965,18 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                 FROM feed_items fi
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
                 WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
-                GROUP BY fi."videoId"
-                ORDER BY appearances DESC
-                LIMIT 15;
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC;
             `;
         }
 
         res.json({
             success: true,
             data: {
-                feed: (topTrending as any[]).map((row) => {
-                    let cleanCreator = row.creator || 'Unknown Creator';
-                    if (row.platform === 'tiktok' && cleanCreator.includes('/@')) {
-                        const parts = cleanCreator.split('/@');
-                        cleanCreator = parts[1]?.split('/')[0] || cleanCreator;
-                    }
-                    cleanCreator = cleanCreator.replace(/^@/, '');
-
-                    let url = '';
-                    if (row.platform === 'youtube') url = `https://youtube.com/watch?v=${row.id}`;
-                    if (row.platform === 'tiktok') url = `https://tiktok.com/@${cleanCreator}/video/${row.id}`;
-                    if (row.platform === 'reddit') url = `https://reddit.com${row.id.startsWith('/') ? '' : '/'}${row.id}`;
-
-                    return {
-                        id: row.id,
-                        title: row.title,
-                        creator: cleanCreator,
-                        platform: row.platform,
-                        timestamp: row.timestamp,
-                        url,
-                        reachMetrics: `Surfacing broadly across ${row.appearances} regional cohorts`
-                    };
-                })
+                feed: buildDiscoverFeed(topTrending, {
+                    allPlatforms: !hasPlatform,
+                    limit: DISCOVER_POPULAR_LIMIT,
+                }),
             }
         });
     } catch (error) {
