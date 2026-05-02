@@ -143,8 +143,14 @@ export function buildDiscoverFeed(
 
         let url = '';
         if (platform === 'youtube') url = `https://youtube.com/watch?v=${row.id}`;
-        if (platform === 'tiktok') url = `https://tiktok.com/@${cleanCreator}/video/${row.id}`;
-        if (platform === 'reddit') url = `https://reddit.com${row.id.startsWith('/') ? '' : '/'}${row.id}`;
+        if (platform === 'tiktok') {
+            const handle = (cleanCreator === 'Unknown Creator' || !cleanCreator) ? '' : cleanCreator.replace(/\s+/g, '');
+            url = `https://www.tiktok.com/@${handle}/video/${row.id}`;
+        }
+        if (platform === 'reddit') {
+            const sub = (cleanCreator === 'Unknown Creator' || !cleanCreator) ? 'reddit' : `r/${cleanCreator.replace(/\s+/g, '')}`;
+            url = `https://www.reddit.com/${sub}/comments/${row.id}`;
+        }
 
         const normalizedScore = scores.get(`${platform}:${row.id}`) ?? 0;
         const topPercentile = Math.max(1, Math.ceil((1 - normalizedScore) * 100));
@@ -740,7 +746,7 @@ analysisRouter.get('/stats', publicAnalysisRateLimiter, async (req, res, next) =
             prisma.feedSnapshot.count({
                 where: {
                     capturedAt: {
-                        gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                        gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
                     },
                 },
             }),
@@ -871,7 +877,7 @@ analysisRouter.get('/discover/categories', publicAnalysisRateLimiter, async (req
             FROM feed_items fi
             JOIN feed_snapshots fs ON fi."snapshotId" = fs.id,
             UNNEST(fi."contentCategories") as cat
-            WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+            WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
               AND cat != ''
             GROUP BY cat
             ORDER BY item_count DESC
@@ -913,7 +919,7 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                     COUNT(*) as appearances
                 FROM feed_items fi
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
                   AND fs."platform" = ${targetPlatform}
                   AND fi."contentCategories" @> ARRAY[${targetCategory}]
                 GROUP BY fs."platform", fi."videoId"
@@ -931,7 +937,7 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                     COUNT(*) as appearances
                 FROM feed_items fi
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
                   AND fs."platform" = ${targetPlatform}
                 GROUP BY fs."platform", fi."videoId"
                 ORDER BY appearances DESC, timestamp DESC
@@ -948,7 +954,7 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                     COUNT(*) as appearances
                 FROM feed_items fi
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
                   AND fi."contentCategories" @> ARRAY[${targetCategory}]
                 GROUP BY fs."platform", fi."videoId"
                 ORDER BY appearances DESC, timestamp DESC;
@@ -964,7 +970,7 @@ analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, r
                     COUNT(*) as appearances
                 FROM feed_items fi
                 JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '24 HOURS'
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
                 GROUP BY fs."platform", fi."videoId"
                 ORDER BY appearances DESC, timestamp DESC;
             `;

@@ -241,7 +241,7 @@ function applyPerCellLimit(profiles: SyntheticResearchProfile[], limitPerCell: n
     const limited: SyntheticResearchProfile[] = [];
 
     for (const profile of profiles) {
-        const key = `${profile.region.key}:${profile.category.key}`;
+        const key = `${profile.platform}:${profile.region.key}:${profile.category.key}`;
         const count = counts.get(key) ?? 0;
         if (count >= limitPerCell) {
             continue;

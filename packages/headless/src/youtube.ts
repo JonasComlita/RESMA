@@ -455,19 +455,22 @@ function dedupeFeedItems(items: CapturedFeedItem[]): CapturedFeedItem[] {
     return Array.from(deduped.values());
 }
 
-async function createPersistentContext(
+async function createBrowserContext(
     profile: SyntheticResearchProfile,
     options: CaptureRuntimeOptions,
-): Promise<BrowserContext> {
-    const researchAccountUserDataDir = options.researchAccount?.credentialSource.path;
-    const userDataDir = researchAccountUserDataDir ?? path.join(options.profileStorageDir, profile.storageKey);
-    if (!researchAccountUserDataDir) {
-        await mkdir(userDataDir, { recursive: true });
-    }
-
-    return chromium.launchPersistentContext(userDataDir, {
+): Promise<{ context: BrowserContext; browser: any }> {
+    const browser = await chromium.launch({
         headless: options.headless ?? true,
         ...(options.browserChannel ? { channel: options.browserChannel as 'chrome' } : {}),
+        args: [
+            '--disable-gpu',
+            '--disable-dev-shm-usage',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+        ],
+    });
+
+    const context = await browser.newContext({
         locale: profile.region.locale,
         timezoneId: profile.region.timezoneId,
         userAgent: `RESMA-Headless/0.1 (${profile.region.youtubeRegionCode}; ${profile.behavior.key})`,
@@ -476,6 +479,8 @@ async function createPersistentContext(
             'Accept-Language': profile.region.acceptLanguage,
         },
     });
+
+    return { context, browser };
 }
 
 export async function captureYouTubeProfile(
@@ -483,7 +488,7 @@ export async function captureYouTubeProfile(
     options: CaptureRuntimeOptions,
 ): Promise<CaptureArtifact> {
     const captureMode = options.captureMode ?? createDefaultCaptureModeContext();
-    const context = await createPersistentContext(profile, options);
+    const { context, browser } = await createBrowserContext(profile, options);
     const page = context.pages()[0] ?? await context.newPage();
     const warnings: string[] = [];
     const query = pickSeedQuery(profile);
@@ -493,16 +498,15 @@ export async function captureYouTubeProfile(
     let timedOut = false;
     const timeoutHandle = setTimeout(() => {
         timedOut = true;
-        void context.close().catch(() => {
-            // Best-effort close to break stuck browser work.
-        });
+        void browser.close().catch(() => { });
     }, profileTimeoutMs);
 
     try {
         try {
-            await page.goto(buildLocalizedYouTubeUrl('/', profile), {
+            const homeUrl = buildLocalizedYouTubeUrl('/', profile);
+            await page.goto(homeUrl, {
                 waitUntil: 'domcontentloaded',
-                timeout: PAGE_TIMEOUT_MS,
+                timeout: 60_000,
             });
             await dismissYouTubeConsent(page);
             await page.waitForTimeout(2_000);
