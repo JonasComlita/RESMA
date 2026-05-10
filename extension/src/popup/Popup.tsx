@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CURRENT_INGEST_VERSION, CURRENT_OBSERVER_VERSIONS } from '@resma/shared';
+import DiscoverFeed from './DiscoverFeed';
 
 interface CaptureStatus {
     isCapturing: boolean;
@@ -7,6 +8,8 @@ interface CaptureStatus {
 }
 
 const Popup: React.FC = () => {
+    const [view, setView] = useState<'capture' | 'discover'>('capture');
+    const [theme, setTheme] = useState<'dark' | 'light'>('dark');
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [authMessage, setAuthMessage] = useState('');
     const [platform, setPlatform] = useState<'tiktok' | 'twitter' | 'youtube' | 'instagram' | 'reddit' | null>(null);
@@ -17,17 +20,35 @@ const Popup: React.FC = () => {
     const [message, setMessage] = useState('');
 
     useEffect(() => {
+        // Load theme from storage
+        chrome.storage.local.get('theme', (result) => {
+            if (result.theme) {
+                setTheme(result.theme);
+                document.body.setAttribute('data-theme', result.theme);
+            } else {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+        });
+
         // Check auth status
         chrome.runtime.sendMessage({ type: 'GET_AUTH_STATUS' }, (response) => {
             setIsAuthenticated(response?.isAuthenticated || false);
             setAuthMessage(response?.isAuthenticated ? '' : (response?.message || ''));
         });
 
-        // Detect platform (TikTok, Twitter, YouTube, Instagram, Reddit)
+        // Detect platform
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const url = tabs[0]?.url || '';
-            if (url.includes('tiktok.com')) {
-                setPlatform('tiktok');
+            let detectedPlatform: 'tiktok' | 'twitter' | 'youtube' | 'instagram' | 'reddit' | null = null;
+            
+            if (url.includes('tiktok.com')) detectedPlatform = 'tiktok';
+            else if (url.includes('twitter.com') || url.includes('x.com')) detectedPlatform = 'twitter';
+            else if (url.includes('youtube.com')) detectedPlatform = 'youtube';
+            else if (url.includes('instagram.com')) detectedPlatform = 'instagram';
+            else if (url.includes('reddit.com')) detectedPlatform = 'reddit';
+
+            if (detectedPlatform) {
+                setPlatform(detectedPlatform);
                 if (tabs[0]?.id) {
                     chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
                         if (!response) return;
@@ -37,55 +58,16 @@ const Popup: React.FC = () => {
                         });
                     });
                 }
-            } else if (url.includes('twitter.com')) {
-                setPlatform('twitter');
-                if (tabs[0]?.id) {
-                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (!response) return;
-                        setCaptureStatus({
-                            isCapturing: Boolean(response.isCapturing),
-                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
-                        });
-                    });
-                }
-            } else if (url.includes('youtube.com')) {
-                setPlatform('youtube');
-                if (tabs[0]?.id) {
-                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (!response) return;
-                        setCaptureStatus({
-                            isCapturing: Boolean(response.isCapturing),
-                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
-                        });
-                    });
-                }
-            } else if (url.includes('instagram.com')) {
-                setPlatform('instagram');
-                if (tabs[0]?.id) {
-                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (!response) return;
-                        setCaptureStatus({
-                            isCapturing: Boolean(response.isCapturing),
-                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
-                        });
-                    });
-                }
-            } else if (url.includes('www.reddit.com')) {
-                setPlatform('reddit');
-                if (tabs[0]?.id) {
-                    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATUS' }, (response) => {
-                        if (!response) return;
-                        setCaptureStatus({
-                            isCapturing: Boolean(response.isCapturing),
-                            itemCount: Number(response.itemCount ?? response.videoCount ?? 0),
-                        });
-                    });
-                }
-            } else {
-                setPlatform(null);
             }
         });
     }, []);
+
+    const toggleTheme = () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        chrome.storage.local.set({ theme: newTheme });
+    };
 
     const toggleCapture = async () => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -150,11 +132,11 @@ const Popup: React.FC = () => {
                         ?? 0
                     );
                     let msg = '';
-                    if (platform === 'tiktok') msg = `Contributed ${capturedCount} videos to the observatory.`;
-                    else if (platform === 'twitter') msg = `Contributed ${capturedCount} tweets to the observatory.`;
-                    else if (platform === 'youtube') msg = `Contributed ${capturedCount} YouTube items to the observatory.`;
-                    else if (platform === 'instagram') msg = `Contributed ${capturedCount} Instagram items to the observatory.`;
-                    else if (platform === 'reddit') msg = `Contributed ${capturedCount} Reddit posts to the observatory.`;
+                    if (platform === 'tiktok') msg = `Contributed ${capturedCount} videos.`;
+                    else if (platform === 'twitter') msg = `Contributed ${capturedCount} tweets.`;
+                    else if (platform === 'youtube') msg = `Contributed ${capturedCount} YouTube items.`;
+                    else if (platform === 'instagram') msg = `Contributed ${capturedCount} Instagram items.`;
+                    else if (platform === 'reddit') msg = `Contributed ${capturedCount} Reddit posts.`;
                     setMessage(msg);
                     setTimeout(() => setMessage(''), 3000);
                 }
@@ -167,99 +149,87 @@ const Popup: React.FC = () => {
             <header className="popup-header">
                 <h1>RESMA</h1>
                 <p>Pseudonymous Observatory</p>
+                <button className="theme-toggle" onClick={toggleTheme} title="Toggle Theme">
+                    {theme === 'dark' ? '☀️' : '🌙'}
+                </button>
             </header>
 
-            <main className="popup-content">
-                <div className="privacy-message">
-                    <strong>Privacy First:</strong> RESMA only uploads feed data when you press Start Capture. Participation stays optional, you can stop at any time, and uploads stay pseudonymous while powering aggregate recommendation insights.
+            <div className="tabs">
+                <div 
+                    className={`tab ${view === 'capture' ? 'active' : ''}`}
+                    onClick={() => setView('capture')}
+                >
+                    Capture
                 </div>
-                {!isAuthenticated ? (
-                    <div className="auth-prompt">
-                        {authMessage && <p>{authMessage}</p>}
-                        <p>Create or sign in to a contributor account in the RESMA Dashboard to use this extension.</p>
-                        <a
-                            href="http://localhost:5173/login"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-primary"
-                        >
-                            Open Contributor Login
-                        </a>
-                    </div>
-                ) : !platform ? (
-                    <div className="platform-prompt">
-                        <p>Navigate to TikTok, Twitter, YouTube, Instagram, or Reddit to contribute recommendation data to the observatory.</p>
-                        <a
-                            href="https://www.tiktok.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary"
-                        >
-                            Open TikTok
-                        </a>
-                        <a
-                            href="https://twitter.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary"
-                        >
-                            Open Twitter
-                        </a>
-                        <a
-                            href="https://www.youtube.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary"
-                        >
-                            Open YouTube
-                        </a>
-                        <a
-                            href="https://www.instagram.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary"
-                        >
-                            Open Instagram
-                        </a>
-                        <a
-                            href="https://www.reddit.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary"
-                        >
-                            Open Reddit
-                        </a>
-                    </div>
+                <div 
+                    className={`tab ${view === 'discover' ? 'active' : ''}`}
+                    onClick={() => setView('discover')}
+                >
+                    Discover
+                </div>
+            </div>
+
+            <main className="popup-content">
+                {view === 'discover' ? (
+                    <DiscoverFeed />
                 ) : (
-                    <div className="capture-controls">
-                        <button
-                            onClick={toggleCapture}
-                            className={`btn btn-capture ${captureStatus.isCapturing ? 'capturing' : ''}`}
-                        >
-                            {captureStatus.isCapturing ? (
-                                <>
-                                    <span className="pulse"></span>
-                                    Stop Capture
-                                </>
-                            ) : (
-                                `Start Capture (${platform.charAt(0).toUpperCase() + platform.slice(1)})`
-                            )}
-                        </button>
+                    <>
+                        <div className="privacy-message">
+                            <strong>Privacy First:</strong> Feed data is only uploaded when you press Start Capture. Uploads stay pseudonymous.
+                        </div>
 
-                        {captureStatus.isCapturing && (
-                            <p className="capture-status">
-                                Contributed: <strong>{captureStatus.itemCount}</strong> {
-                                    platform === 'tiktok' ? 'videos' :
-                                        platform === 'twitter' ? 'tweets' :
-                                            platform === 'youtube' ? 'YouTube videos' :
-                                                platform === 'instagram' ? 'Instagram posts' :
-                                                    platform === 'reddit' ? 'Reddit posts' : ''
-                                }
-                            </p>
+                        {!isAuthenticated ? (
+                            <div className="auth-prompt">
+                                {authMessage && <p className="message">{authMessage}</p>}
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px' }}>
+                                    Sign in to your contributor account in the RESMA Dashboard.
+                                </p>
+                                <a
+                                    href="http://localhost:5173/login"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-primary"
+                                    style={{ width: '100%' }}
+                                >
+                                    Open Dashboard Login
+                                </a>
+                            </div>
+                        ) : !platform ? (
+                            <div className="platform-prompt">
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px', textAlign: 'center' }}>
+                                    Navigate to a supported platform to contribute recommendation data.
+                                </p>
+                                <a href="https://www.tiktok.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open TikTok</a>
+                                <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open YouTube</a>
+                                <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open Instagram</a>
+                                <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open Twitter/X</a>
+                            </div>
+                        ) : (
+                            <div className="capture-controls">
+                                <button
+                                    onClick={toggleCapture}
+                                    className={`btn btn-capture ${captureStatus.isCapturing ? 'capturing' : ''}`}
+                                >
+                                    {captureStatus.isCapturing ? (
+                                        <>
+                                            <span className="pulse"></span>
+                                            Stop Capture
+                                        </>
+                                    ) : (
+                                        `Start ${platform.charAt(0).toUpperCase() + platform.slice(1)} Capture`
+                                    )}
+                                </button>
+
+                                {captureStatus.isCapturing && (
+                                    <p className="capture-status">
+                                        Contributed: <strong>{captureStatus.itemCount}</strong> items
+                                    </p>
+                                )}
+
+                                {message && <p className="message">{message}</p>}
+                            </div>
                         )}
-
-                        {message && <p className="message">{message}</p>}
-                    </div>
+                    </>
                 )}
             </main>
 
