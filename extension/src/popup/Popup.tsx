@@ -8,7 +8,7 @@ interface CaptureStatus {
 }
 
 const Popup: React.FC = () => {
-    const [view, setView] = useState<'capture' | 'discover'>('capture');
+
     const [theme, setTheme] = useState<'dark' | 'light'>('dark');
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [authMessage, setAuthMessage] = useState('');
@@ -40,7 +40,7 @@ const Popup: React.FC = () => {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const url = tabs[0]?.url || '';
             let detectedPlatform: 'tiktok' | 'twitter' | 'youtube' | 'instagram' | 'reddit' | null = null;
-            
+
             if (url.includes('tiktok.com')) detectedPlatform = 'tiktok';
             else if (url.includes('twitter.com') || url.includes('x.com')) detectedPlatform = 'twitter';
             else if (url.includes('youtube.com')) detectedPlatform = 'youtube';
@@ -148,95 +148,61 @@ const Popup: React.FC = () => {
         <div className="popup">
             <header className="popup-header">
                 <h1>RESMA</h1>
-                <p>Pseudonymous Observatory</p>
+                <p>Observatory Discovery</p>
                 <button className="theme-toggle" onClick={toggleTheme} title="Toggle Theme">
                     {theme === 'dark' ? '☀️' : '🌙'}
                 </button>
             </header>
 
-            <div className="tabs">
-                <div 
-                    className={`tab ${view === 'capture' ? 'active' : ''}`}
-                    onClick={() => setView('capture')}
-                >
-                    Capture
-                </div>
-                <div 
-                    className={`tab ${view === 'discover' ? 'active' : ''}`}
-                    onClick={() => setView('discover')}
-                >
-                    Discover
-                </div>
-            </div>
-
-            <main className="popup-content">
-                {view === 'discover' ? (
-                    <DiscoverFeed />
-                ) : (
-                    <>
-                        <div className="privacy-message">
-                            <strong>Privacy First:</strong> Feed data is only uploaded when you press Start Capture. Uploads stay pseudonymous.
-                        </div>
-
-                        {!isAuthenticated ? (
-                            <div className="auth-prompt">
-                                {authMessage && <p className="message">{authMessage}</p>}
-                                <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px' }}>
-                                    Sign in to your contributor account in the RESMA Dashboard.
-                                </p>
-                                <a
-                                    href="http://localhost:5173/login"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btn btn-primary"
-                                    style={{ width: '100%' }}
-                                >
-                                    Open Dashboard Login
-                                </a>
-                            </div>
-                        ) : !platform ? (
-                            <div className="platform-prompt">
-                                <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px', textAlign: 'center' }}>
-                                    Navigate to a supported platform to contribute recommendation data.
-                                </p>
-                                <a href="https://www.tiktok.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open TikTok</a>
-                                <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open YouTube</a>
-                                <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open Instagram</a>
-                                <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">Open Twitter/X</a>
-                            </div>
-                        ) : (
-                            <div className="capture-controls">
-                                <button
-                                    onClick={toggleCapture}
-                                    className={`btn btn-capture ${captureStatus.isCapturing ? 'capturing' : ''}`}
-                                >
-                                    {captureStatus.isCapturing ? (
-                                        <>
-                                            <span className="pulse"></span>
-                                            Stop Capture
-                                        </>
-                                    ) : (
-                                        `Start ${platform.charAt(0).toUpperCase() + platform.slice(1)} Capture`
-                                    )}
-                                </button>
-
-                                {captureStatus.isCapturing && (
-                                    <p className="capture-status">
-                                        Contributed: <strong>{captureStatus.itemCount}</strong> items
-                                    </p>
-                                )}
-
-                                {message && <p className="message">{message}</p>}
-                            </div>
-                        )}
-                    </>
-                )}
+            <main className="popup-content" style={{ padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <DiscoverFeed />
             </main>
 
-            <footer className="popup-footer">
-                <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer">
-                    Open Observatory Dashboard
-                </a>
+            <footer className="popup-footer" style={{ padding: '8px 12px' }}>
+                {!isAuthenticated ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <a href="http://localhost:5173/login" target="_blank" rel="noopener noreferrer">
+                            Sign in to contribute
+                        </a>
+                        <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer">
+                            Dashboard
+                        </a>
+                    </div>
+                ) : !platform ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Ready to capture</span>
+                        <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer">
+                            Dashboard
+                        </a>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <button
+                            onClick={toggleCapture}
+                            className={`btn btn-capture ${captureStatus.isCapturing ? 'capturing' : ''}`}
+                            style={{ padding: '8px', fontSize: '13px', margin: 0, minHeight: '32px' }}
+                        >
+                            {captureStatus.isCapturing ? (
+                                <>
+                                    <span className="pulse" style={{ width: '6px', height: '6px', marginRight: '6px' }}></span>
+                                    Stop Capture
+                                </>
+                            ) : (
+                                `Start ${platform.charAt(0).toUpperCase() + platform.slice(1)} Capture`
+                            )}
+                        </button>
+                        {(captureStatus.isCapturing || message) && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                                {captureStatus.isCapturing && (
+                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                        Contributed: <strong style={{ color: 'var(--success)' }}>{captureStatus.itemCount}</strong> items
+                                    </span>
+                                )}
+                                {message && <span style={{ color: 'var(--success)', fontWeight: 500 }}>{message}</span>}
+                            </div>
+                        )}
+                    </div>
+                )}
             </footer>
         </div>
     );
