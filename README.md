@@ -85,12 +85,12 @@ bun run dev
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| `extension` | Chrome extension for TikTok, YouTube, Twitter & Instagram feed capture |
-| `backend` | Express API for data storage and analysis (TikTok, YouTube, Twitter, Instagram, and more) |
-| `frontend` | React observatory dashboard for contributors plus aggregate insight tooling |
-| `@resma/shared` | Shared schemas/types for capture payloads and analytics contracts |
+| Package         | Description                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `extension`     | Chrome extension for TikTok, YouTube, Twitter & Instagram feed capture                    |
+| `backend`       | Express API for data storage and analysis (TikTok, YouTube, Twitter, Instagram, and more) |
+| `frontend`      | React observatory dashboard for contributors plus aggregate insight tooling               |
+| `@resma/shared` | Shared schemas/types for capture payloads and analytics contracts                         |
 
 ## License
 
@@ -302,23 +302,37 @@ Another major product direction is making recommendation distance legible to con
 
 - build a Discover-style observatory surface for "what's surfacing now"
 - add category, region, and platform selectors so users can compare what different circles find relevant
-- evolve cross-platform ranking beyond the MVP percentile model with a platform-neutral signal normalization layer inspired by public recommender architectures such as xAI's `x-algorithm`/Phoenix: dwell, completion, save, share, profile click, follow-author, "not interested", hide, mute, block, report, and fast-skip signals should map into common scoring vocabulary before they influence aggregation
+- evolve cross-platform ranking beyond the MVP percentile model using observed distribution, distinct contributors and sessions, change over time, and sample reliability; evaluate content-format comparisons before blending unlike content
 - surface adjacent, distant, and bridge content so people can see what their current profile is not being shown
 - keep the core observatory feed as a truth surface, while any sponsor or advertiser modules stay clearly labeled and visually separate from measured recommendation content
 - provide clear opt-out and account-deletion paths that are easy to find and use
+
+#### Ranking Architecture And Evidence
+
+RESMA is an observatory, not an engagement-maximizing recommender. Public architectures such as xAI's `x-algorithm`/Phoenix inform system organization, not RESMA's scoring objectives or weights.
+
+- Keep loading, metadata preparation, quality assessment, scoring, and selection separately testable. Discover ranking lives in a pure service; platform adapters should preserve source-specific meaning.
+- The current Discover MVP compares observed appearance percentiles within each platform, then breaks mixed-platform ties by appearances and recency. Equal appearance counts receive equal percentiles. This is relative surfacing within the requested sample, not global popularity, personal relevance, or equivalent audience reach.
+- Keep public engagement counts, explicit participant actions, and passive measurements separate. Missing measurements are unknown; short views do not establish rejection, and public likes do not establish a participant's preferences.
+- The experimental intent/selectivity scorer has been removed. Dwell, completion, and negative actions remain potential research evidence, not default aggregation weights. Existing platform-specific analytics are retained.
+- Next: expose comparison-window and sample-coverage metadata, deduplicate exposures by session, measure distinct contributor coverage, and evaluate sparse-platform behavior before replacing the MVP. Add velocity and content-format comparisons only with documented validation and regression tests.
 
 ## Performance & Build Optimizations (2026 Migration)
 
 In April 2026, the RESMA monorepo underwent a significant architectural migration to optimize developer velocity and runtime performance.
 
 ### 1. Bun Stack Migration
+
 The project transitioned from Node.js/pnpm to **Bun** as the primary runtime, package manager, and test runner.
+
 - **Speed**: Dependencies install significantly faster via `bun install`.
 - **Native Execution**: Removed `tsx` and `dotenv` dependencies; Bun natively executes TypeScript and loads `.env` files.
 - **Unified Tooling**: Replaced `vitest` with `bun test` for a high-performance, built-in testing experience.
 
 ### 2. TypeScript 7.0 Beta (tsgo)
+
 We integrated the **TypeScript 7.0 Native Preview** (`tsgo`) to parallelize the monorepo's type-checking pipeline.
+
 - **Parallel Builds**: Using `tsgo --build --builders 4 --checkers 4` allows concurrent type-checking across all workspace packages.
 - **Native Performance**: Leverages a Go-based native compiler for massive speed gains in large monorepo structures.
 - **Modern Standards**: Migrated all configurations to comply with TS 7.0 standards (e.g., removing `baseUrl` in favor of explicit `paths`).

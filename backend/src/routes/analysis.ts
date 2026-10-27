@@ -1,876 +1,883 @@
-import { Router } from 'express';
-import { logger } from '../lib/logger.js';
-import { param, query } from 'express-validator';
-import { prisma } from '../lib/prisma.js';
-import { authenticate, AuthRequest } from '../middleware/authenticate.js';
-import { createAnalysisRateLimiter, createUserAnalysisRateLimiter } from '../middleware/rateLimit.js';
-import { validateRequest } from '../middleware/validateRequest.js';
-import { findSimilarFeeds } from '../services/similarity.js';
-import { generateFeedInsights, generateVideoInsights } from '../services/insights.js';
+import { Router } from "express";
+import { logger } from "../lib/logger.js";
+import { param, query } from "express-validator";
+import { prisma } from "../lib/prisma.js";
+import { authenticate, AuthRequest } from "../middleware/authenticate.js";
 import {
-    generateRecommendationMap,
-    generateRecommendationMapForUsers,
-    TraversalInputError,
-} from '../services/recommendationTraversal.js';
+  createAnalysisRateLimiter,
+  createUserAnalysisRateLimiter,
+} from "../middleware/rateLimit.js";
+import { validateRequest } from "../middleware/validateRequest.js";
+import { findSimilarFeeds } from "../services/similarity.js";
 import {
-    AudienceForecastInputError,
-    generateAudienceForecast,
-    getCohortUserIds,
-} from '../services/audienceForecast.js';
-import { generateOppositeDiscovery, OppositeDiscoveryInputError } from '../services/oppositeDiscovery.js';
-import { generateForecastEvaluation } from '../services/forecastEvaluation.js';
+  generateFeedInsights,
+  generateVideoInsights,
+} from "../services/insights.js";
 import {
-    DataQualityInputError,
-    generateDataQualityDiagnostics,
-    generateDataQualityTrends,
-} from '../services/dataQuality.js';
-import { generateGoToMarketCohortBrief } from '../services/goToMarketBrief.js';
+  generateRecommendationMap,
+  generateRecommendationMapForUsers,
+  TraversalInputError,
+} from "../services/recommendationTraversal.js";
+import {
+  AudienceForecastInputError,
+  generateAudienceForecast,
+  getCohortUserIds,
+} from "../services/audienceForecast.js";
+import {
+  generateOppositeDiscovery,
+  OppositeDiscoveryInputError,
+} from "../services/oppositeDiscovery.js";
+import { generateForecastEvaluation } from "../services/forecastEvaluation.js";
+import {
+  DataQualityInputError,
+  generateDataQualityDiagnostics,
+  generateDataQualityTrends,
+} from "../services/dataQuality.js";
+import { generateGoToMarketCohortBrief } from "../services/goToMarketBrief.js";
+import { smartDeserialize } from "../services/serialization.js";
+import {
+  buildDiscoverFeed,
+  DISCOVER_POPULAR_LIMIT,
+  type DiscoverTrendRow,
+} from "../services/discoverRanking.js";
 
 export const analysisRouter: Router = Router();
 const MAX_SIMILAR_LIMIT = 20;
-const SUPPORTED_ANALYSIS_PLATFORMS = ['youtube', 'instagram', 'twitter', 'tiktok'] as const;
+const SUPPORTED_ANALYSIS_PLATFORMS = [
+  "youtube",
+  "instagram",
+  "twitter",
+  "tiktok",
+] as const;
 const userAnalysisRateLimiter = createUserAnalysisRateLimiter();
 const publicAnalysisRateLimiter = createAnalysisRateLimiter();
-const DISCOVER_POPULAR_LIMIT = 15;
-const DISCOVER_RANKING_BASIS_PLATFORM_PERCENTILE = 'platform_percentile';
-const DISCOVER_RANKING_BASIS_APPEARANCES = 'appearances';
-
-type DiscoverRankingBasis =
-    typeof DISCOVER_RANKING_BASIS_PLATFORM_PERCENTILE
-    | typeof DISCOVER_RANKING_BASIS_APPEARANCES;
-
-interface DiscoverTrendRow {
-    id: string;
-    title: string | null;
-    creator: string | null;
-    platform: string;
-    timestamp: Date | string;
-    appearances: number | bigint;
-}
-
-interface DiscoverFeedItem {
-    id: string;
-    title: string | null;
-    creator: string;
-    platform: string;
-    timestamp: Date | string;
-    url: string;
-    reachMetrics: string;
-    appearances: number;
-    normalizedScore: number;
-    rankingBasis: DiscoverRankingBasis;
-    contentFamily: string;
-}
 
 function clampNumber(value: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, value));
+  return Math.max(min, Math.min(max, value));
 }
 
-function toFiniteNumber(value: number | bigint | string | null | undefined): number {
-    const parsed = typeof value === 'bigint' ? Number(value) : Number(value ?? 0);
-    return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function timestampMs(value: Date | string | null | undefined): number {
-    const parsed = value instanceof Date ? value.getTime() : new Date(value ?? 0).getTime();
-    return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function roundDiscoverScore(value: number): number {
-    return Math.round(clampNumber(value, 0, 1) * 10000) / 10000;
-}
-
-export function discoverContentFamilyForPlatform(platform: string): string {
-    switch (platform) {
-    case 'tiktok':
-        return 'short_video';
-    case 'youtube':
-        return 'long_video';
-    case 'reddit':
-        return 'community_post';
-    case 'twitter':
-    case 'instagram':
-        return 'social_post';
-    default:
-        return 'unknown';
-    }
-}
-
-export function scoreDiscoverRowsByPlatformPercentile(rows: DiscoverTrendRow[]): Map<string, number> {
-    const rowsByPlatform = new Map<string, DiscoverTrendRow[]>();
-
-    for (const row of rows) {
-        const platformRows = rowsByPlatform.get(row.platform) ?? [];
-        platformRows.push(row);
-        rowsByPlatform.set(row.platform, platformRows);
-    }
-
-    const scores = new Map<string, number>();
-    for (const [platform, platformRows] of rowsByPlatform.entries()) {
-        const ranked = [...platformRows].sort((left, right) => {
-            const appearanceDelta = toFiniteNumber(right.appearances) - toFiniteNumber(left.appearances);
-            if (appearanceDelta !== 0) return appearanceDelta;
-            const recencyDelta = timestampMs(right.timestamp) - timestampMs(left.timestamp);
-            if (recencyDelta !== 0) return recencyDelta;
-            return String(left.id).localeCompare(String(right.id));
-        });
-        const denominator = Math.max(ranked.length, 1);
-        ranked.forEach((row, index) => {
-            scores.set(`${platform}:${row.id}`, roundDiscoverScore((denominator - index) / denominator));
-        });
-    }
-
-    return scores;
-}
-
-export function buildDiscoverFeed(
-    rows: DiscoverTrendRow[],
-    options: { allPlatforms: boolean; limit?: number }
-): DiscoverFeedItem[] {
-    const scores = scoreDiscoverRowsByPlatformPercentile(rows);
-    const rankingBasis: DiscoverRankingBasis = options.allPlatforms
-        ? DISCOVER_RANKING_BASIS_PLATFORM_PERCENTILE
-        : DISCOVER_RANKING_BASIS_APPEARANCES;
-    const feed = rows.map((row) => {
-        const appearances = Math.max(0, Math.round(toFiniteNumber(row.appearances)));
-        const platform = String(row.platform);
-        let cleanCreator = row.creator || 'Unknown Creator';
-        if (platform === 'tiktok' && cleanCreator.includes('/@')) {
-            const parts = cleanCreator.split('/@');
-            cleanCreator = parts[1]?.split('/')[0] || cleanCreator;
-        }
-        cleanCreator = cleanCreator.replace(/^@/, '');
-
-        let url = '';
-        if (platform === 'youtube') url = `https://youtube.com/watch?v=${row.id}`;
-        if (platform === 'tiktok') {
-            const handle = (cleanCreator === 'Unknown Creator' || !cleanCreator) ? '' : cleanCreator.replace(/\s+/g, '');
-            url = `https://www.tiktok.com/@${handle}/video/${row.id}`;
-        }
-        if (platform === 'reddit') {
-            const sub = (cleanCreator === 'Unknown Creator' || !cleanCreator) ? 'reddit' : `r/${cleanCreator.replace(/\s+/g, '')}`;
-            url = `https://www.reddit.com/${sub}/comments/${row.id}`;
-        }
-
-        const normalizedScore = scores.get(`${platform}:${row.id}`) ?? 0;
-        const topPercentile = Math.max(1, Math.ceil((1 - normalizedScore) * 100));
-
-        return {
-            id: row.id,
-            title: row.title,
-            creator: cleanCreator,
-            platform,
-            timestamp: row.timestamp,
-            url,
-            reachMetrics: options.allPlatforms
-                ? `Top ${topPercentile}% within ${platform}; observed ${appearances} times`
-                : `Surfacing broadly across ${appearances} regional cohorts`,
-            appearances,
-            normalizedScore,
-            rankingBasis,
-            contentFamily: discoverContentFamilyForPlatform(platform),
-        };
-    });
-
-    feed.sort((left, right) => {
-        if (options.allPlatforms) {
-            const scoreDelta = right.normalizedScore - left.normalizedScore;
-            if (scoreDelta !== 0) return scoreDelta;
-        }
-        const appearanceDelta = right.appearances - left.appearances;
-        if (appearanceDelta !== 0) return appearanceDelta;
-        return timestampMs(right.timestamp) - timestampMs(left.timestamp);
-    });
-
-    return feed.slice(0, options.limit ?? DISCOVER_POPULAR_LIMIT);
-}
-
-const platformQueryValidation = query('platform')
-    .optional()
-    .trim()
-    .isIn(Array.from(SUPPORTED_ANALYSIS_PLATFORMS))
-    .withMessage('platform must be one of youtube, instagram, twitter, or tiktok');
+const platformQueryValidation = query("platform")
+  .optional()
+  .trim()
+  .isIn(Array.from(SUPPORTED_ANALYSIS_PLATFORMS))
+  .withMessage(
+    "platform must be one of youtube, instagram, twitter, or tiktok",
+  );
 
 // Get similar feeds/users with enhanced matching
 analysisRouter.get(
-    '/similar',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        query('snapshotId')
-            .optional()
-            .trim()
-            .notEmpty()
-            .withMessage('snapshotId cannot be empty'),
-        query('limit')
-            .optional()
-            .isInt({ min: 1, max: MAX_SIMILAR_LIMIT })
-            .withMessage(`limit must be between 1 and ${MAX_SIMILAR_LIMIT}`),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/similar",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    query("snapshotId")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("snapshotId cannot be empty"),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: MAX_SIMILAR_LIMIT })
+      .withMessage(`limit must be between 1 and ${MAX_SIMILAR_LIMIT}`),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const snapshotId = req.query.snapshotId as string;
-        const requestedLimit = Math.max(1, parseInt(req.query.limit as string) || 10);
-        const appliedLimit = Math.min(requestedLimit, MAX_SIMILAR_LIMIT);
-        const startedAt = Date.now();
+      const snapshotId = req.query.snapshotId as string;
+      const requestedLimit = Math.max(
+        1,
+        parseInt(req.query.limit as string) || 10,
+      );
+      const appliedLimit = Math.min(requestedLimit, MAX_SIMILAR_LIMIT);
+      const startedAt = Date.now();
 
-        const { similarFeeds, candidateCount, targetSnapshotId, method } = await findSimilarFeeds(
-            req.userId!,
-            snapshotId,
-            appliedLimit
-        );
-        const durationMs = Date.now() - startedAt;
+      const { similarFeeds, candidateCount, targetSnapshotId, method } =
+        await findSimilarFeeds(req.userId!, snapshotId, appliedLimit);
+      const durationMs = Date.now() - startedAt;
 
-        logger.info({
-            userId: req.userId,
-            snapshotId: snapshotId || null,
+      logger.info(
+        {
+          userId: req.userId,
+          snapshotId: snapshotId || null,
+          requestedLimit,
+          appliedLimit,
+          returned: similarFeeds.length,
+          candidateCount,
+          durationMs,
+        },
+        "analysis.similar",
+      );
+
+      res.json({
+        success: true,
+        data: {
+          similarFeeds,
+          meta: {
             requestedLimit,
             appliedLimit,
-            returned: similarFeeds.length,
+            truncated: requestedLimit > appliedLimit,
             candidateCount,
             durationMs,
-        }, 'analysis.similar');
-
-        res.json({
-            success: true,
-            data: {
-                similarFeeds,
-                meta: {
-                    requestedLimit,
-                    appliedLimit,
-                    truncated: requestedLimit > appliedLimit,
-                    candidateCount,
-                    durationMs,
-                    privacyMode: 'aggregate-only',
-                    source: 'observatory-cohorts',
-                    method,
-                    targetSnapshotId,
-                },
-            },
-        });
+            privacyMode: "aggregate-only",
+            source: "observatory-cohorts",
+            method,
+            targetSnapshotId,
+          },
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Build recommendation map by running BFS + DFS in parallel (internally)
 analysisRouter.get(
-    '/recommendation-map',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        query('seedVideoId')
-            .trim()
-            .notEmpty()
-            .withMessage('seedVideoId is required'),
-        query('maxDepth')
-            .optional()
-            .isInt({ min: 1, max: 8 })
-            .withMessage('maxDepth must be between 1 and 8'),
-        query('maxNodes')
-            .optional()
-            .isInt({ min: 1, max: 300 })
-            .withMessage('maxNodes must be between 1 and 300'),
-        platformQueryValidation,
-        query('cohortId')
-            .optional()
-            .trim()
-            .notEmpty()
-            .withMessage('cohortId cannot be empty'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/recommendation-map",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    query("seedVideoId")
+      .trim()
+      .notEmpty()
+      .withMessage("seedVideoId is required"),
+    query("maxDepth")
+      .optional()
+      .isInt({ min: 1, max: 8 })
+      .withMessage("maxDepth must be between 1 and 8"),
+    query("maxNodes")
+      .optional()
+      .isInt({ min: 1, max: 300 })
+      .withMessage("maxNodes must be between 1 and 300"),
+    platformQueryValidation,
+    query("cohortId")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("cohortId cannot be empty"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const seedVideoId = String(req.query.seedVideoId || '').trim();
-        const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
-        const maxNodesRaw = Number.parseInt(String(req.query.maxNodes || '40'), 10);
-        const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 8);
-        const maxNodes = clampNumber(Number.isFinite(maxNodesRaw) ? maxNodesRaw : 40, 1, 300);
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const cohortId = String(req.query.cohortId || '').trim() || undefined;
+      const seedVideoId = String(req.query.seedVideoId || "").trim();
+      const maxDepthRaw = Number.parseInt(
+        String(req.query.maxDepth || "3"),
+        10,
+      );
+      const maxNodesRaw = Number.parseInt(
+        String(req.query.maxNodes || "40"),
+        10,
+      );
+      const maxDepth = clampNumber(
+        Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3,
+        1,
+        8,
+      );
+      const maxNodes = clampNumber(
+        Number.isFinite(maxNodesRaw) ? maxNodesRaw : 40,
+        1,
+        300,
+      );
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const cohortId = String(req.query.cohortId || "").trim() || undefined;
 
-        const map = cohortId
-            ? await (async () => {
-                const cohortUsers = await getCohortUserIds(platform, cohortId);
-                return generateRecommendationMapForUsers(
-                    cohortUsers,
-                    {
-                        seedVideoId,
-                        maxDepth,
-                        maxNodes,
-                        platform,
-                    },
-                    { cohortId }
-                );
-            })()
-            : await generateRecommendationMap(req.userId!, {
+      const map = cohortId
+        ? await (async () => {
+            const cohortUsers = await getCohortUserIds(platform, cohortId);
+            return generateRecommendationMapForUsers(
+              cohortUsers,
+              {
                 seedVideoId,
                 maxDepth,
                 maxNodes,
                 platform,
-            });
+              },
+              { cohortId },
+            );
+          })()
+        : await generateRecommendationMap(req.userId!, {
+            seedVideoId,
+            maxDepth,
+            maxNodes,
+            platform,
+          });
 
-        res.json({
-            success: true,
-            data: {
-                map,
-                meta: {
-                    privacyMode: 'aggregate-only',
-                    source: 'observatory-cohorts',
-                },
-            },
-        });
+      res.json({
+        success: true,
+        data: {
+          map,
+          meta: {
+            privacyMode: "aggregate-only",
+            source: "observatory-cohorts",
+          },
+        },
+      });
     } catch (error) {
-        if (error instanceof TraversalInputError || error instanceof AudienceForecastInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (
+        error instanceof TraversalInputError ||
+        error instanceof AudienceForecastInputError
+      ) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Cohort-aware audience forecast (improves with more cross-user comparisons)
 analysisRouter.get(
-    '/audience-forecast',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        query('targetVideoId')
-            .trim()
-            .notEmpty()
-            .withMessage('targetVideoId is required'),
-        query('seedVideoId')
-            .optional()
-            .trim()
-            .notEmpty()
-            .withMessage('seedVideoId cannot be empty'),
-        platformQueryValidation,
-        query('maxDepth')
-            .optional()
-            .isInt({ min: 1, max: 6 })
-            .withMessage('maxDepth must be between 1 and 6'),
-        query('beamWidth')
-            .optional()
-            .isInt({ min: 5, max: 120 })
-            .withMessage('beamWidth must be between 5 and 120'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/audience-forecast",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    query("targetVideoId")
+      .trim()
+      .notEmpty()
+      .withMessage("targetVideoId is required"),
+    query("seedVideoId")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("seedVideoId cannot be empty"),
+    platformQueryValidation,
+    query("maxDepth")
+      .optional()
+      .isInt({ min: 1, max: 6 })
+      .withMessage("maxDepth must be between 1 and 6"),
+    query("beamWidth")
+      .optional()
+      .isInt({ min: 5, max: 120 })
+      .withMessage("beamWidth must be between 5 and 120"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const targetVideoId = String(req.query.targetVideoId || '').trim();
-        const seedVideoId = String(req.query.seedVideoId || '').trim() || undefined;
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
-        const beamWidthRaw = Number.parseInt(String(req.query.beamWidth || '30'), 10);
-        const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 6);
-        const beamWidth = clampNumber(Number.isFinite(beamWidthRaw) ? beamWidthRaw : 30, 5, 120);
+      const targetVideoId = String(req.query.targetVideoId || "").trim();
+      const seedVideoId =
+        String(req.query.seedVideoId || "").trim() || undefined;
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const maxDepthRaw = Number.parseInt(
+        String(req.query.maxDepth || "3"),
+        10,
+      );
+      const beamWidthRaw = Number.parseInt(
+        String(req.query.beamWidth || "30"),
+        10,
+      );
+      const maxDepth = clampNumber(
+        Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3,
+        1,
+        6,
+      );
+      const beamWidth = clampNumber(
+        Number.isFinite(beamWidthRaw) ? beamWidthRaw : 30,
+        5,
+        120,
+      );
 
-        const forecast = await generateAudienceForecast(req.userId!, {
-            targetVideoId,
-            seedVideoId,
-            platform,
-            maxDepth,
-            beamWidth,
-        });
+      const forecast = await generateAudienceForecast(req.userId!, {
+        targetVideoId,
+        seedVideoId,
+        platform,
+        maxDepth,
+        beamWidth,
+      });
 
-        res.json({
-            success: true,
-            data: {
-                forecast,
-                meta: {
-                    privacyMode: 'aggregate-only',
-                    source: 'observatory-cohorts',
-                },
-            },
-        });
+      res.json({
+        success: true,
+        data: {
+          forecast,
+          meta: {
+            privacyMode: "aggregate-only",
+            source: "observatory-cohorts",
+          },
+        },
+      });
     } catch (error) {
-        if (error instanceof AudienceForecastInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (error instanceof AudienceForecastInputError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 analysisRouter.get(
-    '/opposite-discovery',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        platformQueryValidation,
-        query('limit')
-            .optional()
-            .isInt({ min: 1, max: 20 })
-            .withMessage('limit must be between 1 and 20'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/opposite-discovery",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    platformQueryValidation,
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 20 })
+      .withMessage("limit must be between 1 and 20"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const limitRaw = Number.parseInt(String(req.query.limit || '10'), 10);
-        const limit = clampNumber(Number.isFinite(limitRaw) ? limitRaw : 10, 1, 20);
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const limitRaw = Number.parseInt(String(req.query.limit || "10"), 10);
+      const limit = clampNumber(
+        Number.isFinite(limitRaw) ? limitRaw : 10,
+        1,
+        20,
+      );
 
-        const result = await generateOppositeDiscovery(req.userId!, {
-            platform,
-            limit,
-        });
+      const result = await generateOppositeDiscovery(req.userId!, {
+        platform,
+        limit,
+      });
 
-        res.json({
-            success: true,
-            data: {
-                result,
-                meta: {
-                    privacyMode: 'aggregate-only',
-                    source: 'observatory-cohorts',
-                    qualityGateStatus: result.qualityGate.status,
-                    confidenceDegraded: result.qualityGate.status === 'degraded',
-                    degradationReasons: result.qualityGate.degradationReasons,
-                },
-            },
-        });
+      res.json({
+        success: true,
+        data: {
+          result,
+          meta: {
+            privacyMode: "aggregate-only",
+            source: "observatory-cohorts",
+            qualityGateStatus: result.qualityGate.status,
+            confidenceDegraded: result.qualityGate.status === "degraded",
+            degradationReasons: result.qualityGate.degradationReasons,
+          },
+        },
+      });
     } catch (error) {
-        if (error instanceof OppositeDiscoveryInputError || error instanceof AudienceForecastInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (
+        error instanceof OppositeDiscoveryInputError ||
+        error instanceof AudienceForecastInputError
+      ) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Aggregate creator-facing cohort brief export
 analysisRouter.get(
-    '/go-to-market-brief',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        query('targetVideoId')
-            .trim()
-            .notEmpty()
-            .withMessage('targetVideoId is required'),
-        query('seedVideoId')
-            .optional()
-            .trim()
-            .notEmpty()
-            .withMessage('seedVideoId cannot be empty'),
-        platformQueryValidation,
-        query('maxDepth')
-            .optional()
-            .isInt({ min: 1, max: 6 })
-            .withMessage('maxDepth must be between 1 and 6'),
-        query('beamWidth')
-            .optional()
-            .isInt({ min: 5, max: 120 })
-            .withMessage('beamWidth must be between 5 and 120'),
-        query('topCohorts')
-            .optional()
-            .isInt({ min: 1, max: 12 })
-            .withMessage('topCohorts must be between 1 and 12'),
-        query('maxPathsPerCohort')
-            .optional()
-            .isInt({ min: 1, max: 10 })
-            .withMessage('maxPathsPerCohort must be between 1 and 10'),
-        query('pathBranchLimit')
-            .optional()
-            .isInt({ min: 1, max: 25 })
-            .withMessage('pathBranchLimit must be between 1 and 25'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/go-to-market-brief",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    query("targetVideoId")
+      .trim()
+      .notEmpty()
+      .withMessage("targetVideoId is required"),
+    query("seedVideoId")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("seedVideoId cannot be empty"),
+    platformQueryValidation,
+    query("maxDepth")
+      .optional()
+      .isInt({ min: 1, max: 6 })
+      .withMessage("maxDepth must be between 1 and 6"),
+    query("beamWidth")
+      .optional()
+      .isInt({ min: 5, max: 120 })
+      .withMessage("beamWidth must be between 5 and 120"),
+    query("topCohorts")
+      .optional()
+      .isInt({ min: 1, max: 12 })
+      .withMessage("topCohorts must be between 1 and 12"),
+    query("maxPathsPerCohort")
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage("maxPathsPerCohort must be between 1 and 10"),
+    query("pathBranchLimit")
+      .optional()
+      .isInt({ min: 1, max: 25 })
+      .withMessage("pathBranchLimit must be between 1 and 25"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const targetVideoId = String(req.query.targetVideoId || '').trim();
-        const seedVideoId = String(req.query.seedVideoId || '').trim() || undefined;
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const maxDepthRaw = Number.parseInt(String(req.query.maxDepth || '3'), 10);
-        const beamWidthRaw = Number.parseInt(String(req.query.beamWidth || '30'), 10);
-        const topCohortsRaw = Number.parseInt(String(req.query.topCohorts || '5'), 10);
-        const maxPathsRaw = Number.parseInt(String(req.query.maxPathsPerCohort || '3'), 10);
-        const pathBranchLimitRaw = Number.parseInt(String(req.query.pathBranchLimit || '6'), 10);
+      const targetVideoId = String(req.query.targetVideoId || "").trim();
+      const seedVideoId =
+        String(req.query.seedVideoId || "").trim() || undefined;
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const maxDepthRaw = Number.parseInt(
+        String(req.query.maxDepth || "3"),
+        10,
+      );
+      const beamWidthRaw = Number.parseInt(
+        String(req.query.beamWidth || "30"),
+        10,
+      );
+      const topCohortsRaw = Number.parseInt(
+        String(req.query.topCohorts || "5"),
+        10,
+      );
+      const maxPathsRaw = Number.parseInt(
+        String(req.query.maxPathsPerCohort || "3"),
+        10,
+      );
+      const pathBranchLimitRaw = Number.parseInt(
+        String(req.query.pathBranchLimit || "6"),
+        10,
+      );
 
-        const maxDepth = clampNumber(Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3, 1, 6);
-        const beamWidth = clampNumber(Number.isFinite(beamWidthRaw) ? beamWidthRaw : 30, 5, 120);
-        const topCohorts = clampNumber(Number.isFinite(topCohortsRaw) ? topCohortsRaw : 5, 1, 12);
-        const maxPathsPerCohort = clampNumber(Number.isFinite(maxPathsRaw) ? maxPathsRaw : 3, 1, 10);
-        const pathBranchLimit = clampNumber(Number.isFinite(pathBranchLimitRaw) ? pathBranchLimitRaw : 6, 1, 25);
+      const maxDepth = clampNumber(
+        Number.isFinite(maxDepthRaw) ? maxDepthRaw : 3,
+        1,
+        6,
+      );
+      const beamWidth = clampNumber(
+        Number.isFinite(beamWidthRaw) ? beamWidthRaw : 30,
+        5,
+        120,
+      );
+      const topCohorts = clampNumber(
+        Number.isFinite(topCohortsRaw) ? topCohortsRaw : 5,
+        1,
+        12,
+      );
+      const maxPathsPerCohort = clampNumber(
+        Number.isFinite(maxPathsRaw) ? maxPathsRaw : 3,
+        1,
+        10,
+      );
+      const pathBranchLimit = clampNumber(
+        Number.isFinite(pathBranchLimitRaw) ? pathBranchLimitRaw : 6,
+        1,
+        25,
+      );
 
-        const brief = await generateGoToMarketCohortBrief(req.userId!, {
-            targetVideoId,
-            seedVideoId,
-            platform,
-            maxDepth,
-            beamWidth,
-            topCohorts,
-            maxPathsPerCohort,
-            pathBranchLimit,
-        });
+      const brief = await generateGoToMarketCohortBrief(req.userId!, {
+        targetVideoId,
+        seedVideoId,
+        platform,
+        maxDepth,
+        beamWidth,
+        topCohorts,
+        maxPathsPerCohort,
+        pathBranchLimit,
+      });
 
-        res.json({
-            success: true,
-            data: {
-                brief,
-                meta: {
-                    privacyMode: 'aggregate-only',
-                    source: 'observatory-cohorts',
-                },
-            },
-        });
+      res.json({
+        success: true,
+        data: {
+          brief,
+          meta: {
+            privacyMode: "aggregate-only",
+            source: "observatory-cohorts",
+          },
+        },
+      });
     } catch (error) {
-        if (error instanceof AudienceForecastInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (error instanceof AudienceForecastInputError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Holdout evaluation for forecast reliability
 analysisRouter.get(
-    '/forecast-evaluation',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        platformQueryValidation,
-        query('topK')
-            .optional()
-            .isInt({ min: 1, max: 20 })
-            .withMessage('topK must be between 1 and 20'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/forecast-evaluation",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    platformQueryValidation,
+    query("topK")
+      .optional()
+      .isInt({ min: 1, max: 20 })
+      .withMessage("topK must be between 1 and 20"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const topKRaw = Number.parseInt(String(req.query.topK || '5'), 10);
-        const topK = clampNumber(Number.isFinite(topKRaw) ? topKRaw : 5, 1, 20);
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const topKRaw = Number.parseInt(String(req.query.topK || "5"), 10);
+      const topK = clampNumber(Number.isFinite(topKRaw) ? topKRaw : 5, 1, 20);
 
-        const evaluation = await generateForecastEvaluation(platform, topK);
+      const evaluation = await generateForecastEvaluation(platform, topK);
 
-        res.json({
-            success: true,
-            data: { evaluation },
-        });
+      res.json({
+        success: true,
+        data: { evaluation },
+      });
     } catch (error) {
-        if (error instanceof AudienceForecastInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (error instanceof AudienceForecastInputError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Data quality diagnostics for cross-user comparison reliability
 analysisRouter.get(
-    '/data-quality',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        platformQueryValidation,
-        query('windowHours')
-            .optional()
-            .isInt({ min: 1, max: 24 * 180 })
-            .withMessage(`windowHours must be between 1 and ${24 * 180}`),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/data-quality",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    platformQueryValidation,
+    query("windowHours")
+      .optional()
+      .isInt({ min: 1, max: 24 * 180 })
+      .withMessage(`windowHours must be between 1 and ${24 * 180}`),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const windowHoursRaw = Number.parseInt(String(req.query.windowHours || String(24 * 14)), 10);
-        const windowHours = clampNumber(Number.isFinite(windowHoursRaw) ? windowHoursRaw : (24 * 14), 1, 24 * 180);
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const windowHoursRaw = Number.parseInt(
+        String(req.query.windowHours || String(24 * 14)),
+        10,
+      );
+      const windowHours = clampNumber(
+        Number.isFinite(windowHoursRaw) ? windowHoursRaw : 24 * 14,
+        1,
+        24 * 180,
+      );
 
-        const diagnostics = await generateDataQualityDiagnostics(platform, windowHours);
+      const diagnostics = await generateDataQualityDiagnostics(
+        platform,
+        windowHours,
+      );
 
-        res.json({
-            success: true,
-            data: { diagnostics },
-        });
+      res.json({
+        success: true,
+        data: { diagnostics },
+      });
     } catch (error) {
-        if (error instanceof DataQualityInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (error instanceof DataQualityInputError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Data quality trend points for drift monitoring
 analysisRouter.get(
-    '/data-quality-trends',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        platformQueryValidation,
-        query('windowHours')
-            .optional()
-            .isInt({ min: 1, max: 24 * 180 })
-            .withMessage(`windowHours must be between 1 and ${24 * 180}`),
-        query('bucketHours')
-            .optional()
-            .isInt({ min: 1, max: 24 * 180 })
-            .withMessage(`bucketHours must be between 1 and ${24 * 180}`),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/data-quality-trends",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    platformQueryValidation,
+    query("windowHours")
+      .optional()
+      .isInt({ min: 1, max: 24 * 180 })
+      .withMessage(`windowHours must be between 1 and ${24 * 180}`),
+    query("bucketHours")
+      .optional()
+      .isInt({ min: 1, max: 24 * 180 })
+      .withMessage(`bucketHours must be between 1 and ${24 * 180}`),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const platform = String(req.query.platform || 'youtube').toLowerCase();
-        const windowHoursRaw = Number.parseInt(String(req.query.windowHours || String(24 * 14)), 10);
-        const windowHours = clampNumber(Number.isFinite(windowHoursRaw) ? windowHoursRaw : (24 * 14), 1, 24 * 180);
-        const bucketHoursRaw = Number.parseInt(String(req.query.bucketHours || '24'), 10);
-        const bucketHours = clampNumber(Number.isFinite(bucketHoursRaw) ? bucketHoursRaw : 24, 1, windowHours);
+      const platform = String(req.query.platform || "youtube").toLowerCase();
+      const windowHoursRaw = Number.parseInt(
+        String(req.query.windowHours || String(24 * 14)),
+        10,
+      );
+      const windowHours = clampNumber(
+        Number.isFinite(windowHoursRaw) ? windowHoursRaw : 24 * 14,
+        1,
+        24 * 180,
+      );
+      const bucketHoursRaw = Number.parseInt(
+        String(req.query.bucketHours || "24"),
+        10,
+      );
+      const bucketHours = clampNumber(
+        Number.isFinite(bucketHoursRaw) ? bucketHoursRaw : 24,
+        1,
+        windowHours,
+      );
 
-        const trends = await generateDataQualityTrends(platform, windowHours, bucketHours);
+      const trends = await generateDataQualityTrends(
+        platform,
+        windowHours,
+        bucketHours,
+      );
 
-        res.json({
-            success: true,
-            data: { trends },
-        });
+      res.json({
+        success: true,
+        data: { trends },
+      });
     } catch (error) {
-        if (error instanceof DataQualityInputError) {
-            return res.status(error.statusCode).json({
-                success: false,
-                error: error.message,
-                details: error.details,
-            });
-        }
+      if (error instanceof DataQualityInputError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+        });
+      }
 
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Get "why am I seeing this" insights for a feed
 analysisRouter.get(
-    '/insights/:snapshotId',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        param('snapshotId')
-            .trim()
-            .notEmpty()
-            .withMessage('snapshotId is required'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/insights/:snapshotId",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    param("snapshotId").trim().notEmpty().withMessage("snapshotId is required"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const { snapshotId } = req.params;
+      const { snapshotId } = req.params;
 
-        const insights = await generateFeedInsights(req.userId!, snapshotId);
+      const insights = await generateFeedInsights(req.userId!, snapshotId);
 
-        res.json({
-            success: true,
-            data: { insights },
-        });
+      res.json({
+        success: true,
+        data: { insights },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Get insights for a specific video
 analysisRouter.get(
-    '/insights/video/:videoId',
-    authenticate,
-    userAnalysisRateLimiter,
-    ...validateRequest([
-        param('videoId')
-            .trim()
-            .notEmpty()
-            .withMessage('videoId is required'),
-    ]),
-    async (req: AuthRequest, res, next) => {
+  "/insights/video/:videoId",
+  authenticate,
+  userAnalysisRateLimiter,
+  ...validateRequest([
+    param("videoId").trim().notEmpty().withMessage("videoId is required"),
+  ]),
+  async (req: AuthRequest, res, next) => {
     try {
-        const { videoId } = req.params;
+      const { videoId } = req.params;
 
-        // Get the video
-        const feedItem = await prisma.feedItem.findFirst({
-            where: {
-                videoId,
-                snapshot: { userId: req.userId },
-            },
-        });
+      // Get the video
+      const feedItem = await prisma.feedItem.findFirst({
+        where: {
+          videoId,
+          snapshot: { userId: req.userId },
+        },
+      });
 
-        if (!feedItem) {
-            return res.json({
-                success: true,
-                data: {
-                    insights: {
-                        videoId,
-                        reasons: [{ type: 'unknown', description: 'Video not found in your feeds', confidence: 0 }],
-                    },
+      if (!feedItem) {
+        return res.json({
+          success: true,
+          data: {
+            insights: {
+              videoId,
+              reasons: [
+                {
+                  type: "unknown",
+                  description: "Video not found in your feeds",
+                  confidence: 0,
                 },
-            });
-        }
-
-        const reasons = await generateVideoInsights(req.userId!, videoId, feedItem.creatorHandle);
-
-        res.json({
-            success: true,
-            data: {
-                insights: {
-                    videoId,
-                    creatorHandle: feedItem.creatorHandle,
-                    reasons,
-                },
+              ],
             },
+          },
         });
+      }
+
+      const reasons = await generateVideoInsights(
+        req.userId!,
+        videoId,
+        feedItem.creatorHandle,
+      );
+
+      res.json({
+        success: true,
+        data: {
+          insights: {
+            videoId,
+            creatorHandle: feedItem.creatorHandle,
+            reasons,
+          },
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Get global statistics
-analysisRouter.get('/stats', publicAnalysisRateLimiter, async (req, res, next) => {
+analysisRouter.get(
+  "/stats",
+  publicAnalysisRateLimiter,
+  async (req, res, next) => {
     try {
-        const [
+      const [
+        totalUsers,
+        totalSnapshots,
+        totalFeedItems,
+        totalCreators,
+        recentSnapshots,
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.feedSnapshot.count(),
+        prisma.feedItem.count(),
+        prisma.creator.count({ where: { verified: true } }),
+        prisma.feedSnapshot.count({
+          where: {
+            capturedAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            },
+          },
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          stats: {
             totalUsers,
             totalSnapshots,
             totalFeedItems,
             totalCreators,
             recentSnapshots,
-        ] = await Promise.all([
-            prisma.user.count(),
-            prisma.feedSnapshot.count(),
-            prisma.feedItem.count(),
-            prisma.creator.count({ where: { verified: true } }),
-            prisma.feedSnapshot.count({
-                where: {
-                    capturedAt: {
-                        gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-                    },
-                },
-            }),
-        ]);
-
-        res.json({
-            success: true,
-            data: {
-                stats: {
-                    totalUsers,
-                    totalSnapshots,
-                    totalFeedItems,
-                    totalCreators,
-                    recentSnapshots,
-                },
-            },
-        });
+          },
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Get top creators from all feeds
 analysisRouter.get(
-    '/top-creators',
-    publicAnalysisRateLimiter,
-    ...validateRequest([
-        query('limit')
-            .optional()
-            .isInt({ min: 1, max: 100 })
-            .withMessage('limit must be between 1 and 100'),
-    ]),
-    async (req, res, next) => {
+  "/top-creators",
+  publicAnalysisRateLimiter,
+  ...validateRequest([
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage("limit must be between 1 and 100"),
+  ]),
+  async (req, res, next) => {
     try {
-        const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
 
-        const topCreators = await prisma.feedItem.groupBy({
-            by: ['creatorHandle'],
-            where: {
-                creatorHandle: { not: null },
-            },
-            _count: { creatorHandle: true },
-            orderBy: { _count: { creatorHandle: 'desc' } },
-            take: limit,
-        });
+      const topCreators = await prisma.feedItem.groupBy({
+        by: ["creatorHandle"],
+        where: {
+          creatorHandle: { not: null },
+        },
+        _count: { creatorHandle: true },
+        orderBy: { _count: { creatorHandle: "desc" } },
+        take: limit,
+      });
 
-        res.json({
-            success: true,
-            data: {
-                creators: topCreators.map((c) => ({
-                    handle: c.creatorHandle,
-                    appearances: c._count.creatorHandle,
-                })),
-            },
-        });
+      res.json({
+        success: true,
+        data: {
+          creators: topCreators.map((c) => ({
+            handle: c.creatorHandle,
+            appearances: c._count.creatorHandle,
+          })),
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Get user's algorithm profile summary
-analysisRouter.get('/profile', authenticate, userAnalysisRateLimiter, async (req: AuthRequest, res, next) => {
+analysisRouter.get(
+  "/profile",
+  authenticate,
+  userAnalysisRateLimiter,
+  async (req: AuthRequest, res, next) => {
     try {
-        // Get all user's feed items
-        const feedItems = await prisma.feedItem.findMany({
-            where: {
-                snapshot: { userId: req.userId },
-            },
-            select: {
-                creatorHandle: true,
-                contentCategories: true,
-            },
-            take: 500,
-        });
+      // Get all user's feed items
+      const feedItems = await prisma.feedItem.findMany({
+        where: {
+          snapshot: { userId: req.userId },
+        },
+        select: {
+          creatorHandle: true,
+          contentCategories: true,
+        },
+        take: 500,
+      });
 
-        // Calculate category breakdown
-        const categoryCounts: Record<string, number> = Object.create(null);
-        const creatorCounts: Record<string, number> = {};
+      // Calculate category breakdown
+      const categoryCounts: Record<string, number> = Object.create(null);
+      const creatorCounts: Record<string, number> = {};
 
-        for (const item of feedItems) {
-            for (const cat of item.contentCategories) {
-                categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
-            }
-            if (item.creatorHandle) {
-                creatorCounts[item.creatorHandle] = (creatorCounts[item.creatorHandle] || 0) + 1;
-            }
+      for (const item of feedItems) {
+        for (const cat of item.contentCategories) {
+          categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
         }
+        if (item.creatorHandle) {
+          creatorCounts[item.creatorHandle] =
+            (creatorCounts[item.creatorHandle] || 0) + 1;
+        }
+      }
 
-        const total = feedItems.length || 1;
+      const total = feedItems.length || 1;
 
-        // Convert to percentages and sort
-        const categoryBreakdown = Object.entries(categoryCounts)
-            .map(([category, count]) => ({
-                category,
-                count,
-                percentage: Math.round((count / total) * 100),
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
+      // Convert to percentages and sort
+      const categoryBreakdown = Object.entries(categoryCounts)
+        .map(([category, count]) => ({
+          category,
+          count,
+          percentage: Math.round((count / total) * 100),
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
 
-        const topCreators = Object.entries(creatorCounts)
-            .map(([handle, count]) => ({ handle, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
+      const topCreators = Object.entries(creatorCounts)
+        .map(([handle, count]) => ({ handle, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
 
-        res.json({
-            success: true,
-            data: {
-                profile: {
-                    totalVideosAnalyzed: feedItems.length,
-                    categoryBreakdown,
-                    topCreators,
-                },
-            },
-        });
+      res.json({
+        success: true,
+        data: {
+          profile: {
+            totalVideosAnalyzed: feedItems.length,
+            categoryBreakdown,
+            topCreators,
+          },
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
 
 // Get trending categories from real feed data
-analysisRouter.get('/discover/categories', publicAnalysisRateLimiter, async (req, res, next) => {
+analysisRouter.get(
+  "/discover/categories",
+  publicAnalysisRateLimiter,
+  async (req, res, next) => {
     try {
-        const categories = await prisma.$queryRaw`
+      const categories = await prisma.$queryRaw`
             SELECT 
                 cat as category,
                 COUNT(DISTINCT (fs."platform", fi."videoId")) as item_count
@@ -884,108 +891,240 @@ analysisRouter.get('/discover/categories', publicAnalysisRateLimiter, async (req
             LIMIT 20;
         `;
 
-        res.json({
-            success: true,
-            data: {
-                categories: (categories as any[]).map(row => ({
-                    label: row.category,
-                    count: Number(row.item_count),
-                }))
-            }
-        });
+      res.json({
+        success: true,
+        data: {
+          categories: (categories as any[]).map((row) => ({
+            label: row.category,
+            count: Number(row.item_count),
+          })),
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
+
+const REGION_MAPPING: Record<string, string> = {
+  us: "United States",
+  uk: "United Kingdom",
+  ca: "Canada",
+  br: "Brazil",
+  de: "Germany",
+  in: "India",
+  jp: "Japan",
+  mx: "Mexico",
+};
 
 // Get global popular discover feed (Postgres fallback)
-analysisRouter.get('/discover/popular', publicAnalysisRateLimiter, async (req, res, next) => {
+analysisRouter.get(
+  "/discover/popular",
+  publicAnalysisRateLimiter,
+  async (req, res, next) => {
     try {
-        const targetPlatform = req.query.platform as string | undefined;
-        const targetCategory = req.query.category as string | undefined;
-        let topTrending: DiscoverTrendRow[];
+      const targetPlatform = req.query.platform as string | undefined;
+      const targetCategory = req.query.category as string | undefined;
+      const targetRegion = req.query.region as string | undefined;
+      let topTrending: DiscoverTrendRow[];
 
-        const hasPlatform = targetPlatform && targetPlatform !== 'All Platforms';
-        const hasCategory = targetCategory && targetCategory !== 'All';
+      const hasPlatform = targetPlatform && targetPlatform !== "All Platforms";
+      const hasCategory = targetCategory && targetCategory !== "All";
+      const hasRegion = targetRegion && targetRegion !== "Global";
 
-        if (hasPlatform && hasCategory) {
-            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
-                SELECT 
-                    fi."videoId" as id,
-                    MAX(fi."caption") as title,
-                    MAX(fi."creatorHandle") as creator,
-                    MAX(fs."platform") as platform,
-                    MAX(fs."capturedAt") as timestamp,
-                    COUNT(*) as appearances
-                FROM feed_items fi
-                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
-                  AND fs."platform" = ${targetPlatform}
-                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
-                GROUP BY fs."platform", fi."videoId"
-                ORDER BY appearances DESC, timestamp DESC
-                LIMIT ${DISCOVER_POPULAR_LIMIT};
-            `;
-        } else if (hasPlatform) {
-            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
-                SELECT 
-                    fi."videoId" as id,
-                    MAX(fi."caption") as title,
-                    MAX(fi."creatorHandle") as creator,
-                    MAX(fs."platform") as platform,
-                    MAX(fs."capturedAt") as timestamp,
-                    COUNT(*) as appearances
-                FROM feed_items fi
-                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
-                  AND fs."platform" = ${targetPlatform}
-                GROUP BY fs."platform", fi."videoId"
-                ORDER BY appearances DESC, timestamp DESC
-                LIMIT ${DISCOVER_POPULAR_LIMIT};
-            `;
-        } else if (hasCategory) {
-            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
-                SELECT 
-                    fi."videoId" as id,
-                    MAX(fi."caption") as title,
-                    MAX(fi."creatorHandle") as creator,
-                    MAX(fs."platform") as platform,
-                    MAX(fs."capturedAt") as timestamp,
-                    COUNT(*) as appearances
-                FROM feed_items fi
-                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
-                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
-                GROUP BY fs."platform", fi."videoId"
-                ORDER BY appearances DESC, timestamp DESC;
-            `;
-        } else {
-            topTrending = await prisma.$queryRaw<DiscoverTrendRow[]>`
-                SELECT 
-                    fi."videoId" as id,
-                    MAX(fi."caption") as title,
-                    MAX(fi."creatorHandle") as creator,
-                    MAX(fs."platform") as platform,
-                    MAX(fs."capturedAt") as timestamp,
-                    COUNT(*) as appearances
-                FROM feed_items fi
-                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
-                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
-                GROUP BY fs."platform", fi."videoId"
-                ORDER BY appearances DESC, timestamp DESC;
-            `;
-        }
-
-        res.json({
-            success: true,
-            data: {
-                feed: buildDiscoverFeed(topTrending, {
-                    allPlatforms: !hasPlatform,
-                    limit: DISCOVER_POPULAR_LIMIT,
-                }),
-            }
+      let snapshotIdFilter: string[] | null = null;
+      if (hasRegion) {
+        const mappedRegion = REGION_MAPPING[targetRegion.toLowerCase()] ?? targetRegion;
+        const recentSnapshots = await prisma.feedSnapshot.findMany({
+          where: {
+            capturedAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            },
+            ...(hasPlatform ? { platform: targetPlatform } : {}),
+          },
+          select: {
+            id: true,
+            sessionMetadata: true,
+          },
         });
+
+        const matchingIds: string[] = [];
+        for (const snap of recentSnapshots) {
+          if (snap.sessionMetadata) {
+            try {
+              const meta = smartDeserialize<any>(snap.sessionMetadata);
+              if (
+                meta &&
+                (meta.syntheticRegion === mappedRegion ||
+                  meta.region === mappedRegion)
+              ) {
+                matchingIds.push(snap.id);
+              }
+            } catch {
+              // Ignore malformed metadata
+            }
+          }
+        }
+        snapshotIdFilter = matchingIds;
+
+        // If filtering by region yielded 0 matching snapshots, return empty feed early
+        if (snapshotIdFilter.length === 0) {
+          return res.json({
+            success: true,
+            data: { feed: [] },
+          });
+        }
+      }
+
+      if (hasPlatform && hasCategory) {
+        topTrending = snapshotIdFilter
+          ? await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fs."platform" = ${targetPlatform}
+                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
+                  AND fs.id = ANY(${snapshotIdFilter})
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC
+                LIMIT ${DISCOVER_POPULAR_LIMIT};
+            `
+          : await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fs."platform" = ${targetPlatform}
+                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC
+                LIMIT ${DISCOVER_POPULAR_LIMIT};
+            `;
+      } else if (hasPlatform) {
+        topTrending = snapshotIdFilter
+          ? await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fs."platform" = ${targetPlatform}
+                  AND fs.id = ANY(${snapshotIdFilter})
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC
+                LIMIT ${DISCOVER_POPULAR_LIMIT};
+            `
+          : await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fs."platform" = ${targetPlatform}
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC
+                LIMIT ${DISCOVER_POPULAR_LIMIT};
+            `;
+      } else if (hasCategory) {
+        topTrending = snapshotIdFilter
+          ? await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
+                  AND fs.id = ANY(${snapshotIdFilter})
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC;
+            `
+          : await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fi."contentCategories" @> ARRAY[${targetCategory}]
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC;
+            `;
+      } else {
+        topTrending = snapshotIdFilter
+          ? await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                  AND fs.id = ANY(${snapshotIdFilter})
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC;
+            `
+          : await prisma.$queryRaw<DiscoverTrendRow[]>`
+                SELECT 
+                    fi."videoId" as id,
+                    MAX(fi."caption") as title,
+                    MAX(fi."creatorHandle") as creator,
+                    MAX(fs."platform") as platform,
+                    MAX(fs."capturedAt") as timestamp,
+                    COUNT(*) as appearances
+                FROM feed_items fi
+                JOIN feed_snapshots fs ON fi."snapshotId" = fs.id
+                WHERE fs."capturedAt" >= NOW() - INTERVAL '7 DAYS'
+                GROUP BY fs."platform", fi."videoId"
+                ORDER BY appearances DESC, timestamp DESC;
+            `;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          feed: buildDiscoverFeed(topTrending, {
+            allPlatforms: !hasPlatform,
+            limit: DISCOVER_POPULAR_LIMIT,
+          }),
+        },
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
-});
+  },
+);
